@@ -13,7 +13,9 @@
     <resource-bundle>messages.MyBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="org.jetbrains.plugins.template.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
-        <postStartupActivity implementation="org.jetbrains.plugins.template.startup.MyProjectActivity" />
+        <toolWindow
+            anchor="right"
+            factoryClass="org.jetbrains.plugins.template.toolWindow.LeakPilotToolWindowFactory" id="LeakLens" />
     </extensions>
+
 </idea-plugin>

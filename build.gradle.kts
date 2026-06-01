@@ -7,11 +7,15 @@ plugins {
 }
 
 dependencies {
+    // Shark - LeakCanary's heap analysis engine (pure JVM, no Android dependency)
+    implementation("com.squareup.leakcanary:shark:2.14")
+    implementation("com.squareup.leakcanary:shark-android:2.14")
+
     testImplementation("junit:junit:4.13.2")
 
-    // IntelliJ Platform Gradle Plugin Dependencies Extension - read more: https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-dependencies-extension.html
     intellijPlatform {
-        intellijIdea("2025.2.6.2")
+        androidStudio("2024.2.2.13")
         testFramework(TestFrameworkType.Platform)
+        bundledPlugin("org.jetbrains.android")
     }
 }

@@ -1,10 +1,10 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
-    <id>org.jetbrains.plugins.template</id>
-    <name>IntelliJ Platform Plugin Template</name>
-    <vendor>JetBrains</vendor>
+    <id>com.github.devvikassoni.leaklens</id>
+    <name>leak-lens</name>
+    <vendor>dev-vikas-soni</vendor>
     <description><![CDATA[
-        <p><b>IntelliJ Platform Plugin Template</b> is a repository that provides a pure template to make it easier to create a new plugin project.</p>
+        <p><b>leak-lens</b> is a repository that provides a pure template to make it easier to create a new plugin project.</p>
         <p>The main goal of this template is to speed up the setup phase of plugin development for both new and experienced developers by preconfiguring the project scaffold and CI, linking to the proper documentation pages, and keeping everything organized.</p>
     ]]></description>
 
@@ -15,7 +15,7 @@
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow
             anchor="right"
-            factoryClass="org.jetbrains.plugins.template.toolWindow.LeakPilotToolWindowFactory" id="LeakLens" />
+            factoryClass="com.github.devvikassoni.leaklens.toolWindow.LeakPilotToolWindowFactory" id="LeakLens" />
     </extensions>
 
 </idea-plugin>

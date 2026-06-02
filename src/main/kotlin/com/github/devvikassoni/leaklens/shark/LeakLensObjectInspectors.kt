@@ -28,17 +28,17 @@ object LeakLensObjectInspectors {
         override fun inspect(reporter: ObjectReporter) {
             reporter.whenInstanceOf("androidx.lifecycle.ViewModel") { instance ->
                 val fields = instance.readFields().toList()
-                for ((field, fieldRef) in fields) {
+                for (field in fields) {
+                    val fieldRef = field.value
                     if (fieldRef.isNonNullReference) {
                         val refClassName = fieldRef.asObject?.asInstance?.instanceClassName ?: ""
                         if (refClassName.contains("Activity") ||
                             refClassName.endsWith("Context") ||
                             refClassName.contains("View")) {
-                            reportLeaking(
+                            reporter.leakingReasons +=
                                 "ViewModel ${instance.instanceClassName} holds a reference to " +
                                 "$refClassName via field '${field.name}'. " +
                                 "ViewModels survive configuration changes and must never hold View/Activity/Context."
-                            )
                         }
                     }
                 }
@@ -56,15 +56,15 @@ object LeakLensObjectInspectors {
                 val className = instance.instanceClassName
                 val fields = instance.readFields().toList()
 
-                for ((field, fieldRef) in fields) {
+                for (field in fields) {
+                    val fieldRef = field.value
                     if ((field.name == "context" || field.name == "mContext") && fieldRef.isNonNullReference) {
                         val refClass = fieldRef.asObject?.asInstance?.instanceClassName ?: ""
                         if (refClass.contains("Activity") && !refClass.contains("Application")) {
                             // Check if this object is referenced by a static field
-                            reportLeaking(
+                            reporter.leakingReasons +=
                                 "Object $className holds Activity Context in field '${field.name}'. " +
                                 "If this is a singleton, use applicationContext instead."
-                            )
                         }
                     }
                 }
@@ -79,18 +79,16 @@ object LeakLensObjectInspectors {
         override fun inspect(reporter: ObjectReporter) {
             reporter.whenInstanceOf("kotlinx.coroutines.CoroutineScopeImpl") { instance ->
                 // If a CoroutineScope is retained after its owner is destroyed, flag it
-                reportLeaking(
+                reporter.leakingReasons +=
                     "A CoroutineScope (${instance.instanceClassName}) is retained in the heap. " +
                     "Ensure coroutine scopes are cancelled when their owner is destroyed " +
                     "(use lifecycleScope/viewModelScope or cancel manually)."
-                )
             }
 
             reporter.whenInstanceOf("kotlinx.coroutines.StandaloneCoroutine") { instance ->
-                reportLeaking(
+                reporter.leakingReasons +=
                     "A standalone coroutine is retained. If launched in GlobalScope with " +
                     "references to Activity/Fragment, it prevents garbage collection."
-                )
             }
         }
     }
@@ -103,14 +101,14 @@ object LeakLensObjectInspectors {
             reporter.whenInstanceOf("androidx.compose.runtime.RecomposeScopeImpl") { instance ->
                 // Compose recompose scopes should be cleaned up when the composition is disposed
                 val fields = instance.readFields().toList()
-                for ((field, fieldRef) in fields) {
+                for (field in fields) {
+                    val fieldRef = field.value
                     if (fieldRef.isNonNullReference) {
                         val refClass = fieldRef.asObject?.asInstance?.instanceClassName ?: ""
                         if (refClass.contains("Activity") || refClass.contains("Fragment")) {
-                            reportLeaking(
+                            reporter.leakingReasons +=
                                 "A Compose RecomposeScope holds a reference to $refClass. " +
                                 "This may indicate a composable capturing Activity/Fragment in a closure."
-                            )
                         }
                     }
                 }
@@ -125,14 +123,14 @@ object LeakLensObjectInspectors {
         override fun inspect(reporter: ObjectReporter) {
             reporter.whenInstanceOf("androidx.work.Worker") { instance ->
                 val fields = instance.readFields().toList()
-                for ((field, fieldRef) in fields) {
+                for (field in fields) {
+                    val fieldRef = field.value
                     if (fieldRef.isNonNullReference) {
                         val refClass = fieldRef.asObject?.asInstance?.instanceClassName ?: ""
                         if (refClass.contains("Activity")) {
-                            reportLeaking(
+                            reporter.leakingReasons +=
                                 "Worker ${instance.instanceClassName} holds Activity reference via '${field.name}'. " +
                                 "Workers outlive Activities. Use applicationContext or pass data via WorkManager Data."
-                            )
                         }
                     }
                 }
@@ -140,14 +138,14 @@ object LeakLensObjectInspectors {
 
             reporter.whenInstanceOf("androidx.work.CoroutineWorker") { instance ->
                 val fields = instance.readFields().toList()
-                for ((field, fieldRef) in fields) {
+                for (field in fields) {
+                    val fieldRef = field.value
                     if (fieldRef.isNonNullReference) {
                         val refClass = fieldRef.asObject?.asInstance?.instanceClassName ?: ""
                         if (refClass.contains("Activity")) {
-                            reportLeaking(
+                            reporter.leakingReasons +=
                                 "CoroutineWorker ${instance.instanceClassName} holds Activity reference. " +
                                 "Use applicationContext from the Worker's constructor."
-                            )
                         }
                     }
                 }
@@ -163,10 +161,9 @@ object LeakLensObjectInspectors {
             reporter.whenInstanceOf("androidx.navigation.NavBackStackEntry") { instance ->
                 // If a NavBackStackEntry is leaking, it usually means a Fragment
                 // reference is held across navigation
-                reportLeaking(
+                reporter.leakingReasons +=
                     "NavBackStackEntry is retained in the heap. This may indicate a navigation-related " +
                     "memory leak. Check for references held across navigation transitions."
-                )
             }
         }
     }

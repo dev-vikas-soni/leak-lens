@@ -113,7 +113,19 @@ class LeakAnalysisCoordinator(private val project: Project) {
     }
 
     private fun analyzeLocalFile(hprofFile: File, indicator: ProgressIndicator) {
-        indicator.text = "Running Shark heap analysis..."
+        val fileSize = hprofFile.length()
+        val fileSizeMb = fileSize / (1024 * 1024)
+        val maxMemory = Runtime.getRuntime().maxMemory()
+        
+        if (fileSize > maxMemory * 0.8) {
+            notify("Heap dump (${fileSizeMb}MB) is very large relative to IDE memory. Analysis might crash or be extremely slow.", NotificationType.WARNING)
+        }
+
+        if (fileSizeMb > 500) {
+            indicator.text = "Large heap dump detected (${fileSizeMb}MB). This may take a while..."
+        } else {
+            indicator.text = "Running Shark heap analysis..."
+        }
         indicator.fraction = 0.2
 
         val sharkService = SharkAnalysisService.getInstance(project)

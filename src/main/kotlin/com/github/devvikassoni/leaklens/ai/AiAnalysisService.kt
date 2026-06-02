@@ -6,6 +6,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 
 /**
@@ -128,7 +129,7 @@ class AiAnalysisService(private val project: Project) {
     }
 
     private fun callOpenAI(prompt: String, apiKey: String): String? {
-        val url = URL(OPENAI_URL)
+        val url = URI(OPENAI_URL).toURL()
         val connection = url.openConnection() as HttpURLConnection
 
         try {
@@ -166,7 +167,7 @@ class AiAnalysisService(private val project: Project) {
     }
 
     private fun callGemini(prompt: String, apiKey: String): String? {
-        val url = URL("$GEMINI_URL?key=$apiKey")
+        val url = URI("$GEMINI_URL?key=$apiKey").toURL()
         val connection = url.openConnection() as HttpURLConnection
 
         try {

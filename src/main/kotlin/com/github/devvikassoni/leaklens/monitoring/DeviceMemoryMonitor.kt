@@ -83,8 +83,7 @@ class DeviceMemoryMonitor(private val project: Project) {
     fun isActive(): Boolean = isMonitoring
 
     private fun queryMemoryInfo(deviceSerial: String?, packageName: String): MemorySnapshot? {
-        val command = buildList {
-            add("adb")
+        val command = mutableListOf("adb").apply {
             if (deviceSerial != null) { add("-s"); add(deviceSerial) }
             add("shell")
             add("dumpsys")

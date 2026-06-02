@@ -30,8 +30,7 @@ class LogcatHeapDumpListener(private val project: Project) {
 
         listenerThread = Thread({
             try {
-                val command = buildList {
-                    add("adb")
+                val command = mutableListOf("adb").apply {
                     if (deviceSerial != null) {
                         add("-s")
                         add(deviceSerial)
@@ -49,7 +48,7 @@ class LogcatHeapDumpListener(private val project: Project) {
                     .start()
 
                 val reader = BufferedReader(InputStreamReader(logcatProcess!!.inputStream))
-                var line: String?
+                var line: String? = null
 
                 while (isListening.get() && reader.readLine().also { line = it } != null) {
                     line?.let { processLogcatLine(it, deviceSerial) }

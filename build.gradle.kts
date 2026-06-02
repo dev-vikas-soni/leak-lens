@@ -19,3 +19,12 @@ dependencies {
         bundledPlugin("org.jetbrains.android")
     }
 }
+
+intellijPlatform {
+    pluginVerification {
+        ides {
+            // By default it might use the IDE defined in dependencies
+            // or you can specify versions here if needed
+        }
+    }
+}

@@ -6,24 +6,29 @@ import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.intellij.openapi.project.Project
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.treeStructure.Tree
+import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import java.awt.FlowLayout
 import javax.swing.*
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 
 /**
  * Left panel showing leak tree grouped by severity.
+ * 
+ * Updated with UI DSL 2 for better alignment.
  */
 class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
 
     private val rootNode = DefaultMutableTreeNode("Leaks")
     private val treeModel = DefaultTreeModel(rootNode)
     private val tree = Tree(treeModel)
-    private val statusLabel = JLabel("Waiting for heap dump...")
-    private val countLabel = JLabel("")
+    private val statusLabel = JBLabel("Waiting for heap dump...")
+    private val countLabel = JBLabel("")
 
     var onLeakSelected: ((LeakInfo) -> Unit)? = null
 
@@ -80,32 +85,27 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
         countLabel.text = "Retained: ${formatBytes(totalRetained)}"
     }
 
-    private fun createToolbar(): JPanel {
-        val toolbar = JPanel(FlowLayout(FlowLayout.LEFT, 4, 2))
-
-        val clearButton = JButton("Clear").apply {
-            toolTipText = "Clear all leaks"
-            addActionListener {
+    private fun createToolbar() = panel {
+        row {
+            label("LeakLens").bold()
+            link("Clear all") {
                 LeakLensProjectService.getInstance(project).clearLeaks()
                 updateLeaks(emptyList())
-                onLeakSelected?.invoke(LeakInfo("", "", "", "", 0, 0, LeakSeverity.WARNING, emptyList())) // trigger empty state
-            }
+                onLeakSelected?.invoke(LeakInfo("", "", "", "", 0, 0, LeakSeverity.WARNING, emptyList()))
+            }.align(AlignX.RIGHT)
         }
-
-        val refreshLabel = JLabel("LeakLens")
-        refreshLabel.font = refreshLabel.font.deriveFont(java.awt.Font.BOLD)
-
-        toolbar.add(refreshLabel)
-        toolbar.add(Box.createHorizontalGlue())
-        toolbar.add(clearButton)
-        return toolbar
+    }.apply {
+        border = JBUI.Borders.empty(4, 8)
     }
 
-    private fun createStatusBar(): JPanel {
-        val panel = JPanel(BorderLayout())
-        panel.add(statusLabel, BorderLayout.WEST)
-        panel.add(countLabel, BorderLayout.EAST)
-        return panel
+    private fun createStatusBar() = panel {
+        separator()
+        row {
+            cell(statusLabel)
+            cell(countLabel).align(AlignX.RIGHT)
+        }
+    }.apply {
+        border = JBUI.Borders.empty(2, 8)
     }
 
     private fun formatBytes(bytes: Long): String {

@@ -18,8 +18,7 @@ class AdbHeapDumpService(private val project: Project) {
             val tempFile = File.createTempFile("leaklens_heap_", ".hprof")
             tempFile.deleteOnExit()
 
-            val adbCommand = buildList {
-                add("adb")
+            val adbCommand = mutableListOf("adb").apply {
                 if (deviceSerial != null) {
                     add("-s")
                     add(deviceSerial)
@@ -59,8 +58,7 @@ class AdbHeapDumpService(private val project: Project) {
         return try {
             val remotePath = "/data/local/tmp/leaklens_${System.currentTimeMillis()}.hprof"
 
-            val adbCommand = buildList {
-                add("adb")
+            val adbCommand = mutableListOf("adb").apply {
                 if (deviceSerial != null) {
                     add("-s")
                     add(deviceSerial)
@@ -119,8 +117,7 @@ class AdbHeapDumpService(private val project: Project) {
      */
     fun deleteRemoteFile(deviceSerial: String?, remotePath: String) {
         try {
-            val command = buildList {
-                add("adb")
+            val command = mutableListOf("adb").apply {
                 if (deviceSerial != null) {
                     add("-s")
                     add(deviceSerial)
@@ -141,8 +138,7 @@ class AdbHeapDumpService(private val project: Project) {
      */
     fun listDebuggableProcesses(deviceSerial: String?): List<String> {
         return try {
-            val command = buildList {
-                add("adb")
+            val command = mutableListOf("adb").apply {
                 if (deviceSerial != null) {
                     add("-s")
                     add(deviceSerial)
@@ -172,8 +168,7 @@ class AdbHeapDumpService(private val project: Project) {
 
     private fun resolveProcessName(deviceSerial: String?, pid: String): String? {
         return try {
-            val command = buildList {
-                add("adb")
+            val command = mutableListOf("adb").apply {
                 if (deviceSerial != null) {
                     add("-s")
                     add(deviceSerial)

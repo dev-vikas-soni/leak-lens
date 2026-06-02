@@ -5,7 +5,11 @@ import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.model.LeakTraceReference
 import com.github.devvikassoni.leaklens.services.SourceNavigationService
 import com.intellij.openapi.project.Project
+import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
+import com.intellij.ui.dsl.builder.AlignX
+import com.intellij.ui.dsl.builder.panel
+import com.intellij.util.ui.JBUI
 import java.awt.*
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -32,25 +36,26 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         wrapStyleWord = true
     }
 
-    private val headerPanel = JPanel(BorderLayout())
-    private val severityLabel = JLabel()
-    private val classLabel = JLabel()
-    private val sizeLabel = JLabel()
-
     private var currentReferences: List<LeakTraceReference> = emptyList()
+    
+    private val severityLabel = JBLabel().apply { font = font.deriveFont(Font.BOLD, 14f) }
+    private val classLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 12f) }
+    private val sizeLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 11f) }
 
     init {
-        // Header
-        headerPanel.border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
-        val infoPanel = JPanel().apply {
-            layout = BoxLayout(this, BoxLayout.Y_AXIS)
-            add(severityLabel)
-            add(Box.createVerticalStrut(4))
-            add(classLabel)
-            add(Box.createVerticalStrut(2))
-            add(sizeLabel)
+        border = JBUI.Borders.empty(8)
+        
+        val header = panel {
+            row {
+                cell(severityLabel)
+            }
+            row {
+                cell(classLabel).align(AlignX.FILL)
+            }
+            row {
+                cell(sizeLabel).align(AlignX.FILL)
+            }
         }
-        headerPanel.add(infoPanel, BorderLayout.CENTER)
 
         // Trace pane with clickable links
         tracePane.addMouseListener(object : MouseAdapter() {
@@ -70,7 +75,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             resizeWeight = 0.7
         }
 
-        add(headerPanel, BorderLayout.NORTH)
+        add(header, BorderLayout.NORTH)
         add(splitPane, BorderLayout.CENTER)
         showEmptyState()
     }
@@ -85,10 +90,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             LeakSeverity.LIBRARY_LEAK -> "🟢"
         }
         severityLabel.text = "$severityEmoji ${leak.severity.displayName}"
-        severityLabel.font = severityLabel.font.deriveFont(Font.BOLD, 14f)
-
         classLabel.text = "Class: ${leak.retainedObjectClassName}"
-        classLabel.font = classLabel.font.deriveFont(Font.PLAIN, 12f)
 
         val sizeStr = if (leak.retainedByteSize >= 1024 * 1024) {
             "${leak.retainedByteSize / (1024 * 1024)} MB"

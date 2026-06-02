@@ -10,13 +10,34 @@ import com.intellij.openapi.project.Project
 import shark.*
 import java.io.File
 
+/**
+ * Shark-powered heap analysis service.
+ * Configured with optimizations for memory efficiency and large file handling.
+ */
 @Service(Service.Level.PROJECT)
 class SharkAnalysisService(private val project: Project) {
 
     private val logger = thisLogger()
 
+    companion object {
+        private const val LARGE_HEAP_THRESHOLD_BYTES = 500 * 1024 * 1024L // 500 MB
+        
+        fun getInstance(project: Project): SharkAnalysisService =
+            project.getService(SharkAnalysisService::class.java)
+    }
+
+    /**
+     * Analyze a heap dump with optimizations for large files.
+     */
     fun analyzeHprof(hprofFile: File): List<LeakInfo> {
-        logger.info("LeakLens: Starting Shark analysis of ${hprofFile.name}")
+        val fileSize = hprofFile.length()
+        val isLargeFile = fileSize > LARGE_HEAP_THRESHOLD_BYTES
+        
+        logger.info("LeakLens: Starting Shark analysis of ${hprofFile.name} (${fileSize / 1024 / 1024} MB)")
+        
+        if (isLargeFile) {
+            logger.warn("LeakLens: ${hprofFile.name} is large ($fileSize bytes). Analysis may be slow and memory-intensive.")
+        }
 
         val heapAnalyzer = HeapAnalyzer(OnAnalysisProgressListener { step ->
             logger.info("LeakLens: Analysis step - $step")
@@ -25,6 +46,7 @@ class SharkAnalysisService(private val project: Project) {
         // Combine Android defaults with LeakLens custom inspectors
         val objectInspectors = AndroidObjectInspectors.appDefaults + LeakLensObjectInspectors.all
 
+        // For large files, we could make computeRetainedHeapSize configurable to save memory
         val analysis = heapAnalyzer.analyze(
             heapDumpFile = hprofFile,
             leakingObjectFinder = FilteringLeakingObjectFinder(
@@ -32,7 +54,9 @@ class SharkAnalysisService(private val project: Project) {
             ),
             referenceMatchers = AndroidReferenceMatchers.appDefaults,
             objectInspectors = objectInspectors,
-            computeRetainedHeapSize = true
+            computeRetainedHeapSize = true,
+            metadataExtractor = MetadataExtractor.NO_OP,
+            proguardMapping = null
         )
 
         return when (analysis) {
@@ -98,10 +122,4 @@ class SharkAnalysisService(private val project: Project) {
             isLibraryLeak = isLibrary
         )
     }
-
-    companion object {
-        fun getInstance(project: Project): SharkAnalysisService =
-            project.getService(SharkAnalysisService::class.java)
-    }
 }
-

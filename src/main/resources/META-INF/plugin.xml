@@ -2,20 +2,40 @@
 <idea-plugin>
     <id>com.github.devvikassoni.leaklens</id>
     <name>LeakLens</name>
-    <vendor email="devvikassoni@gmail.com" url="https://github.com/dev-vikas-soni">dev-vikas-soni</vendor>
+    <vendor email="vikasacsoni9211@gmail.com" url="https://github.com/dev-vikas-soni">Vikas Soni</vendor>
+
     <description><![CDATA[
-        <p><b>LeakLens</b> - Android Memory Leak Detection & Fix Suggestions directly in your IDE.</p>
-        <p>Integrates LeakCanary's Shark heap analysis engine into Android Studio, providing real-time leak detection,
-        root-cause explanations, and one-click fix suggestions without leaving the IDE.</p>
-        <h3>Features</h3>
+        <p><b>LeakLens</b> — Professional Android Memory Leak Detection & Fix Assistant directly in your IDE.</p>
+
+        <p>LeakLens integrates LeakCanary's Shark heap analysis engine into Android Studio, providing a seamless workflow to detect,
+        understand, and fix memory leaks without context switching.</p>
+
+        <h3>Key Features</h3>
         <ul>
-            <li>Automatic heap dump capture from connected devices/emulators</li>
-            <li>Shark-powered heap analysis with detailed leak traces</li>
-            <li>Source code navigation from leak traces</li>
-            <li>Fix suggestions based on common leak patterns</li>
-            <li>Preventive inspections for leak-prone code patterns</li>
+            <li><b>🔍 Runtime Analysis:</b> Capture heap dumps from connected devices or import .hprof files for deep Shark-powered analysis.</li>
+            <li><b>🛡️ Preventive Inspections:</b> Catch leaks <i>while you write code</i> with 6 specialized UAST inspections for Java and Kotlin.</li>
+            <li><b>💡 Smart Fix Engine:</b> Get actionable fix suggestions for 11 common Android leak patterns, including code snippets.</li>
+            <li><b>🤖 AI-Assisted Fixes:</b> (Optional) Use OpenAI or Google Gemini to analyze complex or novel leak traces.</li>
+            <li><b>📊 Memory Monitor:</b> Real-time device memory graph with automatic heap dump triggers when thresholds are exceeded.</li>
+            <li><b>🎯 One-Click Navigation:</b> Jump directly from a leak trace to the problematic line in your source code.</li>
+            <li><b>📋 Team Collaboration:</b> VCS-tracked baselines to suppress known leaks and CI-ready reporting (HTML, JSON, SARIF).</li>
         </ul>
+
+        <p>Built for modern Android development, LeakLens supports both Java and Kotlin seamlessly.</p>
     ]]></description>
+
+    <change-notes><![CDATA[
+        <h4>0.1.0</h4>
+        <ul>
+            <li>Initial public release of LeakLens.</li>
+            <li>Full Shark 2.14 integration for heap analysis.</li>
+            <li>Preventive static analysis for Java and Kotlin using UAST.</li>
+            <li>Real-time device memory monitoring and auto-capture.</li>
+            <li>Fix suggestion engine covering 11 core Android leak patterns.</li>
+            <li>Optional AI-powered analysis via OpenAI and Google Gemini.</li>
+            <li>Support for leak baselines and SARIF reporting.</li>
+        </ul>
+    ]]></change-notes>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
@@ -30,28 +50,17 @@
             icon="AllIcons.Toolwindows.ToolWindowProblemsEmpty"
             factoryClass="com.github.devvikassoni.leaklens.toolWindow.LeakLensToolWindowFactory"/>
 
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.services.LeakLensProjectService"/>
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.services.AdbHeapDumpService"/>
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.services.SharkAnalysisService"/>
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.services.LogcatHeapDumpListener"/>
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.services.LeakAnalysisCoordinator"/>
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.services.SourceNavigationService"/>
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.settings.LeakLensSettingsState"/>
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.ai.AiAnalysisService"/>
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.monitoring.DeviceMemoryMonitor"/>
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.baseline.LeakBaselineManager"/>
-        <projectService
-            serviceImplementation="com.github.devvikassoni.leaklens.deobfuscation.DeobfuscationService"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.LeakLensProjectService"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.AdbHeapDumpService"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.SharkAnalysisService"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.LogcatHeapDumpListener"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.LeakAnalysisCoordinator"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.SourceNavigationService"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.settings.LeakLensSettingsState"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.ai.AiAnalysisService"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.monitoring.DeviceMemoryMonitor"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.baseline.LeakBaselineManager"/>
+        <projectService serviceImplementation="com.github.devvikassoni.leaklens.deobfuscation.DeobfuscationService"/>
 
         <projectConfigurable
             instance="com.github.devvikassoni.leaklens.settings.LeakLensConfigurable"
@@ -59,20 +68,13 @@
             displayName="LeakLens"
             parentId="tools"/>
 
-        <codeInsight.lineMarkerProvider
-            language="JAVA"
-            implementationClass="com.github.devvikassoni.leaklens.gutter.LeakGutterLineMarkerProvider"/>
-        <codeInsight.lineMarkerProvider
-            language="kotlin"
-            implementationClass="com.github.devvikassoni.leaklens.gutter.LeakGutterLineMarkerProvider"/>
+        <codeInsight.lineMarkerProvider language="JAVA" implementationClass="com.github.devvikassoni.leaklens.gutter.LeakGutterLineMarkerProvider"/>
+        <codeInsight.lineMarkerProvider language="kotlin" implementationClass="com.github.devvikassoni.leaklens.gutter.LeakGutterLineMarkerProvider"/>
 
-        <notificationGroup
-            id="LeakLens Notifications"
-            displayType="BALLOON"/>
+        <notificationGroup id="LeakLens Notifications" displayType="BALLOON"/>
+        <postStartupActivity implementation="com.github.devvikassoni.leaklens.startup.LeakLensStartupActivity"/>
 
-        <postStartupActivity
-            implementation="com.github.devvikassoni.leaklens.startup.LeakLensStartupActivity"/>
-
+        <!-- Intentions -->
         <intentionAction>
             <language>JAVA</language>
             <className>com.github.devvikassoni.leaklens.fix.AddRemoveCallbacksFixAction</className>
@@ -89,91 +91,43 @@
             <category>LeakLens</category>
         </intentionAction>
 
-        <!-- Phase 5: Static Analysis Inspections -->
-        <localInspection
-            language="JAVA"
-            groupName="LeakLens"
-            shortName="LeakLensStaticActivityReference"
-            displayName="Activity/Fragment stored in static field"
-            enabledByDefault="true"
-            level="WARNING"
+        <!-- Static Analysis Inspections (UAST) -->
+        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensStaticActivityReference"
+            displayName="Activity/Fragment stored in static field" enabledByDefault="true" level="WARNING"
             implementationClass="com.github.devvikassoni.leaklens.inspections.StaticActivityReferenceInspection"/>
-        <localInspection
-            language="JAVA"
-            groupName="LeakLens"
-            shortName="LeakLensAnonymousInnerClassLeak"
-            displayName="Anonymous inner class may leak outer Activity/Fragment"
-            enabledByDefault="true"
-            level="WARNING"
+        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensAnonymousInnerClassLeak"
+            displayName="Anonymous inner class may leak outer Activity/Fragment" enabledByDefault="true" level="WARNING"
             implementationClass="com.github.devvikassoni.leaklens.inspections.AnonymousInnerClassLeakInspection"/>
-        <localInspection
-            language="JAVA"
-            groupName="LeakLens"
-            shortName="LeakLensContextPassedToSingleton"
-            displayName="Activity Context passed to Singleton"
-            enabledByDefault="true"
-            level="WARNING"
+        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensContextPassedToSingleton"
+            displayName="Activity Context passed to Singleton" enabledByDefault="true" level="WARNING"
             implementationClass="com.github.devvikassoni.leaklens.inspections.ContextPassedToSingletonInspection"/>
-        <localInspection
-            language="JAVA"
-            groupName="LeakLens"
-            shortName="LeakLensMissingRemoveCallbacks"
-            displayName="Missing removeCallbacksAndMessages in onDestroy"
-            enabledByDefault="true"
-            level="WARNING"
+        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensMissingRemoveCallbacks"
+            displayName="Missing removeCallbacksAndMessages in onDestroy" enabledByDefault="true" level="WARNING"
             implementationClass="com.github.devvikassoni.leaklens.inspections.MissingRemoveCallbacksInspection"/>
-        <localInspection
-            language="JAVA"
-            groupName="LeakLens"
-            shortName="LeakLensGlobalScopeWithContext"
-            displayName="GlobalScope coroutine may leak Activity/Context"
-            enabledByDefault="true"
-            level="WARNING"
+        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensGlobalScopeWithContext"
+            displayName="GlobalScope coroutine may leak Activity/Context" enabledByDefault="true" level="WARNING"
             implementationClass="com.github.devvikassoni.leaklens.inspections.GlobalScopeWithContextInspection"/>
-        <localInspection
-            language="JAVA"
-            groupName="LeakLens"
-            shortName="LeakLensViewReferenceHeld"
-            displayName="View reference held beyond lifecycle in Fragment"
-            enabledByDefault="true"
-            level="WARNING"
+        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensViewReferenceHeld"
+            displayName="View reference held beyond lifecycle in Fragment" enabledByDefault="true" level="WARNING"
             implementationClass="com.github.devvikassoni.leaklens.inspections.ViewReferenceHeldInspection"/>
     </extensions>
 
     <actions>
         <group id="LeakLens.ActionGroup" text="LeakLens" description="LeakLens Actions">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
-            <action
-                id="LeakLens.DumpHeap"
-                class="com.github.devvikassoni.leaklens.actions.DumpHeapAction"
-                text="Dump Heap Now"
-                description="Capture a heap dump from the connected device and analyze it"/>
-            <action
-                id="LeakLens.ImportHprof"
-                class="com.github.devvikassoni.leaklens.actions.ImportHprofAction"
-                text="Import .hprof File"
-                description="Import and analyze a local .hprof heap dump file"/>
-            <action
-                id="LeakLens.ToggleAutoDetect"
-                class="com.github.devvikassoni.leaklens.actions.ToggleAutoDetectAction"
-                text="Start Auto-Detect"
-                description="Toggle automatic detection of LeakCanary heap dumps via logcat"/>
+            <action id="LeakLens.DumpHeap" class="com.github.devvikassoni.leaklens.actions.DumpHeapAction"
+                text="Dump Heap Now" description="Capture a heap dump from the connected device and analyze it"/>
+            <action id="LeakLens.ImportHprof" class="com.github.devvikassoni.leaklens.actions.ImportHprofAction"
+                text="Import .hprof File" description="Import and analyze a local .hprof heap dump file"/>
+            <action id="LeakLens.ToggleAutoDetect" class="com.github.devvikassoni.leaklens.actions.ToggleAutoDetectAction"
+                text="Start Auto-Detect" description="Toggle automatic detection of LeakCanary heap dumps via logcat"/>
             <separator/>
-            <action
-                id="LeakLens.MonitorMemory"
-                class="com.github.devvikassoni.leaklens.actions.MonitorMemoryAction"
-                text="Start Memory Monitor"
-                description="Start/stop real-time device memory monitoring"/>
-            <action
-                id="LeakLens.ExportReport"
-                class="com.github.devvikassoni.leaklens.actions.ExportReportAction"
-                text="Export Report"
-                description="Export leak analysis as HTML/JSON/SARIF report"/>
-            <action
-                id="LeakLens.SaveBaseline"
-                class="com.github.devvikassoni.leaklens.actions.SaveBaselineAction"
-                text="Save as Baseline"
-                description="Save current leaks as baseline (suppress in future analyses)"/>
+            <action id="LeakLens.MonitorMemory" class="com.github.devvikassoni.leaklens.actions.MonitorMemoryAction"
+                text="Start Memory Monitor" description="Start/stop real-time device memory monitoring"/>
+            <action id="LeakLens.ExportReport" class="com.github.devvikassoni.leaklens.actions.ExportReportAction"
+                text="Export Report" description="Export leak analysis as HTML/JSON/SARIF report"/>
+            <action id="LeakLens.SaveBaseline" class="com.github.devvikassoni.leaklens.actions.SaveBaselineAction"
+                text="Save as Baseline" description="Save current leaks as baseline (suppress in future analyses)"/>
         </group>
     </actions>
 </idea-plugin>

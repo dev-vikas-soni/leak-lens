@@ -40,7 +40,8 @@ class FixSuggestionEngine {
         return leaks.map { leak ->
             val fix = suggest(leak)
             if (fix != null) {
-                leak.copy(suggestedFix = "${fix.explanation}\n\n${fix.codeSnippet ?: ""}")
+                val header = "Fix Suggestion: ${fix.ruleName}\n------------------------------\n"
+                leak.copy(suggestedFix = header + fix.explanation + "\n\n" + (fix.codeSnippet ?: ""))
             } else {
                 leak
             }

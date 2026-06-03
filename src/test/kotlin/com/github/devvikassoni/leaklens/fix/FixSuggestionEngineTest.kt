@@ -135,6 +135,7 @@ class FixSuggestionEngineTest {
         val enriched = engine.enrichWithFixes(listOf(leak))
         assertNotNull(enriched[0].suggestedFix)
         assertTrue(enriched[0].suggestedFix?.contains("Static Field Holding Activity/Fragment") == true)
+        assertTrue(enriched[0].suggestedFix?.startsWith("Fix Suggestion:") == true)
     }
 
     private fun createLeak(

@@ -30,6 +30,11 @@ class SharkAnalysisService(private val project: Project) {
      * Analyze a heap dump with optimizations for large files.
      */
     fun analyzeHprof(hprofFile: File): List<LeakInfo> {
+        if (!hprofFile.exists()) {
+            logger.warn("LeakLens: Cannot analyze non-existent file: ${hprofFile.absolutePath}")
+            return emptyList()
+        }
+
         val fileSize = hprofFile.length()
         val isLargeFile = fileSize > LARGE_HEAP_THRESHOLD_BYTES
         
@@ -68,6 +73,7 @@ class SharkAnalysisService(private val project: Project) {
                 logger.error("LeakLens: Analysis failed", analysis.exception)
                 emptyList()
             }
+            else -> emptyList()
         }
     }
 

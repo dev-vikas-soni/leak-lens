@@ -11,6 +11,8 @@ dependencies {
     implementation("com.squareup.leakcanary:shark:2.14")
     implementation("com.squareup.leakcanary:shark-android:2.14")
 
+    implementation("org.jetbrains.kotlin:kotlin-reflect:2.0.21")
+
     testImplementation("junit:junit:4.13.2")
 
     intellijPlatform {

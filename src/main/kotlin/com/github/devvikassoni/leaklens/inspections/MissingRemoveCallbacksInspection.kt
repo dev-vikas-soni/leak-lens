@@ -58,11 +58,17 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
     }
 
     private fun isActivityOrFragment(uClass: UClass): Boolean {
+        // Check resolved superclass chain
         var current = uClass.javaPsi.superClass
         while (current != null) {
             val name = current.qualifiedName ?: ""
             if (name.contains("Activity") || name.contains("Fragment")) return true
             current = current.superClass
+        }
+        // Fallback: check unresolved super type reference texts (handles mock/stub classes)
+        uClass.javaPsi.extendsList?.referenceElements?.forEach { ref ->
+            val refText = ref.qualifiedName ?: ref.referenceName ?: ""
+            if (refText.contains("Activity") || refText.contains("Fragment")) return true
         }
         return false
     }

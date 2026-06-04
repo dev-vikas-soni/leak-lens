@@ -25,25 +25,34 @@ class MonitorMemoryAction : AnAction() {
         }
 
         val adbService = AdbHeapDumpService.getInstance(project)
-        val devices = adbService.listDevices()
-        if (devices.isEmpty()) {
-            notify(project, "No connected devices found.", NotificationType.WARNING)
-            return
-        }
+        
+        com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+            val devices = adbService.listDevices()
+            com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                if (devices.isEmpty()) {
+                    notify(project, "No connected devices found.", NotificationType.WARNING)
+                    return@invokeLater
+                }
 
-        val device = devices.first()
-        val processes = adbService.listDebuggableProcesses(device)
-        if (processes.isEmpty()) {
-            notify(project, "No debuggable processes found.", NotificationType.WARNING)
-            return
-        }
+                val device = devices.first()
+                com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+                    val processes = adbService.listDebuggableProcesses(device)
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                        if (processes.isEmpty()) {
+                            notify(project, "No debuggable processes found.", NotificationType.WARNING)
+                            return@invokeLater
+                        }
 
-        val packageName = if (processes.size == 1) processes.first() else {
-            Messages.showEditableChooseDialog("Select process:", "LeakLens Monitor", Messages.getQuestionIcon(), processes.toTypedArray(), processes.first(), null) ?: return
-        }
+                        val packageName = if (processes.size == 1) processes.first() else {
+                            Messages.showEditableChooseDialog("Select process:", "LeakLens Monitor", Messages.getQuestionIcon(), processes.toTypedArray(), processes.first(), null) ?: return@invokeLater
+                        }
 
-        monitor.startMonitoring(device, packageName)
-        notify(project, "Monitoring $packageName memory...", NotificationType.INFORMATION)
+                        monitor.startMonitoring(device, packageName)
+                        notify(project, "Monitoring $packageName memory...", NotificationType.INFORMATION)
+                    }
+                }
+            }
+        }
     }
 
     override fun update(e: AnActionEvent) {

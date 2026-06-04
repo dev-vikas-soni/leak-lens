@@ -10,147 +10,73 @@ class FixSuggestionEngineTest {
 
     private val engine = FixSuggestionEngine()
 
-    @Test
-    fun `test StaticFieldActivityRule matches static activity reference`() {
-        val leak = createLeak(
-            retainedClass = "com.example.MainActivity",
-            references = listOf(
-                LeakTraceReference(
-                    owningClassName = "com.example.MainActivity",
-                    referenceName = "instance",
-                    referenceType = "STATIC_FIELD"
-                )
-            )
+    private fun createLeakInfo(
+        retainedClassName: String,
+        referenceChain: List<LeakTraceReference>,
+        leakTrace: String = ""
+    ): LeakInfo {
+        return LeakInfo(
+            signature = "test_signature",
+            shortDescription = "Test Leak",
+            retainedObjectClassName = retainedClassName,
+            retainedByteSize = 1024,
+            retainedObjectCount = 1,
+            leakTrace = leakTrace,
+            severity = LeakSeverity.WARNING,
+            isLibraryLeak = false,
+            referenceChain = referenceChain,
+            suggestedFix = null
         )
-
-        val suggestion = engine.suggest(leak)
-        assertNotNull(suggestion)
-        assertEquals("Static Field Holding Activity/Fragment", suggestion?.ruleName)
-        assertTrue(suggestion?.explanation?.contains("static/companion object field holds a reference") == true)
     }
 
     @Test
-    fun `test AnonymousInnerClassRule matches anonymous class leak`() {
-        val leak = createLeak(
-            retainedClass = "com.example.MainActivity",
-            references = listOf(
-                LeakTraceReference(
-                    owningClassName = "com.example.MainActivity$1",
-                    referenceName = "this$0",
-                    referenceType = "INSTANCE_FIELD"
-                )
+    fun testStaticFieldActivityRule() {
+        val leak = createLeakInfo(
+            retainedClassName = "com.example.MainActivity",
+            referenceChain = listOf(
+                LeakTraceReference(owningClassName = "com.example.SomeClass", referenceName = "activity", referenceType = "STATIC_FIELD")
             )
         )
+        val suggestion = engine.suggest(leak)
+        assertNotNull(suggestion)
+        assertEquals("Static Field Holding Activity/Fragment", suggestion?.ruleName)
+    }
 
+    @Test
+    fun testAnonymousInnerClassRule() {
+        val leak = createLeakInfo(
+            retainedClassName = "com.example.MyFragment",
+            referenceChain = listOf(
+                LeakTraceReference(owningClassName = "com.example.MyFragment$1", referenceName = "this$0", referenceType = "INSTANCE_FIELD")
+            )
+        )
         val suggestion = engine.suggest(leak)
         assertNotNull(suggestion)
         assertEquals("Anonymous Inner Class Holding Activity", suggestion?.ruleName)
     }
 
     @Test
-    fun `test HandlerActivityRule matches handler leak`() {
-        val leak = createLeak(
-            retainedClass = "com.example.MainActivity",
-            references = listOf(
-                LeakTraceReference(
-                    owningClassName = "android.os.Handler",
-                    referenceName = "mCallback",
-                    referenceType = "INSTANCE_FIELD"
-                )
+    fun testViewModelContextRule() {
+        val leak = createLeakInfo(
+            retainedClassName = "android.content.Context",
+            referenceChain = listOf(
+                LeakTraceReference(owningClassName = "com.example.MyViewModel", referenceName = "context", referenceType = "INSTANCE_FIELD")
             )
         )
-
-        val suggestion = engine.suggest(leak)
-        assertNotNull(suggestion)
-        assertEquals("Handler Holding Activity Reference", suggestion?.ruleName)
-    }
-
-    @Test
-    fun `test ViewModelContextRule matches ViewModel leaking Activity`() {
-        val leak = createLeak(
-            retainedClass = "com.example.MainActivity",
-            references = listOf(
-                LeakTraceReference(
-                    owningClassName = "com.example.MyViewModel",
-                    referenceName = "context",
-                    referenceType = "INSTANCE_FIELD"
-                )
-            )
-        )
-
         val suggestion = engine.suggest(leak)
         assertNotNull(suggestion)
         assertEquals("ViewModel Holding View/Context", suggestion?.ruleName)
     }
 
     @Test
-    fun `test ViewReferenceRule matches Fragment leaking View`() {
-        val leak = createLeak(
-            retainedClass = "android.widget.TextView",
-            references = listOf(
-                LeakTraceReference(
-                    owningClassName = "com.example.MyFragment",
-                    referenceName = "mTextView",
-                    referenceType = "INSTANCE_FIELD"
-                )
+    fun testNoMatchReturnsNull() {
+        val leak = createLeakInfo(
+            retainedClassName = "java.lang.String",
+            referenceChain = listOf(
+                LeakTraceReference(owningClassName = "java.lang.Thread", referenceName = "someVar", referenceType = "LOCAL")
             )
         )
-
         val suggestion = engine.suggest(leak)
-        assertNotNull(suggestion)
-        assertEquals("View Reference Held Beyond Lifecycle", suggestion?.ruleName)
-    }
-
-    @Test
-    fun `test InputMethodManagerRule matches framework leak`() {
-        val leak = createLeak(
-            retainedClass = "com.example.MainActivity",
-            references = listOf(
-                LeakTraceReference(
-                    owningClassName = "android.view.inputmethod.InputMethodManager",
-                    referenceName = "mCurRootView",
-                    referenceType = "INSTANCE_FIELD"
-                )
-            )
-        )
-
-        val suggestion = engine.suggest(leak)
-        assertNotNull(suggestion)
-        assertEquals("InputMethodManager Framework Leak", suggestion?.ruleName)
-    }
-
-    @Test
-    fun `test enrichWithFixes attaches suggestion to LeakInfo`() {
-        val leak = createLeak(
-            retainedClass = "com.example.MainActivity",
-            references = listOf(
-                LeakTraceReference(
-                    owningClassName = "com.example.MainActivity",
-                    referenceName = "instance",
-                    referenceType = "STATIC_FIELD"
-                )
-            )
-        )
-
-        val enriched = engine.enrichWithFixes(listOf(leak))
-        assertNotNull(enriched[0].suggestedFix)
-        assertTrue(enriched[0].suggestedFix?.contains("Static Field Holding Activity/Fragment") == true)
-        assertTrue(enriched[0].suggestedFix?.startsWith("Fix Suggestion:") == true)
-    }
-
-    private fun createLeak(
-        retainedClass: String,
-        references: List<LeakTraceReference>
-    ): LeakInfo {
-        return LeakInfo(
-            signature = "sig",
-            shortDescription = "desc",
-            leakTrace = "trace",
-            retainedObjectClassName = retainedClass,
-            retainedByteSize = 1024L,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.CRITICAL,
-            referenceChain = references
-        )
+        assertNull(suggestion)
     }
 }

@@ -61,11 +61,24 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
     }
 
     private fun isFragment(uClass: UClass): Boolean {
+        // 1. Check resolved superclass chain
         var current = uClass.javaPsi.superClass
         while (current != null) {
             val name = current.qualifiedName ?: ""
             if (name.contains("Fragment")) return true
             current = current.superClass
+        }
+        // 2. Fallback: check raw super type reference text (handles unresolved/mock classes)
+        uClass.javaPsi.extendsList?.referenceElements?.forEach { ref ->
+            val text = ref.text ?: ""
+            val refName = ref.referenceName ?: ""
+            if (text.contains("Fragment") || refName.contains("Fragment")) return true
+        }
+        // 3. UAST super types
+        uClass.uastSuperTypes.forEach { superType ->
+            val text = superType.sourcePsi?.text ?: ""
+            val canonicalText = runCatching { superType.type.canonicalText }.getOrDefault("")
+            if (text.contains("Fragment") || canonicalText.contains("Fragment")) return true
         }
         return false
     }

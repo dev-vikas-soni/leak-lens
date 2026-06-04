@@ -2,11 +2,13 @@ package com.github.devvikassoni.leaklens.services
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 @Service(Service.Level.PROJECT)
-class AdbHeapDumpService(private val project: Project) {
+class AdbHeapDumpService(private val project: Project) : Disposable {
 
     private val logger = thisLogger()
 
@@ -34,7 +36,13 @@ class AdbHeapDumpService(private val project: Project) {
                 .redirectErrorStream(true)
                 .start()
 
-            val exitCode = process.waitFor()
+            val completed = process.waitFor(60, TimeUnit.SECONDS)
+            if (!completed) {
+                process.destroyForcibly()
+                logger.error("LeakLens: ADB pull timed out")
+                return null
+            }
+            val exitCode = process.exitValue()
             val output = process.inputStream.bufferedReader().readText()
 
             if (exitCode == 0) {
@@ -76,7 +84,13 @@ class AdbHeapDumpService(private val project: Project) {
                 .redirectErrorStream(true)
                 .start()
 
-            val exitCode = process.waitFor()
+            val completed = process.waitFor(30, TimeUnit.SECONDS)
+            if (!completed) {
+                process.destroyForcibly()
+                logger.error("LeakLens: ADB dumpheap timed out")
+                return null
+            }
+            val exitCode = process.exitValue()
             if (exitCode == 0) {
                 Thread.sleep(3000)
                 remotePath
@@ -99,7 +113,8 @@ class AdbHeapDumpService(private val project: Project) {
                 .redirectErrorStream(true)
                 .start()
 
-            process.waitFor()
+            val completed = process.waitFor(10, TimeUnit.SECONDS)
+            if (!completed) process.destroyForcibly()
             val output = process.inputStream.bufferedReader().readText()
 
             output.lines()
@@ -127,7 +142,8 @@ class AdbHeapDumpService(private val project: Project) {
                 add("-f")
                 add(remotePath)
             }
-            ProcessBuilder(command).redirectErrorStream(true).start().waitFor()
+            val process = ProcessBuilder(command).redirectErrorStream(true).start()
+            if (!process.waitFor(10, TimeUnit.SECONDS)) process.destroyForcibly()
         } catch (e: Exception) {
             logger.warn("LeakLens: Failed to delete remote file: $remotePath", e)
         }
@@ -182,7 +198,8 @@ class AdbHeapDumpService(private val project: Project) {
                 .redirectErrorStream(true)
                 .start()
 
-            process.waitFor()
+            val completed = process.waitFor(5, TimeUnit.SECONDS)
+            if (!completed) process.destroyForcibly()
             val name = process.inputStream.bufferedReader().readText()
                 .trim()
                 .replace("\u0000", "")
@@ -196,5 +213,9 @@ class AdbHeapDumpService(private val project: Project) {
     companion object {
         fun getInstance(project: Project): AdbHeapDumpService =
             project.getService(AdbHeapDumpService::class.java)
+    }
+
+    override fun dispose() {
+        // Nothing to clean up
     }
 }

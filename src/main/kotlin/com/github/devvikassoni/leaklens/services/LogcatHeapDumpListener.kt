@@ -2,6 +2,7 @@ package com.github.devvikassoni.leaklens.services
 
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -13,7 +14,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * "D/LeakCanary: Heap dumped to /data/user/0/.../leakcanary/2024-01-01_12-00-00_000.hprof"
  */
 @Service(Service.Level.PROJECT)
-class LogcatHeapDumpListener(private val project: Project) {
+class LogcatHeapDumpListener(private val project: Project) : Disposable {
 
     private val logger = thisLogger()
     private val isListening = AtomicBoolean(false)
@@ -75,6 +76,10 @@ class LogcatHeapDumpListener(private val project: Project) {
         listenerThread?.interrupt()
         listenerThread = null
         logger.info("LeakLens: Logcat listener stopped")
+    }
+
+    override fun dispose() {
+        stopListening()
     }
 
     fun isActive(): Boolean = isListening.get()

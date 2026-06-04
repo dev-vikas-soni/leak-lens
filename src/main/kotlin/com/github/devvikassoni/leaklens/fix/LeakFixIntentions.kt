@@ -152,21 +152,23 @@ class UseApplicationContextFixAction : PsiElementBaseIntentionAction() {
     override fun getFamilyName(): String = "LeakLens Fix Suggestions"
 
     override fun isAvailable(project: Project, editor: Editor, element: PsiElement): Boolean {
-        return element.text.contains("context", ignoreCase = true)
+        // Find if we are on or near an identifier containing 'context'
+        return element.node.elementType.toString() == "IDENTIFIER" && 
+               element.text.equals("context", ignoreCase = true) ||
+               element.text.equals("mContext", ignoreCase = true)
     }
 
     override fun invoke(project: Project, editor: Editor, element: PsiElement) {
+        if (element.node.elementType.toString() != "IDENTIFIER") return
+        
+        val isKotlin = element.language.id.lowercase() == "kotlin"
+        val suffix = if (isKotlin) ".applicationContext" else ".getApplicationContext()"
+        
+        val newText = "${element.text}$suffix"
+        
         val document = editor.document
-        val text = document.text
-        val offset = editor.caretModel.offset
-        val lineNumber = document.getLineNumber(offset)
-        val lineStartOffset = document.getLineStartOffset(lineNumber)
-        val lineEndOffset = document.getLineEndOffset(lineNumber)
-        val lineText = text.substring(lineStartOffset, lineEndOffset)
-
-        // Replace 'context' with 'context.applicationContext'
-        val newLine = lineText.replace("context", "context.applicationContext")
-        document.replaceString(lineStartOffset, lineEndOffset, newLine)
+        document.replaceString(element.textRange.startOffset, element.textRange.endOffset, newText)
+        PsiDocumentManager.getInstance(project).commitDocument(document)
     }
 }
 

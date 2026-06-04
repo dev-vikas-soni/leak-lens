@@ -18,7 +18,7 @@ class LeakBaselineManager(private val project: Project) {
     private val baselineSignatures = mutableSetOf<String>()
 
     private val baselineFile: File
-        get() = File(project.basePath ?: ".", "leak-baseline.json")
+        get() = File(project.basePath ?: System.getProperty("java.io.tmpdir"), "leak-baseline.json")
 
     init {
         loadBaseline()
@@ -52,6 +52,9 @@ class LeakBaselineManager(private val project: Project) {
             appendLine("  ]")
             appendLine("}")
         }
+        baselineFile.parentFile?.let {
+            if (!it.exists()) it.mkdirs()
+        }
         baselineFile.writeText(json)
         baselineSignatures.clear()
         baselineSignatures.addAll(leaks.map { it.signature })
@@ -61,11 +64,19 @@ class LeakBaselineManager(private val project: Project) {
     fun addToBaseline(leak: LeakInfo) {
         baselineSignatures.add(leak.signature)
         // Re-save full baseline
-        val existingLeaks = if (baselineFile.exists()) {
-            // Just append the new signature
-            val content = baselineFile.readText()
-            baselineFile.writeText(content) // keep existing, we'll do full save on next analysis
-        } else null
+        if (baselineFile.exists()) {
+            var content = baselineFile.readText()
+            val newEntry = "    {\"signature\": \"${leak.signature}\", \"class\": \"${leak.retainedObjectClassName}\", \"description\": \"${leak.shortDescription.replace("\"", "\\\"")}\"}"
+            val insertPos = content.lastIndexOf("]")
+            if (insertPos > 0) {
+                val isArrayEmpty = content.substring(content.lastIndexOf("[") + 1, insertPos).trim().isEmpty()
+                val prefix = if (isArrayEmpty) "\n" else ",\n"
+                content = content.substring(0, insertPos) + prefix + newEntry + "\n  " + content.substring(insertPos)
+                baselineFile.writeText(content)
+            }
+        } else {
+            saveBaseline(listOf(leak))
+        }
         logger.info("LeakLens: Added ${leak.signature} to baseline")
     }
 

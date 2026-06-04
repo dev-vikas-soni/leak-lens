@@ -20,17 +20,42 @@ import javax.swing.Icon
 class LeakGutterLineMarkerProvider : LineMarkerProvider {
 
     override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? {
-        // Only process class name identifiers
-        if (element !is PsiIdentifier) return null
+        // Check if element is an identifier (PsiIdentifier in Java, LeafPsiElement in Kotlin)
+        // We can just check if it's the name identifier of its parent
         val parent = element.parent
-        if (parent !is PsiClass) return null
+        if (parent !is com.intellij.psi.PsiNameIdentifierOwner || parent.nameIdentifier != element) {
+            return null
+        }
+
+        // Extract qualified name safely for both Java and Kotlin without direct plugin dependencies
+        var qualifiedName: String? = null
+        if (parent is com.intellij.psi.PsiClass) {
+            qualifiedName = parent.qualifiedName
+        } else if (parent.javaClass.name.endsWith("KtClass") || parent.javaClass.name.endsWith("KtObjectDeclaration")) {
+            try {
+                val fqNameMethod = parent.javaClass.getMethod("getFqName")
+                val fqName = fqNameMethod.invoke(parent)
+                if (fqName != null) {
+                    val asStringMethod = fqName.javaClass.getMethod("asString")
+                    qualifiedName = asStringMethod.invoke(fqName) as? String
+                }
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+        
+        if (qualifiedName == null) return null
 
         val project = element.project
         val service = LeakLensProjectService.getInstance(project)
-        val leaks = service.leaks.value
-        if (leaks.isEmpty()) return null
+        
+        // Fast O(1) check
+        if (!service.retainedClassNames.contains(qualifiedName) && 
+            !service.referenceChainClassNames.contains(qualifiedName)) {
+            return null
+        }
 
-        val qualifiedName = parent.qualifiedName ?: return null
+        val leaks = service.leaks.value
 
         // Check if this class is the retained (leaking) object in any leak
         val matchingLeak = leaks.find { it.retainedObjectClassName == qualifiedName }

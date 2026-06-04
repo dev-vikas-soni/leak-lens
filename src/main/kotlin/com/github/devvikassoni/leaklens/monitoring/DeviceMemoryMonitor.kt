@@ -7,6 +7,7 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +21,7 @@ import java.util.TimerTask
  * and auto-triggers heap dump when retained object count exceeds threshold.
  */
 @Service(Service.Level.PROJECT)
-class DeviceMemoryMonitor(private val project: Project) {
+class DeviceMemoryMonitor(private val project: Project) : Disposable {
 
     private val logger = thisLogger()
     private var monitorTimer: Timer? = null
@@ -78,6 +79,10 @@ class DeviceMemoryMonitor(private val project: Project) {
         monitorTimer = null
         isMonitoring = false
         logger.info("LeakLens: Stopped monitoring")
+    }
+
+    override fun dispose() {
+        stopMonitoring()
     }
 
     fun isActive(): Boolean = isMonitoring

@@ -20,52 +20,58 @@ class DumpHeapAction : AnAction() {
         val project = e.project ?: return
         val adbService = AdbHeapDumpService.getInstance(project)
 
-        // Step 1: Get connected devices
-        val devices = adbService.listDevices()
-        if (devices.isEmpty()) {
-            notify(project, "No connected devices found. Please connect a device or start an emulator.", NotificationType.WARNING)
-            return
-        }
+        com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+            // Step 1: Get connected devices (Off EDT)
+            val devices = adbService.listDevices()
+            com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                if (devices.isEmpty()) {
+                    notify(project, "No connected devices found. Please connect a device or start an emulator.", NotificationType.WARNING)
+                    return@invokeLater
+                }
 
-        // Step 2: Select device (auto-select if only one)
-        val deviceSerial = if (devices.size == 1) {
-            devices.first()
-        } else {
-            val selected = Messages.showEditableChooseDialog(
-                "Select a device:",
-                "LeakLens - Device Selection",
-                Messages.getQuestionIcon(),
-                devices.toTypedArray(),
-                devices.first(),
-                null
-            )
-            selected ?: return
-        }
+                // Step 2: Select device
+                val deviceSerial = if (devices.size == 1) {
+                    devices.first()
+                } else {
+                    Messages.showEditableChooseDialog(
+                        "Select a device:",
+                        "LeakLens - Device Selection",
+                        Messages.getQuestionIcon(),
+                        devices.toTypedArray(),
+                        devices.first(),
+                        null
+                    ) ?: return@invokeLater
+                }
 
-        // Step 3: Get debuggable processes
-        val processes = adbService.listDebuggableProcesses(deviceSerial)
-        if (processes.isEmpty()) {
-            notify(project, "No debuggable processes found on $deviceSerial. Make sure your app is running in debug mode.", NotificationType.WARNING)
-            return
-        }
+                com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+                    // Step 3: Get debuggable processes (Off EDT)
+                    val processes = adbService.listDebuggableProcesses(deviceSerial)
+                    com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
+                        if (processes.isEmpty()) {
+                            notify(project, "No debuggable processes found on $deviceSerial. Make sure your app is running in debug mode.", NotificationType.WARNING)
+                            return@invokeLater
+                        }
 
-        // Step 4: Select process
-        val packageName = if (processes.size == 1) {
-            processes.first()
-        } else {
-            val selected = Messages.showEditableChooseDialog(
-                "Select a process to dump:",
-                "LeakLens - Process Selection",
-                Messages.getQuestionIcon(),
-                processes.toTypedArray(),
-                processes.first(),
-                null
-            )
-            selected ?: return
-        }
+                        // Step 4: Select process
+                        val packageName = if (processes.size == 1) {
+                            processes.first()
+                        } else {
+                            Messages.showEditableChooseDialog(
+                                "Select a process to dump:",
+                                "LeakLens - Process Selection",
+                                Messages.getQuestionIcon(),
+                                processes.toTypedArray(),
+                                processes.first(),
+                                null
+                            ) ?: return@invokeLater
+                        }
 
-        // Step 5: Trigger dump and analyze
-        LeakAnalysisCoordinator.getInstance(project).triggerAndAnalyze(deviceSerial, packageName)
+                        // Step 5: Trigger dump and analyze (Coordinator already uses Backgroundable)
+                        LeakAnalysisCoordinator.getInstance(project).triggerAndAnalyze(deviceSerial, packageName)
+                    }
+                }
+            }
+        }
     }
 
     private fun notify(project: Project, content: String, type: NotificationType) {

@@ -11,6 +11,9 @@ import java.util.*
  */
 object ReportExporter {
 
+    private fun escapeHtml(s: String): String =
+        s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#x27;")
+
     fun exportHtml(leaks: List<LeakInfo>, outputFile: File) {
         val dateStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Date())
         val html = buildString {
@@ -27,14 +30,14 @@ object ReportExporter {
                     LeakSeverity.WARNING -> "warning"
                     LeakSeverity.LIBRARY_LEAK -> "library"
                 }
-                appendLine("<tr class='$cls'><td>${leak.severity.displayName}</td><td>${leak.retainedObjectClassName}</td><td>${leak.shortDescription}</td><td>${leak.retainedByteSize / 1024} KB</td></tr>")
+                appendLine("<tr class='$cls'><td>${leak.severity.displayName}</td><td>${escapeHtml(leak.retainedObjectClassName)}</td><td>${escapeHtml(leak.shortDescription)}</td><td>${leak.retainedByteSize / 1024} KB</td></tr>")
             }
             appendLine("</table>")
             for (leak in leaks) {
-                appendLine("<h3>${leak.retainedObjectClassName}</h3>")
-                appendLine("<pre>${leak.leakTrace}</pre>")
+                appendLine("<h3>${escapeHtml(leak.retainedObjectClassName)}</h3>")
+                appendLine("<pre>${escapeHtml(leak.leakTrace)}</pre>")
                 if (leak.suggestedFix != null) {
-                    appendLine("<h4>Suggested Fix:</h4><pre>${leak.suggestedFix}</pre>")
+                    appendLine("<h4>Suggested Fix:</h4><pre>${escapeHtml(leak.suggestedFix)}</pre>")
                 }
             }
             appendLine("</body></html>")

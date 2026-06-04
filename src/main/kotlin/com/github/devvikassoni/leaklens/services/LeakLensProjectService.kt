@@ -18,6 +18,15 @@ class LeakLensProjectService(private val project: Project) {
     private val _leaks = MutableStateFlow<List<LeakInfo>>(emptyList())
     val leaks: StateFlow<List<LeakInfo>> = _leaks.asStateFlow()
 
+    // O(1) cache for gutter markers to avoid O(N*M) lag on the highlighting thread
+    @Volatile
+    var retainedClassNames: Set<String> = emptySet()
+        private set
+    
+    @Volatile
+    var referenceChainClassNames: Set<String> = emptySet()
+        private set
+
     private val _isAnalyzing = MutableStateFlow(false)
     val isAnalyzing: StateFlow<Boolean> = _isAnalyzing.asStateFlow()
 
@@ -33,6 +42,11 @@ class LeakLensProjectService(private val project: Project) {
 
     fun updateLeaks(newLeaks: List<LeakInfo>) {
         _leaks.value = newLeaks
+        
+        // Update caches for line markers
+        retainedClassNames = newLeaks.map { it.retainedObjectClassName }.toSet()
+        referenceChainClassNames = newLeaks.flatMap { leak -> leak.referenceChain.map { it.owningClassName } }.toSet()
+        
         logger.info("LeakLens: Updated with ${newLeaks.size} leak(s)")
     }
 
@@ -42,6 +56,8 @@ class LeakLensProjectService(private val project: Project) {
 
     fun clearLeaks() {
         _leaks.value = emptyList()
+        retainedClassNames = emptySet()
+        referenceChainClassNames = emptySet()
     }
 
     fun addToHistory(leaks: List<LeakInfo>, sourceName: String) {

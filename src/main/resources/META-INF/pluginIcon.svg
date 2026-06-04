@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16">
+  <!-- A simple magnifying glass with a warning/leak drop inside -->
+  <circle cx="7" cy="7" r="5" fill="none" stroke="#5382A1" stroke-width="2"/>
+  <line x1="10.5" y1="10.5" x2="14.5" y2="14.5" stroke="#5382A1" stroke-width="2" stroke-linecap="round"/>
+  <!-- Water drop -->
+  <path d="M7 3 C5.5 5 5.5 7 7 7 C8.5 7 8.5 5 7 3 Z" fill="#E05B5B"/>
+</svg>

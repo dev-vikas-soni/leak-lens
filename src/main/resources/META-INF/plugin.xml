@@ -25,15 +25,19 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h4>0.1.1</h4>
+        <ul>
+            <li>Migrated all inspections to UAST for robust Java and Kotlin support.</li>
+            <li>Polished UI using IntelliJ UI DSL 2 for native theme integration.</li>
+            <li>Improved ADB stability with dedicated timeouts and resource cleanup.</li>
+            <li>Added intelligent handling and warnings for large heap dumps.</li>
+            <li>Enhanced Fix Suggestion Engine with clearer headers and formatting.</li>
+            <li>100% passing unit and integration test suite verified.</li>
+            <li>Added professional SVG icons for tool window and marketplace.</li>
+        </ul>
         <h4>0.1.0</h4>
         <ul>
-            <li>Initial public release of LeakLens.</li>
-            <li>Full Shark 2.14 integration for heap analysis.</li>
-            <li>Preventive static analysis for Java and Kotlin using UAST.</li>
-            <li>Real-time device memory monitoring and auto-capture.</li>
-            <li>Fix suggestion engine covering 11 core Android leak patterns.</li>
-            <li>Optional AI-powered analysis via OpenAI and Google Gemini.</li>
-            <li>Support for leak baselines and SARIF reporting.</li>
+            <li>Initial release of LeakLens with Shark heap analysis integration.</li>
         </ul>
     ]]></change-notes>
 
@@ -47,7 +51,7 @@
         <toolWindow
             id="LeakLens"
             anchor="bottom"
-            icon="AllIcons.Toolwindows.ToolWindowProblemsEmpty"
+            icon="/META-INF/leaklens_icon.svg"
             factoryClass="com.github.devvikassoni.leaklens.toolWindow.LeakLensToolWindowFactory"/>
 
         <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.LeakLensProjectService"/>
@@ -72,21 +76,21 @@
         <codeInsight.lineMarkerProvider language="kotlin" implementationClass="com.github.devvikassoni.leaklens.gutter.LeakGutterLineMarkerProvider"/>
 
         <notificationGroup id="LeakLens Notifications" displayType="BALLOON"/>
-        <postStartupActivity implementation="com.github.devvikassoni.leaklens.startup.LeakLensStartupActivity"/>
+        <backgroundPostStartupActivity implementation="com.github.devvikassoni.leaklens.startup.LeakLensStartupActivity"/>
 
         <!-- Intentions -->
         <intentionAction>
-            <language>JAVA</language>
+            <language>UAST</language>
             <className>com.github.devvikassoni.leaklens.fix.AddRemoveCallbacksFixAction</className>
             <category>LeakLens</category>
         </intentionAction>
         <intentionAction>
-            <language>JAVA</language>
+            <language>UAST</language>
             <className>com.github.devvikassoni.leaklens.fix.NullBindingFixAction</className>
             <category>LeakLens</category>
         </intentionAction>
         <intentionAction>
-            <language>JAVA</language>
+            <language>UAST</language>
             <className>com.github.devvikassoni.leaklens.fix.UseApplicationContextFixAction</className>
             <category>LeakLens</category>
         </intentionAction>

@@ -6,6 +6,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindow
 import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
+import com.intellij.openapi.application.ApplicationManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collectLatest
 
@@ -26,10 +27,13 @@ class LeakLensToolWindowFactory : ToolWindowFactory {
         toolWindow.contentManager.addContent(memoryContent)
 
         // Subscribe to leak updates from the service
-        val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+        // Avoid Dispatchers.Main as it throws without kotlinx-coroutines-swing
+        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         scope.launch {
             LeakLensProjectService.getInstance(project).leaks.collectLatest { leaks ->
-                mainPanel.refreshLeaks(leaks)
+                ApplicationManager.getApplication().invokeLater {
+                    mainPanel.refreshLeaks(leaks)
+                }
             }
         }
 

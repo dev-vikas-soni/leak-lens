@@ -8,7 +8,7 @@ import com.intellij.openapi.wm.ToolWindowFactory
 import com.intellij.ui.content.ContentFactory
 import com.intellij.openapi.application.ApplicationManager
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.*
 
 class LeakLensToolWindowFactory : ToolWindowFactory {
 
@@ -26,16 +26,17 @@ class LeakLensToolWindowFactory : ToolWindowFactory {
         val memoryContent = ContentFactory.getInstance().createContent(memoryPanel, "Memory", false)
         toolWindow.contentManager.addContent(memoryContent)
 
-        // Subscribe to leak updates from the service
-        // Avoid Dispatchers.Main as it throws without kotlinx-coroutines-swing
+        // Subscribe to all leak updates from the service (Merge Heap + Live)
         val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-        scope.launch {
-            LeakLensProjectService.getInstance(project).leaks.collectLatest { leaks ->
-                ApplicationManager.getApplication().invokeLater {
-                    mainPanel.refreshLeaks(leaks)
-                }
+        val projectService = LeakLensProjectService.getInstance(project)
+        
+        combine(projectService.leaks, projectService.liveIssues) { heapLeaks, liveIssues ->
+            heapLeaks + liveIssues
+        }.onEach { allLeaks ->
+            ApplicationManager.getApplication().invokeLater {
+                mainPanel.refreshLeaks(allLeaks)
             }
-        }
+        }.launchIn(scope)
 
         // Clean up coroutine scope when tool window is disposed
         toolWindow.contentManager.addContentManagerListener(object : com.intellij.ui.content.ContentManagerListener {

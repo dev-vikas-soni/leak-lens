@@ -1,9 +1,13 @@
 package com.github.devvikassoni.leaklens.toolWindow
 
+import com.github.devvikassoni.leaklens.actions.AskGeminiAction
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.model.LeakTraceReference
 import com.github.devvikassoni.leaklens.services.SourceNavigationService
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
@@ -18,8 +22,7 @@ import javax.swing.text.SimpleAttributeSet
 import javax.swing.text.StyleConstants
 
 /**
- * Right panel showing leak trace details with clickable references
- * that navigate to source code.
+ * Right panel showing leak trace details and smart fix suggestions.
  */
 class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
 
@@ -36,11 +39,10 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         wrapStyleWord = true
     }
 
-    private var currentReferences: List<LeakTraceReference> = emptyList()
-    
     private val severityLabel = JBLabel().apply { font = font.deriveFont(Font.BOLD, 14f) }
     private val classLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 12f) }
     private val sizeLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 11f) }
+    private val actionPanel = JPanel(BorderLayout())
 
     init {
         border = JBUI.Borders.empty(8)
@@ -48,6 +50,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         val header = panel {
             row {
                 cell(severityLabel)
+                cell(actionPanel).align(AlignX.RIGHT)
             }
             row {
                 cell(classLabel).align(AlignX.FILL)
@@ -57,7 +60,6 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             }
         }
 
-        // Trace pane with clickable links
         tracePane.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 handleTraceClick(e)
@@ -72,7 +74,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             bottomComponent = JBScrollPane(fixSuggestionArea).apply {
                 border = BorderFactory.createTitledBorder("Suggested Fix")
             }
-            resizeWeight = 0.7
+            resizeWeight = 0.6
         }
 
         add(header, BorderLayout.NORTH)
@@ -81,9 +83,6 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     fun showLeakDetail(leak: LeakInfo) {
-        currentReferences = leak.referenceChain
-
-        // Update header
         val severityEmoji = when (leak.severity) {
             LeakSeverity.CRITICAL -> "🔴"
             LeakSeverity.WARNING -> "🟡"
@@ -99,73 +98,61 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
         sizeLabel.text = "Retained: $sizeStr | Objects: ${leak.retainedObjectCount}"
 
-        // Build clickable trace
-        buildClickableTrace(leak)
+        // Update actions
+        updateActions(leak)
 
-        fixSuggestionArea.text = leak.suggestedFix ?: "No fix suggestion available for this leak pattern yet."
+        buildClickableTrace(leak)
+        fixSuggestionArea.text = leak.suggestedFix ?: "No fix suggestion available."
+    }
+
+    private fun updateActions(leak: LeakInfo) {
+        actionPanel.removeAll()
+        val group = DefaultActionGroup().apply {
+            add(AskGeminiAction(leak))
+        }
+        val toolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.TOOLWINDOW_CONTENT, group, true)
+        toolbar.targetComponent = actionPanel
+        actionPanel.add(toolbar.component)
+        actionPanel.revalidate()
     }
 
     fun showEmptyState() {
         severityLabel.text = ""
         classLabel.text = ""
         sizeLabel.text = ""
-        tracePane.text = "Select a leak from the list to view details.\n\nClick on class names in the trace to navigate to source code."
+        tracePane.text = "Select an item to view details."
         fixSuggestionArea.text = ""
-        currentReferences = emptyList()
+        actionPanel.removeAll()
     }
 
     private fun buildClickableTrace(leak: LeakInfo) {
         val doc = tracePane.styledDocument
         doc.remove(0, doc.length)
 
-        val normalStyle = SimpleAttributeSet().apply {
-            StyleConstants.setFontFamily(this, "JetBrains Mono")
-            StyleConstants.setFontSize(this, 12)
-        }
-
+        val normalStyle = SimpleAttributeSet().apply { StyleConstants.setFontFamily(this, "JetBrains Mono"); StyleConstants.setFontSize(this, 12) }
         val linkStyle = SimpleAttributeSet().apply {
             StyleConstants.setFontFamily(this, "JetBrains Mono")
             StyleConstants.setFontSize(this, 12)
-            StyleConstants.setForeground(this, Color(0x58, 0x9D, 0xF6)) // Blue link color
+            StyleConstants.setForeground(this, Color(0x58, 0x9D, 0xF6))
             StyleConstants.setUnderline(this, true)
             StyleConstants.setBold(this, true)
         }
 
-        val commentStyle = SimpleAttributeSet().apply {
-            StyleConstants.setFontFamily(this, "JetBrains Mono")
-            StyleConstants.setFontSize(this, 12)
-            StyleConstants.setForeground(this, Color(0x80, 0x80, 0x80))
-            StyleConstants.setItalic(this, true)
-        }
-
         doc.insertString(doc.length, "═══ REFERENCE CHAIN ═══\n\n", normalStyle)
-
         for ((index, ref) in leak.referenceChain.withIndex()) {
-            val indent = "  ".repeat(index)
-            doc.insertString(doc.length, "$indent↓ ", normalStyle)
+            doc.insertString(doc.length, "  ".repeat(index) + "↓ ", normalStyle)
             doc.insertString(doc.length, ref.owningClassName, linkStyle)
-            doc.insertString(doc.length, ".${ref.referenceName}", normalStyle)
-            doc.insertString(doc.length, " (${ref.referenceType})", commentStyle)
-            doc.insertString(doc.length, "\n", normalStyle)
+            doc.insertString(doc.length, ".${ref.referenceName} (${ref.referenceType})\n", normalStyle)
         }
-
-        doc.insertString(doc.length, "\n═══ LEAKING OBJECT ═══\n", normalStyle)
-        doc.insertString(doc.length, "  ⚠ ", normalStyle)
-        doc.insertString(doc.length, leak.retainedObjectClassName, linkStyle)
-        doc.insertString(doc.length, " instance\n", normalStyle)
-
+        
         doc.insertString(doc.length, "\n═══ FULL TRACE ═══\n\n", normalStyle)
         doc.insertString(doc.length, leak.leakTrace, normalStyle)
     }
 
     private fun handleTraceClick(e: MouseEvent) {
-        if (e.clickCount != 1) return
-
         val offset = tracePane.viewToModel2D(e.point)
         val doc = tracePane.styledDocument
         val text = doc.getText(0, doc.length)
-
-        // Find the word/class name at click position
         val className = extractClassNameAtOffset(text, offset)
         if (className != null) {
             SourceNavigationService.getInstance(project).navigateToClass(className)
@@ -174,25 +161,10 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
 
     private fun extractClassNameAtOffset(text: String, offset: Int): String? {
         if (offset < 0 || offset >= text.length) return null
-
-        // Find boundaries of the "word" (a fully qualified class name)
-        var start = offset
-        var end = offset
-
-        while (start > 0 && (text[start - 1].isLetterOrDigit() || text[start - 1] == '.' || text[start - 1] == '$')) {
-            start--
-        }
-        while (end < text.length && (text[end].isLetterOrDigit() || text[end] == '.' || text[end] == '$')) {
-            end++
-        }
-
+        var start = offset; var end = offset
+        while (start > 0 && (text[start - 1].isLetterOrDigit() || text[start - 1] == '.' || text[start - 1] == '$')) start--
+        while (end < text.length && (text[end].isLetterOrDigit() || text[end] == '.' || text[end] == '$')) end++
         val word = text.substring(start, end)
-
-        // Must look like a qualified class name (at least one dot, starts with letter)
-        if (word.contains('.') && word.first().isLetter() && word.count { it == '.' } >= 1) {
-            return word
-        }
-
-        return null
+        return if (word.contains('.') && word.first().isLetter()) word else null
     }
 }

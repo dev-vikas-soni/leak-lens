@@ -80,17 +80,34 @@
 
         <!-- Intentions -->
         <intentionAction>
-            <language>UAST</language>
+            <language>JAVA</language>
             <className>com.github.devvikassoni.leaklens.fix.AddRemoveCallbacksFixAction</className>
             <category>LeakLens</category>
         </intentionAction>
         <intentionAction>
-            <language>UAST</language>
+            <language>kotlin</language>
+            <className>com.github.devvikassoni.leaklens.fix.AddRemoveCallbacksFixAction</className>
+            <category>LeakLens</category>
+        </intentionAction>
+
+        <intentionAction>
+            <language>JAVA</language>
             <className>com.github.devvikassoni.leaklens.fix.NullBindingFixAction</className>
             <category>LeakLens</category>
         </intentionAction>
         <intentionAction>
-            <language>UAST</language>
+            <language>kotlin</language>
+            <className>com.github.devvikassoni.leaklens.fix.NullBindingFixAction</className>
+            <category>LeakLens</category>
+        </intentionAction>
+
+        <intentionAction>
+            <language>JAVA</language>
+            <className>com.github.devvikassoni.leaklens.fix.UseApplicationContextFixAction</className>
+            <category>LeakLens</category>
+        </intentionAction>
+        <intentionAction>
+            <language>kotlin</language>
             <className>com.github.devvikassoni.leaklens.fix.UseApplicationContextFixAction</className>
             <category>LeakLens</category>
         </intentionAction>
@@ -117,12 +134,27 @@
     </extensions>
 
     <actions>
+        <action id="LeakLens.AnalyzeCurrentFile" class="com.github.devvikassoni.leaklens.actions.AnalyzeCurrentFileAction"
+                text="Analyze Current File" description="Run LeakLens static analysis on the active editor file"
+                icon="AllIcons.Actions.Execute"/>
+        <action id="LeakLens.AnalyzeProject" class="com.github.devvikassoni.leaklens.actions.AnalyzeProjectAction"
+                text="Analyze Project" description="Run LeakLens static analysis on the entire project"
+                icon="AllIcons.Actions.Resume"/>
+        <action id="LeakLens.ClearAll" class="com.github.devvikassoni.leaklens.actions.ClearAllAction"
+                text="Clear All" description="Clear all detected leaks and issues"
+                icon="AllIcons.Actions.GC"/>
+        <action id="LeakLens.MonitorMemory" class="com.github.devvikassoni.leaklens.actions.MonitorMemoryAction"
+                text="Start Memory Monitor" description="Start/stop real-time device memory monitoring"
+                icon="AllIcons.Actions.Profile"/>
+
         <group id="LeakLens.ActionGroup" text="LeakLens" description="LeakLens Actions">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
             <action id="LeakLens.DumpHeap" class="com.github.devvikassoni.leaklens.actions.DumpHeapAction"
-                text="Dump Heap Now" description="Capture a heap dump from the connected device and analyze it"/>
+                    text="Dump Heap Now" description="Capture a heap dump from the connected device and analyze it"
+                    icon="AllIcons.Actions.Download"/>
             <action id="LeakLens.ImportHprof" class="com.github.devvikassoni.leaklens.actions.ImportHprofAction"
-                text="Import .hprof File" description="Import and analyze a local .hprof heap dump file"/>
+                    text="Import .hprof File" description="Import and analyze a local .hprof heap dump file"
+                    icon="AllIcons.ToolbarDecorator.Import"/>
             <action id="LeakLens.ToggleAutoDetect" class="com.github.devvikassoni.leaklens.actions.ToggleAutoDetectAction"
                 text="Start Auto-Detect" description="Toggle automatic detection of LeakCanary heap dumps via logcat"/>
             <separator/>

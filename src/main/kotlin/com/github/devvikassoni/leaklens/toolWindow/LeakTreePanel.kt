@@ -2,7 +2,9 @@ package com.github.devvikassoni.leaklens.toolWindow
 
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.github.devvikassoni.leaklens.services.LeakLensProjectService
+import com.intellij.openapi.actionSystem.ActionManager
+import com.intellij.openapi.actionSystem.ActionPlaces
+import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.project.Project
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
@@ -13,7 +15,10 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
-import javax.swing.*
+import javax.swing.JComponent
+import javax.swing.JPanel
+import javax.swing.JTree
+import javax.swing.Timer
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
 
@@ -48,6 +53,35 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
         add(JBScrollPane(tree), BorderLayout.CENTER)
         add(createToolbar(), BorderLayout.NORTH)
         add(createStatusBar(), BorderLayout.SOUTH)
+
+        // Start device connectivity watcher
+        startConnectivityWatcher()
+    }
+
+    private fun startConnectivityWatcher() {
+        val timer = Timer(5000) {
+            com.intellij.openapi.application.ApplicationManager.getApplication()
+                .executeOnPooledThread {
+                    val adb =
+                        com.github.devvikassoni.leaklens.services.AdbHeapDumpService.getInstance(
+                            project
+                        )
+                    val devices = adb.listDevices()
+
+                    com.intellij.openapi.application.ApplicationManager.getApplication()
+                        .invokeLater {
+                            if (devices.isEmpty()) {
+                                statusLabel.icon = com.intellij.icons.AllIcons.General.Warning
+                                statusLabel.text = "No device connected"
+                            } else {
+                                statusLabel.icon = com.intellij.icons.AllIcons.General.InspectionsOK
+                                statusLabel.text = "Monitoring ${devices.size} device(s)"
+                            }
+                        }
+                }
+        }
+        timer.isRepeats = true
+        timer.start()
     }
 
     fun updateLeaks(leaks: List<LeakInfo>) {
@@ -61,13 +95,22 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
         }
 
         // Group by severity
-        val criticalNode = DefaultMutableTreeNode("🔴 Critical (${leaks.count { it.severity == LeakSeverity.CRITICAL }})")
-        val warningNode = DefaultMutableTreeNode("🟡 Warning (${leaks.count { it.severity == LeakSeverity.WARNING }})")
-        val libraryNode = DefaultMutableTreeNode("🟢 Library Leak (${leaks.count { it.severity == LeakSeverity.LIBRARY_LEAK }})")
+        val criticalNode =
+            DefaultMutableTreeNode("🔴 Critical (${leaks.count { it.severity == LeakSeverity.CRITICAL }})")
+        val warningNode =
+            DefaultMutableTreeNode("🟡 Warning (${leaks.count { it.severity == LeakSeverity.WARNING }})")
+        val libraryNode =
+            DefaultMutableTreeNode("🟢 Library Leak (${leaks.count { it.severity == LeakSeverity.LIBRARY_LEAK }})")
 
-        leaks.filter { it.severity == LeakSeverity.CRITICAL }.forEach { criticalNode.add(DefaultMutableTreeNode(it)) }
-        leaks.filter { it.severity == LeakSeverity.WARNING }.forEach { warningNode.add(DefaultMutableTreeNode(it)) }
-        leaks.filter { it.severity == LeakSeverity.LIBRARY_LEAK }.forEach { libraryNode.add(DefaultMutableTreeNode(it)) }
+        leaks.filter { it.severity == LeakSeverity.CRITICAL }
+            .sortedBy { it.retainedObjectClassName }
+            .forEach { criticalNode.add(DefaultMutableTreeNode(it)) }
+        leaks.filter { it.severity == LeakSeverity.WARNING }
+            .sortedBy { it.retainedObjectClassName }
+            .forEach { warningNode.add(DefaultMutableTreeNode(it)) }
+        leaks.filter { it.severity == LeakSeverity.LIBRARY_LEAK }
+            .sortedBy { it.retainedObjectClassName }
+            .forEach { libraryNode.add(DefaultMutableTreeNode(it)) }
 
         if (criticalNode.childCount > 0) rootNode.add(criticalNode)
         if (warningNode.childCount > 0) rootNode.add(warningNode)
@@ -85,17 +128,22 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
         countLabel.text = "Retained: ${formatBytes(totalRetained)}"
     }
 
-    private fun createToolbar() = panel {
-        row {
-            label("LeakLens").bold()
-            link("Clear all") {
-                LeakLensProjectService.getInstance(project).clearLeaks()
-                updateLeaks(emptyList())
-                onLeakSelected?.invoke(LeakInfo("", "", "", "", 0, 0, LeakSeverity.WARNING, emptyList()))
-            }.align(AlignX.RIGHT)
+    private fun createToolbar(): JComponent {
+        val actionManager = ActionManager.getInstance()
+        val group = DefaultActionGroup().apply {
+            add(actionManager.getAction("LeakLens.AnalyzeCurrentFile"))
+            add(actionManager.getAction("LeakLens.AnalyzeProject"))
+            addSeparator()
+            add(actionManager.getAction("LeakLens.DumpHeap"))
+            add(actionManager.getAction("LeakLens.MonitorMemory"))
+            addSeparator()
+            add(actionManager.getAction("LeakLens.ClearAll"))
         }
-    }.apply {
-        border = JBUI.Borders.empty(4, 8)
+
+        val toolbar =
+            actionManager.createActionToolbar(ActionPlaces.TOOLWINDOW_CONTENT, group, true)
+        toolbar.targetComponent = tree
+        return toolbar.component
     }
 
     private fun createStatusBar() = panel {
@@ -134,8 +182,17 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
                     val simpleClassName = userObj.retainedObjectClassName.substringAfterLast('.')
                     append(simpleClassName, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
                     append(" - ${userObj.shortDescription}", SimpleTextAttributes.GRAYED_ATTRIBUTES)
-                    append("  [${formatBytes(userObj.retainedByteSize)}]", SimpleTextAttributes.GRAY_SMALL_ATTRIBUTES)
+                    
+                    if (userObj.retainedByteSize > 0) {
+                        append(
+                            " [${formatBytes(userObj.retainedByteSize)}]",
+                            SimpleTextAttributes.GRAY_SMALL_ATTRIBUTES
+                        )
+                    } else {
+                        append(" [Static Scan]", SimpleTextAttributes.GRAY_SMALL_ATTRIBUTES)
+                    }
                 }
+
                 is String -> {
                     append(userObj, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
                 }

@@ -6,11 +6,7 @@ import com.intellij.ui.dsl.builder.*
 import javax.swing.DefaultComboBoxModel
 
 /**
- * Settings page for LeakLens in IDE Preferences.
- * Settings → Tools → LeakLens
- * 
- * Updated to use IntelliJ UI DSL 2 for better alignment with the IDE look and feel.
- * Uses lambda bindings to avoid binary compatibility issues with Kotlin property references.
+ * Settings page for LeakLens.
  */
 class LeakLensConfigurable(private val project: Project) : BoundConfigurable("LeakLens") {
 
@@ -26,10 +22,6 @@ class LeakLensConfigurable(private val project: Project) : BoundConfigurable("Le
                 checkBox("Show gutter icons on leak-related classes")
                     .bindSelected({ settings.showGutterIcons }, { settings.showGutterIcons = it })
             }
-            row {
-                checkBox("Analyze immediately on .hprof import")
-                    .bindSelected({ settings.analysisOnImport }, { settings.analysisOnImport = it })
-            }
         }
 
         group("History") {
@@ -43,24 +35,20 @@ class LeakLensConfigurable(private val project: Project) : BoundConfigurable("Le
             }
         }
 
-        group("Memory Monitor") {
-            row("Auto heap dump threshold (MB):") {
+        group("Memory Monitor (SDK-Free Capture)") {
+            row("Auto-trigger threshold (MB):") {
                 intTextField(0..2048)
                     .bindIntText({ settings.autoHeapDumpThresholdMb }, { settings.autoHeapDumpThresholdMb = it })
-                comment("0 to disable auto-trigger")
-            }
-            row("Monitoring interval (ms):") {
-                intTextField(1000..60000)
-                    .bindIntText({ settings.monitorIntervalMs.toInt() }, { settings.monitorIntervalMs = it.toLong() })
+                comment("Triggers a heap dump when Java heap exceeds this value. Set to 0 to disable.")
             }
         }
 
-        group("AI-Assisted Analysis (Optional)") {
+        group("AI Fix Suggestions") {
             row {
-                comment("When enabled, anonymized leak traces are sent to an AI API for contextual fix suggestions.")
+                text("Discuss leaks for free using the 'Ask Gemini' button in the tool window, or enable background automation below.")
             }
             row {
-                checkBox("Enable AI Suggestions")
+                checkBox("Enable automatic background analysis")
                     .bindSelected({ settings.aiEnabled }, { settings.aiEnabled = it })
             }
             row("AI Provider:") {
@@ -73,11 +61,11 @@ class LeakLensConfigurable(private val project: Project) : BoundConfigurable("Le
                     .align(AlignX.FILL)
             }
             row {
-                checkBox("Anonymize package names before sending to AI")
-                    .bindSelected({ settings.aiAnonymizePackageNames }, { settings.aiAnonymizePackageNames = it })
+                browserLink("Get a free Gemini API Key from Google AI Studio", "https://aistudio.google.com/app/apikey")
             }
             row {
-                comment("⚠️ AI suggestions are clearly marked with a badge. No data is sent without this toggle enabled.")
+                checkBox("Anonymize package names before sending to AI")
+                    .bindSelected({ settings.aiAnonymizePackageNames }, { settings.aiAnonymizePackageNames = it })
             }
         }
     }

@@ -19,5 +19,11 @@ class LeakLensStartupActivity : ProjectActivity {
             thisLogger().info("LeakLens: Auto-detected heap dump, starting analysis...")
             coordinator.analyzeFromDevice(deviceSerial, hprofPath)
         }
+
+        // Auto-start listener if enabled in settings
+        val settings = com.github.devvikassoni.leaklens.settings.LeakLensSettingsState.getInstance(project)
+        if (settings.autoDetectEnabled) {
+            listener.startListening()
+        }
     }
 }

@@ -8,6 +8,8 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
+import com.intellij.icons.AllIcons
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 
 /**
  * Action to start/stop real-time memory monitoring.
@@ -55,10 +57,14 @@ class MonitorMemoryAction : AnAction() {
         }
     }
 
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+
     override fun update(e: AnActionEvent) {
         val project = e.project ?: return
         val monitor = DeviceMemoryMonitor.getInstance(project)
-        e.presentation.text = if (monitor.isActive()) "Stop Memory Monitor" else "Start Memory Monitor"
+        val active = monitor.isActive()
+        e.presentation.text = if (active) "Stop Memory Monitor" else "Start Memory Monitor"
+        e.presentation.icon = if (active) AllIcons.Actions.Suspend else AllIcons.Actions.Profile
     }
 
     private fun notify(project: Project, msg: String, type: NotificationType) {

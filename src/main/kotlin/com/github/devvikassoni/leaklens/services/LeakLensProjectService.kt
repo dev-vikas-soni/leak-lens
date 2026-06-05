@@ -8,15 +8,23 @@ import com.github.devvikassoni.leaklens.settings.PersistedHistoryEntry
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 
 @Service(Service.Level.PROJECT)
 class LeakLensProjectService(private val project: Project) {
 
     private val _leaks = MutableStateFlow<List<LeakInfo>>(emptyList())
     val leaks: StateFlow<List<LeakInfo>> = _leaks.asStateFlow()
+
+    private val _liveIssues = MutableStateFlow<Map<String, Map<String, List<LeakInfo>>>>(emptyMap())
+    val liveIssues: StateFlow<List<LeakInfo>> = _liveIssues
+        .map { fileMap -> fileMap.values.flatMap { inspectionMap -> inspectionMap.values.flatten() } }
+        .stateIn(
+            scope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
+        )
 
     // O(1) cache for gutter markers to avoid O(N*M) lag on the highlighting thread
     @Volatile
@@ -50,12 +58,34 @@ class LeakLensProjectService(private val project: Project) {
         logger.info("LeakLens: Updated with ${newLeaks.size} leak(s)")
     }
 
+    fun updateLiveIssues(filePath: String, inspectionName: String, issues: List<LeakInfo>) {
+        synchronized(this) {
+            val currentFileMap = _liveIssues.value.toMutableMap()
+            val currentInspectionMap = currentFileMap[filePath]?.toMutableMap() ?: mutableMapOf()
+            
+            if (issues.isEmpty()) {
+                currentInspectionMap.remove(inspectionName)
+            } else {
+                currentInspectionMap[inspectionName] = issues
+            }
+            
+            if (currentInspectionMap.isEmpty()) {
+                currentFileMap.remove(filePath)
+            } else {
+                currentFileMap[filePath] = currentInspectionMap
+            }
+            
+            _liveIssues.value = currentFileMap
+        }
+    }
+
     fun setAnalyzing(analyzing: Boolean) {
         _isAnalyzing.value = analyzing
     }
 
     fun clearLeaks() {
         _leaks.value = emptyList()
+        _liveIssues.value = emptyMap()
         retainedClassNames = emptySet()
         referenceChainClassNames = emptySet()
     }

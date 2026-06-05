@@ -24,6 +24,11 @@ class LogcatHeapDumpListener(private val project: Project) : Disposable {
     var onHeapDumpDetected: ((deviceSerial: String?, hprofPath: String) -> Unit)? = null
 
     fun startListening(deviceSerial: String? = null) {
+        if (!AdbHeapDumpService.getInstance(project).isAdbAvailable()) {
+            logger.warn("LeakLens: ADB not found. Logcat listener cannot start.")
+            return
+        }
+
         if (isListening.getAndSet(true)) {
             logger.info("LeakLens: Logcat listener already running")
             return
@@ -31,10 +36,13 @@ class LogcatHeapDumpListener(private val project: Project) : Disposable {
 
         listenerThread = Thread({
             try {
+                // If serial is null, try to find a device
+                val actualSerial = deviceSerial ?: AdbHeapDumpService.getInstance(project).listDevices().firstOrNull()
+                
                 val command = mutableListOf("adb").apply {
-                    if (deviceSerial != null) {
+                    if (actualSerial != null) {
                         add("-s")
-                        add(deviceSerial)
+                        add(actualSerial)
                     }
                     add("logcat")
                     add("-s")
@@ -42,7 +50,7 @@ class LogcatHeapDumpListener(private val project: Project) : Disposable {
                     add("--format=brief")
                 }
 
-                logger.info("LeakLens: Starting logcat listener: ${command.joinToString(" ")}")
+                logger.info("LeakLens: Starting logcat listener for ${actualSerial ?: "default device"}")
 
                 logcatProcess = ProcessBuilder(command)
                     .redirectErrorStream(true)
@@ -86,13 +94,19 @@ class LogcatHeapDumpListener(private val project: Project) : Disposable {
 
     private fun processLogcatLine(line: String, deviceSerial: String?) {
         // LeakCanary logs: "Heap dumped to /path/to/file.hprof"
-        val heapDumpPattern = Regex("""Heap dumped to (.+\.hprof)""")
+        // Also handles: "D/LeakCanary: Heap dumped to ..."
+        val heapDumpPattern = Regex("""Heap dumped to\s+(/.+\.hprof)""")
         val match = heapDumpPattern.find(line)
 
         if (match != null) {
             val hprofPath = match.groupValues[1].trim()
             logger.info("LeakLens: Detected heap dump at: $hprofPath")
-            onHeapDumpDetected?.invoke(deviceSerial, hprofPath)
+            
+            // Notify coordinator to pull and analyze
+            // We should use a PooledThread to not block the listener
+            com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
+                onHeapDumpDetected?.invoke(deviceSerial, hprofPath)
+            }
         }
 
         // Also detect: "1 retained objects, dumping heap"

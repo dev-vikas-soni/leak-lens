@@ -13,6 +13,19 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
     private val logger = thisLogger()
 
     /**
+     * Check if ADB is available in the system PATH.
+     */
+    fun isAdbAvailable(): Boolean {
+        return try {
+            val process = ProcessBuilder("adb", "version").start()
+            process.waitFor(2, TimeUnit.SECONDS)
+            process.exitValue() == 0
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
      * Pull a heap dump file from a connected device.
      */
     fun pullHeapDump(deviceSerial: String?, remotePath: String): File? {

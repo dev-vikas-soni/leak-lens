@@ -7,7 +7,15 @@ import com.github.devvikassoni.leaklens.shark.LeakLensObjectInspectors
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
-import shark.*
+import shark.AndroidObjectInspectors
+import shark.AndroidReferenceMatchers
+import shark.FilteringLeakingObjectFinder
+import shark.HeapAnalysisFailure
+import shark.HeapAnalysisSuccess
+import shark.HeapAnalyzer
+import shark.LeakTrace
+import shark.MetadataExtractor
+import shark.OnAnalysisProgressListener
 import java.io.File
 
 /**
@@ -21,7 +29,7 @@ class SharkAnalysisService(private val project: Project) {
 
     companion object {
         private const val LARGE_HEAP_THRESHOLD_BYTES = 500 * 1024 * 1024L // 500 MB
-        
+
         fun getInstance(project: Project): SharkAnalysisService =
             project.getService(SharkAnalysisService::class.java)
     }
@@ -37,9 +45,9 @@ class SharkAnalysisService(private val project: Project) {
 
         val fileSize = hprofFile.length()
         val isLargeFile = fileSize > LARGE_HEAP_THRESHOLD_BYTES
-        
+
         logger.info("LeakLens: Starting Shark analysis of ${hprofFile.name} (${fileSize / 1024 / 1024} MB)")
-        
+
         if (isLargeFile) {
             logger.warn("LeakLens: ${hprofFile.name} is large ($fileSize bytes). Analysis may be slow and memory-intensive.")
         }
@@ -66,14 +74,25 @@ class SharkAnalysisService(private val project: Project) {
 
         return when (analysis) {
             is HeapAnalysisSuccess -> {
-                logger.info("LeakLens: Analysis successful - ${analysis.allLeaks.sumOf { it.leakTraces.size }} leak traces found")
+                val leakCount = analysis.allLeaks.sumOf { it.leakTraces.size }
+                logger.info("LeakLens: Analysis successful - $leakCount leak traces found")
+
+                if (leakCount == 0) {
+                    logger.info("LeakLens: No leaks found in success object. Check matching filters.")
+                }
+
                 convertToLeakInfoList(analysis)
             }
+
             is HeapAnalysisFailure -> {
-                logger.error("LeakLens: Analysis failed", analysis.exception)
+                logger.error("LeakLens: Analysis failed with Shark exception", analysis.exception)
                 emptyList()
             }
-            else -> emptyList()
+
+            else -> {
+                logger.warn("LeakLens: Unknown analysis result type")
+                emptyList()
+            }
         }
     }
 
@@ -82,13 +101,25 @@ class SharkAnalysisService(private val project: Project) {
 
         for (applicationLeak in analysis.applicationLeaks) {
             for (leakTrace in applicationLeak.leakTraces) {
-                leaks.add(convertLeakTrace(leakTrace, applicationLeak.shortDescription, isLibrary = false))
+                leaks.add(
+                    convertLeakTrace(
+                        leakTrace,
+                        applicationLeak.shortDescription,
+                        isLibrary = false
+                    )
+                )
             }
         }
 
         for (libraryLeak in analysis.libraryLeaks) {
             for (leakTrace in libraryLeak.leakTraces) {
-                leaks.add(convertLeakTrace(leakTrace, libraryLeak.shortDescription, isLibrary = true))
+                leaks.add(
+                    convertLeakTrace(
+                        leakTrace,
+                        libraryLeak.shortDescription,
+                        isLibrary = true
+                    )
+                )
             }
         }
 
@@ -103,7 +134,8 @@ class SharkAnalysisService(private val project: Project) {
         val severity = when {
             isLibrary -> LeakSeverity.LIBRARY_LEAK
             leakTrace.leakingObject.className.contains("Activity") ||
-            leakTrace.leakingObject.className.contains("Fragment") -> LeakSeverity.CRITICAL
+                    leakTrace.leakingObject.className.contains("Fragment") -> LeakSeverity.CRITICAL
+
             else -> LeakSeverity.WARNING
         }
 

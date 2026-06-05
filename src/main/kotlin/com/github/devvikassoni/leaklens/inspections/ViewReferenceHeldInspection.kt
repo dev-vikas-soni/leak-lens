@@ -5,88 +5,109 @@ import com.intellij.psi.*
 import org.jetbrains.uast.*
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
+import com.github.devvikassoni.leaklens.services.LeakLensProjectService
+import com.github.devvikassoni.leaklens.model.LeakInfo
+import com.github.devvikassoni.leaklens.model.LeakSeverity
+import com.intellij.openapi.project.Project
 
 /**
  * Detects View references held in Fragment fields that are not nulled out in onDestroyView.
- * Pattern: Fragment field of type View/ViewBinding without cleanup.
- * 
- * Migrated to UAST to support both Java and Kotlin.
  */
 class ViewReferenceHeldInspection : LocalInspectionTool() {
 
-    override fun getGroupDisplayName(): String = "LeakLens"
-    override fun getDisplayName(): String = "View reference held beyond lifecycle in Fragment"
-    override fun getShortName(): String = "LeakLensViewReferenceHeld"
+    override fun getGroupDisplayName() = "LeakLens"
+    override fun getDisplayName() = "View reference held beyond lifecycle in Fragment"
+    override fun getShortName() = "LeakLensViewReferenceHeld"
 
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
+        val fileIssues = mutableListOf<LeakInfo>()
+
         return UastHintedVisitorAdapter.create(
             holder.file.language,
             object : AbstractUastNonRecursiveVisitor() {
                 override fun visitClass(node: UClass): Boolean {
-                    if (!isFragment(node)) return false
+                    if (!LeakLensInspectionUtils.isFragment(node)) return false
 
-                    // Find fields that hold View or ViewBinding references
-                    val viewFields = node.fields.filter { field ->
-                        isViewOrBindingType(field.type)
+                    val viewFields = node.fields.filter { 
+                        LeakLensInspectionUtils.isViewOrBindingType(it.type) 
                     }
-
                     if (viewFields.isEmpty()) return false
 
-                    // Check if onDestroyView nulls them out
                     val onDestroyView = node.methods.find { it.name == "onDestroyView" }
                     val bodyText = onDestroyView?.uastBody?.asSourceString() ?: ""
 
                     for (field in viewFields) {
-                        val fieldName = field.name
-                        val isNulled = bodyText.contains("$fieldName = null") ||
-                                       bodyText.contains("$fieldName=null") ||
-                                       bodyText.contains("_$fieldName = null") // Common Kotlin pattern for backing fields
+                        val name = field.name
+                        val isNulled = bodyText.contains("$name = null") ||
+                                       bodyText.contains("$name=null") ||
+                                       bodyText.contains("_$name = null")
                         
                         if (!isNulled) {
                             val elementToHighlight = field.uastAnchor?.sourcePsi ?: field.sourcePsi ?: continue
                             holder.registerProblem(
                                 elementToHighlight,
-                                "LeakLens: View/Binding field '$fieldName' is not nulled in onDestroyView(). " +
-                                "When Fragment goes on back stack, the view is destroyed but the field retains it, causing a leak. " +
-                                "Set $fieldName = null in onDestroyView().",
-                                ProblemHighlightType.WARNING
+                                "LeakLens: View field '$name' is not nulled in onDestroyView().",
+                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                                NullifyInOnDestroyViewFix(name)
                             )
+                            
+                            if (isOnTheFly) {
+                                fileIssues.add(createLeakInfo(field))
+                            }
                         }
                     }
                     return false
                 }
+
+                override fun afterVisitFile(node: UFile) {
+                     LeakLensInspectionUtils.reportLiveIssue(holder, isOnTheFly, "ViewReferenceHeld", fileIssues)
+                }
             },
-            arrayOf(UClass::class.java)
+            arrayOf(UClass::class.java, UFile::class.java)
         )
     }
 
-    private fun isFragment(uClass: UClass): Boolean {
-        // 1. Check resolved superclass chain
-        var current = uClass.javaPsi.superClass
-        while (current != null) {
-            val name = current.qualifiedName ?: ""
-            if (name.contains("Fragment")) return true
-            current = current.superClass
-        }
-        // 2. Fallback: check raw super type reference text (handles unresolved/mock classes)
-        uClass.javaPsi.extendsList?.referenceElements?.forEach { ref ->
-            val text = ref.text ?: ""
-            val refName = ref.referenceName ?: ""
-            if (text.contains("Fragment") || refName.contains("Fragment")) return true
-        }
-        // 3. UAST super types
-        uClass.uastSuperTypes.forEach { superType ->
-            val text = superType.sourcePsi?.text ?: ""
-            val canonicalText = runCatching { superType.type.canonicalText }.getOrDefault("")
-            if (text.contains("Fragment") || canonicalText.contains("Fragment")) return true
-        }
-        return false
+    private fun createLeakInfo(field: UField): LeakInfo {
+        val line = field.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
+        return LeakInfo(
+            signature = "view_reference_leak_${field.name}_$line",
+            shortDescription = "View reference ${field.name} not cleared",
+            leakTrace = "Fragment field: ${field.name} (line $line)",
+            retainedObjectClassName = "android.view.View",
+            retainedByteSize = 0,
+            retainedObjectCount = 1,
+            severity = LeakSeverity.WARNING,
+            referenceChain = emptyList(),
+            suggestedFix = "Set ${field.name} = null in onDestroyView() to allow GC."
+        )
     }
 
-    private fun isViewOrBindingType(type: PsiType): Boolean {
-        val name = type.canonicalText
-        return name.contains("View") || name.contains("Binding") ||
-               name.contains("android.widget.") || name.contains("android.view.")
+    private class NullifyInOnDestroyViewFix(private val fieldName: String) : LocalQuickFix {
+        override fun getName() = "Nullify '$fieldName' in onDestroyView()"
+        override fun getFamilyName() = "LeakLens quick fixes"
+
+        override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
+            val element = descriptor.psiElement
+            val factory = JavaPsiFacade.getElementFactory(project)
+            
+            if (element.language.id == "JAVA") {
+                val uField = element.toUElementOfType<UField>() ?: return
+                val psiClass = uField.getContainingUClass()?.javaPsi ?: return
+                val onDestroyView = psiClass.findMethodsByName("onDestroyView", false).firstOrNull()
+                
+                if (onDestroyView != null) {
+                    val body = onDestroyView.body ?: return
+                    body.addBefore(factory.createStatementFromText("$fieldName = null;", psiClass), body.rBrace)
+                } else {
+                    val newMethod = factory.createMethodFromText(
+                        "@Override public void onDestroyView() { super.onDestroyView(); $fieldName = null; }", 
+                        psiClass
+                    )
+                    psiClass.add(newMethod)
+                }
+            } else {
+                element.parent.addBefore(factory.createCommentFromText("// LeakLens: Set $fieldName = null in onDestroyView()", element), element)
+            }
+        }
     }
 }
-

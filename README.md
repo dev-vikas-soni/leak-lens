@@ -1,168 +1,60 @@
 # LeakLens 🧠💧
 
-> Android Studio IDE Plugin for Memory Leak Detection & Fix Suggestions
+> **Professional Android Memory Leak Detection & Fix Assistant for Android Studio.**
 
-[![JetBrains Marketplace](https://img.shields.io/badge/JetBrains-Marketplace-blue)](https://plugins.jetbrains.com)
+[![JetBrains Marketplace](https://img.shields.io/badge/JetBrains-Marketplace-32079-blue)](https://plugins.jetbrains.com/plugin/32079-leaklens)
+[![Version](https://img.shields.io/jetbrains/plugin/v/32079-leaklens.svg)](https://plugins.jetbrains.com/plugin/32079-leaklens)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
-[![Phase](https://img.shields.io/badge/Status-v1.0.0-brightgreen)](CHANGELOG.md)
+
+**LeakLens** is a high-performance, standalone IDE plugin designed to make Android memory leak management proactive and effortless. It combines the power of the **Shark heap analysis engine** with **SonarLint-style real-time inspections**, allowing you to find and fix leaks before they ever reach your users.
 
 ---
 
-## Overview
+## 🚀 Why LeakLens?
 
-**LeakLens** is a standalone Android Studio/IntelliJ plugin (like SonarLint) that integrates LeakCanary's heap analysis engine (Shark) directly into the IDE. It provides:
-
-- 🔍 **Runtime leak detection** — Shark-powered heap analysis
-- 🛡️ **Preventive static analysis** — 6 inspections catching leaks at write-time
-- 💡 **Fix suggestions** — 11 pattern rules + optional AI
-- 📊 **Real-time monitoring** — Live memory graph + auto-trigger
-- 🎯 **One-click navigation** — Leak trace → source code
-- 📋 **CI-ready reports** — HTML, JSON, SARIF export
-- 🤝 **Team collaboration** — VCS-tracked baselines
+*   **SDK-Free Detection**: No more adding `leakcanary-android` to your `build.gradle`. LeakLens works entirely via ADB and IDE-side analysis, keeping your app binary clean and fast.
+*   **Write-Time Prevention**: 6 specialized UAST inspections detect leak-prone patterns (like static Activity references or uncancelled coroutines) while you type.
+*   **Jetpack Compose Support**: Tailored analysis for Compose recomposition scopes and state-related leaks.
+*   **Free AI Discussions**: Integrated "Ask Gemini" button to discuss complex leaks with Android Studio's built-in AI for free.
+*   **One-Click Fixes**: Real code refactoring intentions (Alt+Enter) to automatically wrap fields in `WeakReference` or add cleanup logic.
 
 ---
 
-## Documentation
-
-| Document | Description |
-|----------|-------------|
-| [User Manual](docs/USER_MANUAL.md) | Complete usage guide with all features |
-| [Testing Strategy](docs/TESTING_STRATEGY.md) | Manual testing checklist + E2E scenarios |
-| [Architecture](docs/ARCHITECTURE.md) | Technical deep-dive, data flow, threading |
-| [Changelog](CHANGELOG.md) | Version history with all changes |
-
----
-
-## Quick Start
-
-```bash
-# Build
-git clone https://github.com/dev-vikas-soni/leak-lens.git
-cd leak-lens
-./gradlew buildPlugin
-
-# Install: Settings → Plugins → ⚙ → Install from Disk → build/distributions/*.zip
-# Then: View → Tool Windows → LeakLens
-```
-
-**First analysis:**
-1. Connect device/emulator with debug app
-2. **Tools → LeakLens → Dump Heap Now**
-3. View results in LeakLens tool window
-
----
-
-## Features at a Glance
+## ✨ Key Features
 
 | Feature | Description |
 |---------|-------------|
-| Heap dump capture | Manual trigger, auto-detect via LeakCanary logcat, .hprof import |
-| Shark analysis | Full LeakCanary heap analyzer running in IDE process |
-| Leak dashboard | Tree view grouped by severity (🔴🟡🟢) |
-| Source navigation | Click class names in trace → jumps to source |
-| Gutter icons | Warning markers on leak-related classes |
-| Fix suggestions | Explanation + before/after code for 11 common patterns |
-| Quick fixes | Alt+Enter one-click fix application |
-| AI suggestions | Optional OpenAI/Gemini for novel patterns (🤖 marked) |
-| Static inspections | 6 write-time checks (like Lint) |
-| Memory monitor | Live Java Heap/Native/PSS graph |
-| Auto-trigger | Heap dump when threshold exceeded |
-| Deobfuscation | R8/ProGuard mapping.txt support |
-| Report export | HTML, JSON, SARIF (GitHub/SonarQube) |
-| Baselines | VCS-tracked `leak-baseline.json` |
-| Persistent history | Analysis history survives IDE restart |
-| Settings UI | Full configuration page (Settings → Tools → LeakLens) |
+| **Instant Analysis** | captures heap dumps via ADB, pulls, and analyzes with Shark in the background. |
+| **SonarLint Workflow** | Manual "Analyze Current File" and "Analyze Project" actions to audit your code health. |
+| **Live Memory Graph** | Real-time monitoring of Java Heap, Native Heap, and PSS with auto-trigger safeguards. |
+| **Precision Navigation** | Click a leak trace to jump to the **exact line** in your source code. |
+| **Team Baselines** | VCS-tracked `leak-baseline.json` to suppress legacy leaks and focus on new ones. |
+| **CI-Ready Reports** | Export findings as HTML, JSON, or SARIF for GitHub Code Scanning/SonarQube. |
 
 ---
 
-## Architecture
+## 🛠️ Getting Started
 
-```
-┌─────────────────────────────────────────────────────┐
-│              Android Studio (IntelliJ Platform)       │
-├─────────────────────────────────────────────────────┤
-│  PRESENTATION   │  Inspections  │  Gutter Markers   │
-│  (Tool Window)  │  (6 checks)   │  (Line icons)     │
-├─────────────────┴───────────────┴───────────────────┤
-│  SERVICES: ProjectService, Coordinator, Navigation   │
-├─────────────────────────────────────────────────────┤
-│  ENGINES: Shark, FixRules(11), AI, Deobfuscation     │
-├─────────────────────────────────────────────────────┤
-│  INFRA: ADB, Logcat, MemoryMonitor, Baseline         │
-├─────────────────────────────────────────────────────┤
-│  PERSISTENCE: leaklens.xml, leak-baseline.json       │
-└──────────────────────────┬──────────────────────────┘
-                           │ ADB
-                    ┌──────▼──────┐
-                    │   Device    │
-                    └─────────────┘
+1.  **Install**: Search for `LeakLens` in **Settings → Plugins → Marketplace**.
+2.  **Open**: Click the **LeakLens** tab at the bottom of Android Studio.
+3.  **Audit**: Click the ▶️ icon to audit your current file or 🔁 to scan the entire project.
+4.  **Analyze**: Connect a device and click 📥 to capture a deep runtime heap dump.
+
+---
+
+## 🤝 Support & Marketplace
+
+LeakLens is free and open-source. For a live rating and download count, you can embed this card on your tools page:
+
+```html
+<script src="https://plugins.jetbrains.com/assets/scripts/mp-widget.js"></script>
+<script>
+  MarketplaceWidget.setupMarketplaceWidget('card', 32079, "#leaklens-card");
+</script>
 ```
 
 ---
 
-## Project Structure (44 files, 13 packages)
+## ⚖️ License
 
-```
-src/main/kotlin/com/github/devvikassoni/leaklens/
-├── actions/         (6)  # DumpHeap, Import, AutoDetect, Monitor, Export, Baseline
-├── ai/              (1)  # AI suggestion service (OpenAI/Gemini)
-├── baseline/        (1)  # VCS-tracked leak suppression
-├── deobfuscation/   (1)  # R8/ProGuard mapping support
-├── fix/             (3)  # 11 rules + 3 quick-fix intentions
-├── gutter/          (1)  # Editor line markers
-├── inspections/     (6)  # Preventive static analysis
-├── model/           (3)  # Data models
-├── monitoring/      (2)  # Real-time memory graph
-├── reporting/       (1)  # HTML/JSON/SARIF export
-├── services/        (6)  # Core services + coordinator
-├── settings/        (2)  # Persistent config + UI
-├── shark/           (1)  # Custom ObjectInspectors
-├── startup/         (1)  # Post-startup init
-└── toolWindow/      (6)  # UI panels + factory
-```
-
----
-
-## Roadmap
-
-- [x] Phase 1: Plugin skeleton & Shark integration
-- [x] Phase 2: Heap dump capture & full analysis pipeline
-- [x] Phase 3: Tool window UI with source navigation
-- [x] Phase 4: Fix suggestion engine (static rules + optional AI)
-- [x] Phase 5: Static analysis inspections (preventive)
-- [x] Phase 6: Real-time device monitoring (memory graph, auto-trigger)
-- [x] Phase 7: Collaboration & CI (reports, SARIF, baselines, deobfuscation)
-- [x] Phase 8: Polish & marketplace release
-
----
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| Platform | IntelliJ Platform SDK (2023.2+) |
-| Language | Kotlin 100% |
-| Build | Gradle (Kotlin DSL) + IntelliJ Platform Gradle Plugin |
-| Analysis | Shark 2.14 (LeakCanary heap analyzer) |
-| ADB | ProcessBuilder-based adb commands |
-| UI | Swing (JTree, JTextPane, custom Canvas) |
-| State | Kotlin Coroutines StateFlow |
-| Persistence | PersistentStateComponent (XML) |
-| AI | OpenAI GPT-4o-mini / Google Gemini (opt-in) |
-
----
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Run `./gradlew buildPlugin` to verify
-4. Submit a Pull Request
-
-See [Testing Strategy](docs/TESTING_STRATEGY.md) for the full test checklist.
-
----
-
-## License
-
-Apache 2.0 — see [LICENSE](LICENSE) for details.
+Licensed under the [Apache License, Version 2.0](LICENSE).

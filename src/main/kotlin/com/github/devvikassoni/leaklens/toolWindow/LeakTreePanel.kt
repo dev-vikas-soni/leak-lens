@@ -2,6 +2,7 @@ package com.github.devvikassoni.leaklens.toolWindow
 
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.DefaultActionGroup
@@ -27,13 +28,14 @@ import javax.swing.tree.DefaultTreeModel
  * 
  * Updated with UI DSL 2 for better alignment.
  */
-class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
+class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
 
     private val rootNode = DefaultMutableTreeNode("Leaks")
     private val treeModel = DefaultTreeModel(rootNode)
     private val tree = Tree(treeModel)
     private val statusLabel = JBLabel("Waiting for heap dump...")
     private val countLabel = JBLabel("")
+    private var connectivityTimer: Timer? = null
 
     var onLeakSelected: ((LeakInfo) -> Unit)? = null
 
@@ -59,32 +61,44 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     private fun startConnectivityWatcher() {
-        val timer = Timer(5000) {
+        connectivityTimer = Timer(5000) {
+            if (project.isDisposed) return@Timer
+
             com.intellij.openapi.application.ApplicationManager.getApplication()
                 .executeOnPooledThread {
-                    val adb =
-                        com.github.devvikassoni.leaklens.services.AdbHeapDumpService.getInstance(
-                            project
-                        )
-                    val devices = adb.listDevices()
+                    if (project.isDisposed) return@executeOnPooledThread
 
-                    com.intellij.openapi.application.ApplicationManager.getApplication()
-                        .invokeLater {
-                            if (devices.isEmpty()) {
-                                statusLabel.icon = com.intellij.icons.AllIcons.General.Warning
-                                statusLabel.text = "No device connected"
-                            } else {
-                                statusLabel.icon = com.intellij.icons.AllIcons.General.InspectionsOK
-                                statusLabel.text = "Monitoring ${devices.size} device(s)"
+                    try {
+                        val adb =
+                            com.github.devvikassoni.leaklens.services.AdbHeapDumpService.getInstance(
+                                project
+                            )
+                        val devices = adb.listDevices()
+
+                        com.intellij.openapi.application.ApplicationManager.getApplication()
+                            .invokeLater {
+                                if (project.isDisposed) return@invokeLater
+
+                                if (devices.isEmpty()) {
+                                    statusLabel.icon = com.intellij.icons.AllIcons.General.Warning
+                                    statusLabel.text = "No device connected"
+                                } else {
+                                    statusLabel.icon =
+                                        com.intellij.icons.AllIcons.General.InspectionsOK
+                                    statusLabel.text = "Monitoring ${devices.size} device(s)"
+                                }
                             }
-                        }
+                    } catch (_: Exception) {
+                        // Project likely disposed or service unavailable
+                    }
                 }
         }
-        timer.isRepeats = true
-        timer.start()
+        connectivityTimer?.isRepeats = true
+        connectivityTimer?.start()
     }
 
     fun updateLeaks(leaks: List<LeakInfo>) {
+        if (project.isDisposed) return
         rootNode.removeAllChildren()
 
         if (leaks.isEmpty()) {
@@ -96,11 +110,11 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
 
         // Group by severity
         val criticalNode =
-            DefaultMutableTreeNode("🔴 Critical (${leaks.count { it.severity == LeakSeverity.CRITICAL }})")
+            DefaultMutableTreeNode("Critical (${leaks.count { it.severity == LeakSeverity.CRITICAL }})")
         val warningNode =
-            DefaultMutableTreeNode("🟡 Warning (${leaks.count { it.severity == LeakSeverity.WARNING }})")
+            DefaultMutableTreeNode("Warning (${leaks.count { it.severity == LeakSeverity.WARNING }})")
         val libraryNode =
-            DefaultMutableTreeNode("🟢 Library Leak (${leaks.count { it.severity == LeakSeverity.LIBRARY_LEAK }})")
+            DefaultMutableTreeNode("Library Leak (${leaks.count { it.severity == LeakSeverity.LIBRARY_LEAK }})")
 
         leaks.filter { it.severity == LeakSeverity.CRITICAL }
             .sortedBy { it.retainedObjectClassName }
@@ -164,6 +178,11 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
         }
     }
 
+    override fun dispose() {
+        connectivityTimer?.stop()
+        connectivityTimer = null
+    }
+
     private class LeakTreeCellRenderer : ColoredTreeCellRenderer() {
         override fun customizeCellRenderer(
             tree: JTree,
@@ -179,6 +198,11 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
 
             when (userObj) {
                 is LeakInfo -> {
+                    icon = when (userObj.severity) {
+                        LeakSeverity.CRITICAL -> com.intellij.icons.AllIcons.General.Error
+                        LeakSeverity.WARNING -> com.intellij.icons.AllIcons.General.Warning
+                        LeakSeverity.LIBRARY_LEAK -> com.intellij.icons.AllIcons.General.Information
+                    }
                     val simpleClassName = userObj.retainedObjectClassName.substringAfterLast('.')
                     append(simpleClassName, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
                     append(" - ${userObj.shortDescription}", SimpleTextAttributes.GRAYED_ATTRIBUTES)
@@ -194,6 +218,12 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
                 }
 
                 is String -> {
+                    icon = when {
+                        userObj.startsWith("Critical") -> com.intellij.icons.AllIcons.General.Error
+                        userObj.startsWith("Warning") -> com.intellij.icons.AllIcons.General.Warning
+                        userObj.startsWith("Library Leak") -> com.intellij.icons.AllIcons.General.Information
+                        else -> null
+                    }
                     append(userObj, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
                 }
             }
@@ -208,4 +238,3 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()) {
         }
     }
 }
-

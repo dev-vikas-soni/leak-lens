@@ -66,15 +66,15 @@ Create a simple Android app with intentional leaks (see Section 5).
 | 2.6 | Auto-detect | Start Auto-Detect, trigger leak in app | Plugin auto-captures and analyzes | ☐ |
 
 ### Phase 3: UI & Navigation
-| # | Test Case | Steps | Expected Result | Pass? |
-|---|-----------|-------|----------------|-------|
-| 3.1 | Leak tree | After analysis with leaks | Tree grouped by 🔴🟡🟢 severity | ☐ |
-| 3.2 | Leak detail | Click a leak in tree | Right panel shows trace + fix | ☐ |
-| 3.3 | Source navigation | Click blue class name in detail | Editor opens at that class | ☐ |
-| 3.4 | Gutter icons | Open a class that's in a leak trace | 🔴 or ⚠️ icon in gutter | ☐ |
-| 3.5 | History tab | Switch to History tab | Past analyses listed with timestamps | ☐ |
-| 3.6 | Memory tab | Start monitoring, view Memory tab | Live graph updating | ☐ |
-| 3.7 | Empty state | Clear all leaks | "No leaks detected" message shown | ☐ |
+| #   | Test Case         | Steps                               | Expected Result                             | Pass? |
+|-----|-------------------|-------------------------------------|---------------------------------------------|-------|
+| 3.1 | Leak tree         | After analysis with leaks           | Tree grouped by Error/Warning/Info severity | ☐     |
+| 3.2 | Leak detail       | Click a leak in tree                | Right panel shows trace + fix               | ☐     |
+| 3.3 | Source navigation | Click blue class name in detail     | Editor opens at that class                  | ☐     |
+| 3.4 | Gutter icons      | Open a class that's in a leak trace | 🚫 or ⚠️ icon in gutter                     | ☐     |
+| 3.5 | History tab       | Switch to History tab               | Past analyses listed with timestamps        | ☐     |
+| 3.6 | Memory tab        | Start monitoring, view Memory tab   | Live graph updating                         | ☐     |
+| 3.7 | Empty state       | Clear all leaks                     | "No leaks detected" message shown           | ☐     |
 
 ### Phase 4: Fix Suggestions
 | # | Test Case | Steps | Expected Result | Pass? |

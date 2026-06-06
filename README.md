@@ -15,7 +15,8 @@
 *   **SDK-Free Detection**: No more adding `leakcanary-android` to your `build.gradle`. LeakLens works entirely via ADB and IDE-side analysis, keeping your app binary clean and fast.
 *   **Write-Time Prevention**: 6 specialized UAST inspections detect leak-prone patterns (like static Activity references or uncancelled coroutines) while you type.
 *   **Jetpack Compose Support**: Tailored analysis for Compose recomposition scopes and state-related leaks.
-*   **Free AI Discussions**: Integrated "Ask Gemini" button to discuss complex leaks with Android Studio's built-in AI for free.
+* **AI Fix Assistant**: One-click "Ask Gemini AI" button to discuss complex leaks with Android
+  Studio's built-in AI for free.
 *   **One-Click Fixes**: Real code refactoring intentions (Alt+Enter) to automatically wrap fields in `WeakReference` or add cleanup logic.
 
 ---

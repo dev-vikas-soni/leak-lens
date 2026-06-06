@@ -112,9 +112,11 @@ Then install via **Settings → Plugins → ⚙ → Install Plugin from Disk** �
 The tool window has two main tabs:
 
 **Leaks Tab:**
-- Left: Tree view grouped by severity (🔴 Critical, 🟡 Warning, 🟢 Library)
+
+- Left: Tree view grouped by severity (Error, Warning, Info)
 - Right: Detailed leak trace with clickable class names
 - Click any class name → navigates to source code
+- **Ask Gemini AI**: One-click button to copy leak context for AI assistance
 
 **Memory Tab:**
 - Real-time graph showing Java Heap, Native Heap, Total PSS
@@ -133,10 +135,11 @@ The tool window has two main tabs:
 
 ### 5.4 Editor Gutter Icons
 
-When leaks are detected, the plugin places icons in the editor gutter:
-- 🔴 (Error icon) — Class is the leaking object (Critical)
-- ⚠️ (Warning icon) — Class appears in a leak trace reference chain
-- ℹ️ (Info icon) — Known library/framework leak
+When leaks are detected, the plugin places standard IDE icons in the editor gutter:
+
+- **🚫 (Error)** — Class is the leaking object (Critical)
+- **⚠️ (Warning)** — Class appears in a leak trace reference chain
+- **ℹ️ (Info)** — Known library/framework leak
 
 ### 5.5 Fix Suggestions
 

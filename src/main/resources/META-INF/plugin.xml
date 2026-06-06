@@ -25,7 +25,7 @@
     ]]></description>
 
     <change-notes><![CDATA[
-        <h4>0.1.2-RC1</h4>
+        <h4>0.1.2</h4>
         <ul>
             <li>Resolved 15 Internal API verification errors by converting ToolWindowFactory to Java.</li>
             <li>Improved lifecycle management with explicit Disposable cleanup for tool window panels.</li>

@@ -1,9 +1,12 @@
 package com.github.devvikassoni.leaklens.services
 
+import com.android.ddmlib.AndroidDebugBridge
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
+import org.jetbrains.android.sdk.AndroidSdkUtils
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -12,15 +15,37 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
 
     private val logger = thisLogger()
 
+    private fun getAdbExecutable(): String {
+        @Suppress("DEPRECATION")
+        val adb = AndroidSdkUtils.getAdb(project)
+        return if (adb?.exists() == true) adb.absolutePath else "adb"
+    }
+
+    private fun getDebugBridge(): AndroidDebugBridge? {
+        var bridge: AndroidDebugBridge? = null
+        val app = ApplicationManager.getApplication()
+        if (app.isDispatchThread) {
+            bridge = AndroidSdkUtils.getDebugBridge(project)
+        } else {
+            app.invokeAndWait {
+                bridge = AndroidSdkUtils.getDebugBridge(project)
+            }
+        }
+        return bridge
+    }
+
     /**
-     * Check if ADB is available in the system PATH.
+     * Check if ADB is available.
      */
     fun isAdbAvailable(): Boolean {
-        return try {
-            val process = ProcessBuilder("adb", "version").start()
+        val bridge = getDebugBridge()
+        val isBridgeConnected = bridge != null && bridge.isConnected
+
+        return isBridgeConnected || try {
+            val process = ProcessBuilder(getAdbExecutable(), "version").start()
             process.waitFor(2, TimeUnit.SECONDS)
             process.exitValue() == 0
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -33,7 +58,7 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
             val tempFile = File.createTempFile("leaklens_heap_", ".hprof")
             tempFile.deleteOnExit()
 
-            val adbCommand = mutableListOf("adb").apply {
+            val adbCommand = mutableListOf(getAdbExecutable()).apply {
                 if (deviceSerial != null) {
                     add("-s")
                     add(deviceSerial)
@@ -79,7 +104,7 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
         return try {
             val remotePath = "/data/local/tmp/leaklens_${System.currentTimeMillis()}.hprof"
 
-            val adbCommand = mutableListOf("adb").apply {
+            val adbCommand = mutableListOf(getAdbExecutable()).apply {
                 if (deviceSerial != null) {
                     add("-s")
                     add(deviceSerial)
@@ -121,8 +146,22 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
      * List connected devices.
      */
     fun listDevices(): List<String> {
+        // Try using ddmlib first
+        try {
+            val bridge = getDebugBridge()
+            if (bridge != null && bridge.isConnected && bridge.devices.isNotEmpty()) {
+                return bridge.devices.asSequence()
+                    .filter { it.isOnline }
+                    .map { it.serialNumber }
+                    .toList()
+            }
+        } catch (e: Exception) {
+            logger.warn("LeakLens: ddmlib failed to list devices, falling back to shell", e)
+        }
+
+        // Fallback to shell execution
         return try {
-            val process = ProcessBuilder("adb", "devices")
+            val process = ProcessBuilder(getAdbExecutable(), "devices")
                 .redirectErrorStream(true)
                 .start()
 
@@ -135,7 +174,7 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
                 .filter { it.contains("\tdevice") }
                 .map { it.split("\t").first() }
         } catch (e: Exception) {
-            logger.error("LeakLens: Error listing devices", e)
+            logger.error("LeakLens: Error listing devices via shell", e)
             emptyList()
         }
     }
@@ -145,7 +184,7 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
      */
     fun deleteRemoteFile(deviceSerial: String?, remotePath: String) {
         try {
-            val command = mutableListOf("adb").apply {
+            val command = mutableListOf(getAdbExecutable()).apply {
                 if (deviceSerial != null) {
                     add("-s")
                     add(deviceSerial)
@@ -166,8 +205,28 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
      * List debuggable processes on the device.
      */
     fun listDebuggableProcesses(deviceSerial: String?): List<String> {
+        // Try ddmlib first
+        try {
+            val bridge = getDebugBridge()
+            if (bridge != null && bridge.isConnected) {
+                val device = bridge.devices.find { it.serialNumber == deviceSerial }
+                    ?: bridge.devices.firstOrNull()
+
+                if (device != null) {
+                    val clients = device.clients
+                    if (clients.isNotEmpty()) {
+                        @Suppress("DEPRECATION")
+                        return clients.mapNotNull { it.clientData.clientDescription }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("LeakLens: ddmlib failed to list processes, falling back to shell", e)
+        }
+
+        // Fallback to shell
         return try {
-            val command = mutableListOf("adb").apply {
+            val command = mutableListOf(getAdbExecutable()).apply {
                 if (deviceSerial != null) {
                     add("-s")
                     add(deviceSerial)
@@ -179,25 +238,32 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
                 .redirectErrorStream(true)
                 .start()
 
+            val pids = mutableListOf<String>()
+            val reader = process.inputStream.bufferedReader()
+            
             // jdwp doesn't terminate, read for a brief moment
-            Thread.sleep(500)
+            val startTime = System.currentTimeMillis()
+            while (System.currentTimeMillis() - startTime < 800) {
+                if (reader.ready()) {
+                    val line = reader.readLine() ?: break
+                    pids.add(line.trim())
+                } else {
+                    Thread.sleep(100)
+                }
+            }
             process.destroyForcibly()
 
-            val pids = process.inputStream.bufferedReader().readText()
-                .lines()
-                .filter { it.isNotBlank() }
-
             // Resolve PIDs to package names
-            pids.mapNotNull { pid -> resolveProcessName(deviceSerial, pid.trim()) }
+            pids.distinct().mapNotNull { pid -> resolveProcessName(deviceSerial, pid) }
         } catch (e: Exception) {
-            logger.error("LeakLens: Error listing processes", e)
+            logger.error("LeakLens: Error listing processes via shell", e)
             emptyList()
         }
     }
 
     private fun resolveProcessName(deviceSerial: String?, pid: String): String? {
         return try {
-            val command = mutableListOf("adb").apply {
+            val command = mutableListOf(getAdbExecutable()).apply {
                 if (deviceSerial != null) {
                     add("-s")
                     add(deviceSerial)

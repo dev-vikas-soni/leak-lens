@@ -1,23 +1,29 @@
 package com.github.devvikassoni.leaklens.toolWindow
 
-import com.github.devvikassoni.leaklens.actions.AskGeminiAction
+import com.github.devvikassoni.leaklens.ai.AiUtils
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.github.devvikassoni.leaklens.model.LeakTraceReference
 import com.github.devvikassoni.leaklens.services.SourceNavigationService
-import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.project.Project
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
-import java.awt.*
+import java.awt.BorderLayout
+import java.awt.CardLayout
+import java.awt.Color
+import java.awt.Cursor
+import java.awt.Font
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
-import javax.swing.*
+import javax.swing.BorderFactory
+import javax.swing.JButton
+import javax.swing.JPanel
+import javax.swing.JSplitPane
+import javax.swing.JTextArea
+import javax.swing.JTextPane
 import javax.swing.text.SimpleAttributeSet
 import javax.swing.text.StyleConstants
 
@@ -42,7 +48,39 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
     private val severityLabel = JBLabel().apply { font = font.deriveFont(Font.BOLD, 14f) }
     private val classLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 12f) }
     private val sizeLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 11f) }
-    private val actionPanel = JPanel(BorderLayout())
+
+    private val askGeminiButton = JButton("Ask Gemini AI").apply {
+        icon = AllIcons.Actions.QuickfixBulb
+        toolTipText = "Copy prompt for Android Studio Gemini Assistant"
+        isVisible = false
+    }
+
+    private val emptyStatePanel = panel {
+        row {
+            icon(AllIcons.General.Information).align(AlignX.CENTER)
+        }
+        row {
+            label("Select a leak from the left panel to see details").bold().align(AlignX.CENTER)
+        }
+        row {
+            text("No leaks yet? Try these steps:").align(AlignX.CENTER)
+        }
+        indent {
+            row {
+                text("1. Connect a debuggable Android device or emulator")
+            }
+            row {
+                text("2. Click the 'Dump Heap' icon in the toolbar")
+            }
+            row {
+                text("3. Analyze the generated trace and get AI fix suggestions")
+            }
+        }
+    }.apply {
+        border = JBUI.Borders.empty(20)
+    }
+
+    private val mainContent = JPanel(CardLayout())
 
     init {
         border = JBUI.Borders.empty(8)
@@ -50,7 +88,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         val header = panel {
             row {
                 cell(severityLabel)
-                cell(actionPanel).align(AlignX.RIGHT)
+                cell(askGeminiButton).align(AlignX.RIGHT)
             }
             row {
                 cell(classLabel).align(AlignX.FILL)
@@ -77,18 +115,21 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             resizeWeight = 0.6
         }
 
+        mainContent.add(splitPane, "CONTENT")
+        mainContent.add(emptyStatePanel, "EMPTY")
+
         add(header, BorderLayout.NORTH)
-        add(splitPane, BorderLayout.CENTER)
+        add(mainContent, BorderLayout.CENTER)
         showEmptyState()
     }
 
     fun showLeakDetail(leak: LeakInfo) {
-        val severityEmoji = when (leak.severity) {
-            LeakSeverity.CRITICAL -> "🔴"
-            LeakSeverity.WARNING -> "🟡"
-            LeakSeverity.LIBRARY_LEAK -> "🟢"
+        severityLabel.icon = when (leak.severity) {
+            LeakSeverity.CRITICAL -> AllIcons.General.Error
+            LeakSeverity.WARNING -> AllIcons.General.Warning
+            LeakSeverity.LIBRARY_LEAK -> AllIcons.General.Information
         }
-        severityLabel.text = "$severityEmoji ${leak.severity.displayName}"
+        severityLabel.text = leak.severity.displayName
         classLabel.text = "Class: ${leak.retainedObjectClassName}"
 
         val sizeStr = if (leak.retainedByteSize >= 1024 * 1024) {
@@ -98,38 +139,47 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
         sizeLabel.text = "Retained: $sizeStr | Objects: ${leak.retainedObjectCount}"
 
-        // Update actions
-        updateActions(leak)
+        // Configure Gemini button
+        askGeminiButton.isVisible = true
+        for (al in askGeminiButton.actionListeners) askGeminiButton.removeActionListener(al)
+        askGeminiButton.addActionListener {
+            val prompt = AiUtils.askGemini(project, leak)
+            fixSuggestionArea.text = "PROMPT COPIED TO CLIPBOARD:\n\n$prompt"
+        }
 
         buildClickableTrace(leak)
-        fixSuggestionArea.text = leak.suggestedFix ?: "No fix suggestion available."
-    }
 
-    private fun updateActions(leak: LeakInfo) {
-        actionPanel.removeAll()
-        val group = DefaultActionGroup().apply {
-            add(AskGeminiAction(leak))
+        val fix = leak.suggestedFix
+        if (fix == null || fix.contains("No fix suggestion available")) {
+            fixSuggestionArea.text =
+                "No automatic fix found for this pattern.\n\nUse the 'Ask Gemini AI' button above to get assistance from Android Studio's built-in AI."
+        } else {
+            fixSuggestionArea.text = fix
         }
-        val toolbar = ActionManager.getInstance().createActionToolbar(ActionPlaces.TOOLWINDOW_CONTENT, group, true)
-        toolbar.targetComponent = actionPanel
-        actionPanel.add(toolbar.component)
-        actionPanel.revalidate()
+
+        (mainContent.layout as CardLayout).show(mainContent, "CONTENT")
     }
 
     fun showEmptyState() {
         severityLabel.text = ""
+        severityLabel.icon = null
         classLabel.text = ""
         sizeLabel.text = ""
-        tracePane.text = "Select an item to view details."
+        tracePane.text = ""
         fixSuggestionArea.text = ""
-        actionPanel.removeAll()
+        askGeminiButton.isVisible = false
+
+        (mainContent.layout as CardLayout).show(mainContent, "EMPTY")
     }
 
     private fun buildClickableTrace(leak: LeakInfo) {
         val doc = tracePane.styledDocument
         doc.remove(0, doc.length)
 
-        val normalStyle = SimpleAttributeSet().apply { StyleConstants.setFontFamily(this, "JetBrains Mono"); StyleConstants.setFontSize(this, 12) }
+        val normalStyle = SimpleAttributeSet().apply {
+            StyleConstants.setFontFamily(this, "JetBrains Mono")
+            StyleConstants.setFontSize(this, 12)
+        }
         val linkStyle = SimpleAttributeSet().apply {
             StyleConstants.setFontFamily(this, "JetBrains Mono")
             StyleConstants.setFontSize(this, 12)

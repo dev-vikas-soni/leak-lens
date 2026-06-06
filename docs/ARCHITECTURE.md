@@ -20,7 +20,14 @@
 *   **Live Analysis Bridge**: Inspections automatically feed findings into the tool window during "on-the-fly" checks, creating a living dashboard of the project's health.
 
 ### 🎨 Presentation Layer
+
+* **Java-Kotlin Hybrid**: The `ToolWindowFactory` is implemented in Java to maintain binary
+  compatibility with the IntelliJ platform's internal APIs, while the rest of the UI remains in
+  idiomatic Kotlin.
 *   **IntelliJ UI DSL 2**: All configuration and tool window components use modern DSL 2 for native theme integration and accessibility.
+* **Disposable Management**: Strict adherence to the `Disposable` pattern for all background
+  listeners, timers, and coroutine scopes to prevent IDE memory leaks and NPEs during project
+  closure.
 *   **Clickable Trace Engine**: A styled `JTextPane` that converts class names into actionable links, jumping to the **exact line number** in the source code.
 
 ---

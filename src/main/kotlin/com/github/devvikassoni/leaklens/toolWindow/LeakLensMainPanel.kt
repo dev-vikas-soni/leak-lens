@@ -75,7 +75,9 @@ class LeakLensMainPanel(
             heapLeaks + liveIssues
         }.onEach { allLeaks ->
             ApplicationManager.getApplication().invokeLater {
-                refreshLeaks(allLeaks)
+                if (!project.isDisposed) {
+                    refreshLeaks(allLeaks)
+                }
             }
         }.launchIn(scope)
     }
@@ -84,6 +86,7 @@ class LeakLensMainPanel(
      * Called when new leaks are available (from service state).
      */
     fun refreshLeaks(leaks: List<LeakInfo>) {
+        if (project.isDisposed) return
         leakTreePanel.updateLeaks(leaks)
         leakListPanel.updateLeaks(leaks)
     }

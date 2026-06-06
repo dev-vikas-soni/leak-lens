@@ -1,7 +1,7 @@
 # LeakLens 🧠💧
 
-[![JetBrains Marketplace](https://img.shields.io/badge/JetBrains-Marketplace-32079-blue?style=for-the-badge&logo=jetbrains)](https://plugins.jetbrains.com/plugin/32079-leaklens)
-[![Version](https://img.shields.io/jetbrains/plugin/v/32079-leaklens.svg?style=for-the-badge)](https://plugins.jetbrains.com/plugin/32079-leaklens)
+[![JetBrains Marketplace](https://img.shields.io/badge/JetBrains%20Marketplace-LeakLens-blue?style=for-the-badge&logo=jetbrains)](https://plugins.jetbrains.com/plugin/32079-leaklens)
+[![Version](https://img.shields.io/jetbrains/plugin/v/32079.svg?style=for-the-badge)](https://plugins.jetbrains.com/plugin/32079-leaklens)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/dev-vikas-soni/leak-lens/build.yml?branch=main&style=for-the-badge)](https://github.com/dev-vikas-soni/leak-lens/actions)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge)](LICENSE)
 
@@ -14,9 +14,7 @@ providing a seamless "detect-analyze-fix" workflow without ever leaving your IDE
 ### 📺 Watch LeakLens in Action
 
 > [!TIP]
-> Replace the placeholder below with your YouTube video thumbnail link!
-
-[![LeakLens Demo Video](https://img.youtube.com/vi/YOUR_VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
+> https://www.youtube.com/watch?v=BcKYf34Jr1Q
 
 ---
 
@@ -36,7 +34,7 @@ Kotlin and Java code in real-time.
 * **One-Click Fixes**: Use `Alt + Enter` to automatically apply industry-standard patterns like
   `WeakReference` wrapping or lifecycle cleanup.
 
-> *[INSERT SCREENSHOT: Static analysis warning in the editor]*
+> <img width="1471" height="835" alt="leak-canary-sample-leak-view" src="https://github.com/user-attachments/assets/150093dd-df5b-4c42-8664-9a58ec585343" />
 
 ### 2. Runtime Precision (Shark-Powered)
 
@@ -49,7 +47,7 @@ Integrates the **Shark Heap Analysis engine** (used by LeakCanary) directly into
 * **Auto-Trigger Safeguards**: Configure thresholds to automatically dump the heap when your app
   hits critical memory levels.
 
-> *[INSERT SCREENSHOT: Leak Tree and Reference Chain in the tool window]*
+> <img width="1471" height="835" alt="leak-detail-suggestion-view" src="https://github.com/user-attachments/assets/8aaa0054-f520-4ee6-b660-64984c2dd102" />
 
 ### 3. AI Fix Assistant (Gemini Integrated)
 

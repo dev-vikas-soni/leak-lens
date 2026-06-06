@@ -1,4 +1,5 @@
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import java.util.Properties
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
@@ -31,10 +32,17 @@ intellijPlatform {
         }
     }
 
+    val localProperties = Properties()
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use { localProperties.load(it) }
+    }
+
     publishing {
         token.set(
             providers.environmentVariable("JB_MARKETPLACE_TOKEN")
                 .orElse(providers.gradleProperty("intellijPublishToken"))
+                .orElse(providers.provider { localProperties.getProperty("intellijPublishToken") })
         )
         channels.set(
             listOf(

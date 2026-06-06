@@ -1,10 +1,21 @@
 package com.github.devvikassoni.leaklens.monitoring
 
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
-import java.awt.*
+import kotlinx.coroutines.launch
+import java.awt.BasicStroke
+import java.awt.Color
+import java.awt.Dimension
+import java.awt.Font
+import java.awt.Graphics
+import java.awt.Graphics2D
+import java.awt.RenderingHints
 import javax.swing.JPanel
 import javax.swing.Timer
 
@@ -12,11 +23,12 @@ import javax.swing.Timer
  * Real-time memory graph panel (lite profiler).
  * Shows Java heap, native heap, and total PSS over time.
  */
-class MemoryGraphPanel(private val project: Project) : JPanel() {
+class MemoryGraphPanel(private val project: Project) : JPanel(), Disposable {
 
     private val monitor = DeviceMemoryMonitor.getInstance(project)
     private val graphData = mutableListOf<DeviceMemoryMonitor.MemorySnapshot>()
     private val refreshTimer = Timer(1000) { repaint() }
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     private val javaHeapColor = JBColor(Color(0x4C, 0xAF, 0x50), Color(0x66, 0xBB, 0x6A))
     private val nativeHeapColor = JBColor(Color(0xFF, 0x98, 0x00), Color(0xFF, 0xB7, 0x4D))
@@ -28,7 +40,6 @@ class MemoryGraphPanel(private val project: Project) : JPanel() {
         refreshTimer.start()
 
         // Poll snapshots
-        val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         scope.launch {
             monitor.memorySnapshots.collectLatest { snapshots ->
                 synchronized(graphData) {
@@ -112,8 +123,9 @@ class MemoryGraphPanel(private val project: Project) : JPanel() {
         }
     }
 
-    fun dispose() {
+    override fun dispose() {
         refreshTimer.stop()
+        scope.cancel()
     }
 }
 

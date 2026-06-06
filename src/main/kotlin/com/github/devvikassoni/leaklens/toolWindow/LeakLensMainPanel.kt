@@ -1,9 +1,17 @@
 package com.github.devvikassoni.leaklens.toolWindow
 
 import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.services.LeakLensProjectService
+import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import java.awt.BorderLayout
 import javax.swing.JPanel
 import javax.swing.JSplitPane
@@ -17,10 +25,11 @@ class LeakLensMainPanel(
     private val project: Project,
     private val leakListPanel: LeakListPanel,
     private val leakDetailPanel: LeakDetailPanel
-) : JPanel(BorderLayout()) {
+) : JPanel(BorderLayout()), Disposable {
 
     private val leakTreePanel = LeakTreePanel(project)
     private val historyPanel = HistoryPanel(project)
+    private var scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     init {
         val tabbedPane = JTabbedPane()
@@ -59,6 +68,16 @@ class LeakLensMainPanel(
                 historyPanel.refresh()
             }
         }
+
+        // Subscribe to all leak updates from the service
+        val projectService = LeakLensProjectService.getInstance(project)
+        combine(projectService.leaks, projectService.liveIssues) { heapLeaks, liveIssues ->
+            heapLeaks + liveIssues
+        }.onEach { allLeaks ->
+            ApplicationManager.getApplication().invokeLater {
+                refreshLeaks(allLeaks)
+            }
+        }.launchIn(scope)
     }
 
     /**
@@ -67,5 +86,9 @@ class LeakLensMainPanel(
     fun refreshLeaks(leaks: List<LeakInfo>) {
         leakTreePanel.updateLeaks(leaks)
         leakListPanel.updateLeaks(leaks)
+    }
+
+    override fun dispose() {
+        scope.cancel()
     }
 }

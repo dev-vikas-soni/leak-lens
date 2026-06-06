@@ -8,11 +8,16 @@ import com.github.devvikassoni.leaklens.settings.PersistedHistoryEntry
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 
 @Service(Service.Level.PROJECT)
-class LeakLensProjectService(private val project: Project) {
+class LeakLensProjectService(private val project: Project, val scope: CoroutineScope) {
 
     private val _leaks = MutableStateFlow<List<LeakInfo>>(emptyList())
     val leaks: StateFlow<List<LeakInfo>> = _leaks.asStateFlow()
@@ -21,7 +26,7 @@ class LeakLensProjectService(private val project: Project) {
     val liveIssues: StateFlow<List<LeakInfo>> = _liveIssues
         .map { fileMap -> fileMap.values.flatMap { inspectionMap -> inspectionMap.values.flatten() } }
         .stateIn(
-            scope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
+            scope = scope,
             started = SharingStarted.Eagerly,
             initialValue = emptyList()
         )

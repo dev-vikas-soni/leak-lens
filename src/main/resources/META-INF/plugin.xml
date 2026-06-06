@@ -25,6 +25,13 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h4>0.1.2-RC1</h4>
+        <ul>
+            <li>Resolved 15 Internal API verification errors by converting ToolWindowFactory to Java.</li>
+            <li>Improved lifecycle management with explicit Disposable cleanup for tool window panels.</li>
+            <li>Optimized project service coroutine scope to use platform-provided scope.</li>
+            <li>Enhanced stability on experimental Gradle versions.</li>
+        </ul>
         <h4>0.1.1</h4>
         <ul>
             <li>Migrated all inspections to UAST for robust Java and Kotlin support.</li>

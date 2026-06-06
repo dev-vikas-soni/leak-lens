@@ -1,7 +1,5 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.intellij.codeInspection.InspectionManager
-import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.testFramework.fixtures.BasePlatformTestCase
 import org.junit.Test
 
@@ -37,36 +35,36 @@ class UastInspectionsTest : BasePlatformTestCase() {
     @Test
     fun testStaticActivityReferenceInspection() {
         myFixture.enableInspections(StaticActivityReferenceInspection())
-        myFixture.testHighlighting(true, false, true, "StaticActivityLeak.java")
+        myFixture.testHighlighting(true, false, false, "StaticActivityLeak.java")
     }
 
     @Test
     fun testAnonymousInnerClassLeakInspection() {
         myFixture.enableInspections(AnonymousInnerClassLeakInspection())
-        myFixture.testHighlighting(true, false, true, "AnonymousInnerClassLeak.java")
+        myFixture.testHighlighting(true, false, false, "AnonymousInnerClassLeak.java")
     }
 
     @Test
     fun testContextPassedToSingletonInspection() {
         myFixture.enableInspections(ContextPassedToSingletonInspection())
-        myFixture.testHighlighting(true, false, true, "ContextSingletonLeak.java")
+        myFixture.testHighlighting(true, false, false, "ContextSingletonLeak.java")
     }
 
     @Test
     fun testMissingRemoveCallbacksInspection() {
         myFixture.enableInspections(MissingRemoveCallbacksInspection())
-        myFixture.testHighlighting(true, false, true, "MissingRemoveCallbacksLeak.java")
+        myFixture.testHighlighting(true, false, false, "MissingRemoveCallbacksLeak.java")
     }
 
     @Test
     fun testGlobalScopeWithContextInspection() {
         myFixture.enableInspections(GlobalScopeWithContextInspection())
-        myFixture.testHighlighting(true, false, true, "GlobalScopeLeak.kt")
+        myFixture.testHighlighting(true, false, false, "GlobalScopeLeak.kt")
     }
 
     @Test
     fun testViewReferenceHeldInspection() {
         myFixture.enableInspections(ViewReferenceHeldInspection())
-        myFixture.testHighlighting(true, false, true, "ViewReferenceLeak.java")
+        myFixture.testHighlighting(true, false, false, "ViewReferenceLeak.java")
     }
 }

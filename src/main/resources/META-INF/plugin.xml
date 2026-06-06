@@ -91,30 +91,15 @@
             <className>com.github.devvikassoni.leaklens.fix.AddRemoveCallbacksFixAction</className>
             <category>LeakLens</category>
         </intentionAction>
-        <intentionAction>
-            <language>kotlin</language>
-            <className>com.github.devvikassoni.leaklens.fix.AddRemoveCallbacksFixAction</className>
-            <category>LeakLens</category>
-        </intentionAction>
 
         <intentionAction>
             <language>JAVA</language>
             <className>com.github.devvikassoni.leaklens.fix.NullBindingFixAction</className>
             <category>LeakLens</category>
         </intentionAction>
-        <intentionAction>
-            <language>kotlin</language>
-            <className>com.github.devvikassoni.leaklens.fix.NullBindingFixAction</className>
-            <category>LeakLens</category>
-        </intentionAction>
 
         <intentionAction>
             <language>JAVA</language>
-            <className>com.github.devvikassoni.leaklens.fix.UseApplicationContextFixAction</className>
-            <category>LeakLens</category>
-        </intentionAction>
-        <intentionAction>
-            <language>kotlin</language>
             <className>com.github.devvikassoni.leaklens.fix.UseApplicationContextFixAction</className>
             <category>LeakLens</category>
         </intentionAction>
@@ -165,8 +150,7 @@
             <action id="LeakLens.ToggleAutoDetect" class="com.github.devvikassoni.leaklens.actions.ToggleAutoDetectAction"
                 text="Start Auto-Detect" description="Toggle automatic detection of LeakCanary heap dumps via logcat"/>
             <separator/>
-            <action id="LeakLens.MonitorMemory" class="com.github.devvikassoni.leaklens.actions.MonitorMemoryAction"
-                text="Start Memory Monitor" description="Start/stop real-time device memory monitoring"/>
+            <reference ref="LeakLens.MonitorMemory" />
             <action id="LeakLens.ExportReport" class="com.github.devvikassoni.leaklens.actions.ExportReportAction"
                 text="Export Report" description="Export leak analysis as HTML/JSON/SARIF report"/>
             <action id="LeakLens.SaveBaseline" class="com.github.devvikassoni.leaklens.actions.SaveBaselineAction"

@@ -1,13 +1,23 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.intellij.codeInspection.*
-import com.intellij.psi.*
-import org.jetbrains.uast.*
-import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
-import com.intellij.uast.UastHintedVisitorAdapter
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
+import com.intellij.codeInspection.LocalInspectionTool
+import com.intellij.codeInspection.LocalQuickFix
+import com.intellij.codeInspection.ProblemDescriptor
+import com.intellij.codeInspection.ProblemHighlightType
+import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.Project
+import com.intellij.psi.PsiClass
+import com.intellij.psi.PsiElementVisitor
+import com.intellij.psi.PsiModifier
+import com.intellij.uast.UastHintedVisitorAdapter
+import org.jetbrains.uast.UCallExpression
+import org.jetbrains.uast.UExpression
+import org.jetbrains.uast.UFile
+import org.jetbrains.uast.USimpleNameReferenceExpression
+import org.jetbrains.uast.UThisExpression
+import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
  * Detects Activity Context passed to a Singleton, which lives for the app's duration.
@@ -35,7 +45,10 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
                                 val paramIndex = args.indexOf(arg)
                                 val paramType = method.parameterList.parameters.getOrNull(paramIndex)?.type ?: continue
 
-                                if (LeakLensInspectionUtils.isActivityOrFragmentType(paramType)) {
+                                if (LeakLensInspectionUtils.isActivityOrFragmentType(paramType) || paramType.canonicalText.contains(
+                                        "Context"
+                                    )
+                                ) {
                                     val elementToHighlight = arg.sourcePsi ?: node.sourcePsi ?: continue
                                     holder.registerProblem(
                                         elementToHighlight,
@@ -94,7 +107,7 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
 
     private class UseApplicationContextQuickFix : LocalQuickFix {
         override fun getName() = "Use applicationContext"
-        override fun getFamilyName() = "LeakLens quick fixes"
+        override fun getFamilyName() = "LeakLens singleton fix"
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
             val element = descriptor.psiElement

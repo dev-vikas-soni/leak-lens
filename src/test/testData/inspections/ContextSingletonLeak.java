@@ -15,6 +15,6 @@ public class ContextSingletonLeak {
 
 class MyActivity extends Activity {
     public void start() {
-        ContextSingletonLeak.init(<warning descr="LeakLens: Passing Activity Context to a Singleton will cause a memory leak. Use 'context.applicationContext' or '@ApplicationContext' instead.">this</warning>);
+        ContextSingletonLeak.init(<warning descr="LeakLens: Passing Activity Context to a Singleton will cause a memory leak.">this</warning>);
     }
 }

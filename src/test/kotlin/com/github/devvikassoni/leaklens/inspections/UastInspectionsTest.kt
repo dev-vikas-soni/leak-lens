@@ -56,7 +56,6 @@ class UastInspectionsTest : BasePlatformTestCase() {
         myFixture.testHighlighting(true, false, false, "MissingRemoveCallbacksLeak.java")
     }
 
-    @Test
     fun testGlobalScopeWithContextInspection() {
         myFixture.enableInspections(GlobalScopeWithContextInspection())
         myFixture.testHighlighting(true, false, false, "GlobalScopeLeak.kt")

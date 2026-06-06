@@ -30,4 +30,22 @@ intellijPlatform {
             // or you can specify versions here if needed
         }
     }
+
+    publishing {
+        token.set(
+            providers.environmentVariable("JB_MARKETPLACE_TOKEN")
+                .orElse(providers.gradleProperty("intellijPublishToken"))
+        )
+        channels.set(
+            listOf(
+                providers.gradleProperty("intellijPublishChannels").getOrElse("default")
+            )
+        )
+    }
+
+    signing {
+        certificateChain.set(providers.environmentVariable("CERTIFICATE_CHAIN"))
+        privateKey.set(providers.environmentVariable("PRIVATE_KEY"))
+        password.set(providers.environmentVariable("PRIVATE_KEY_PASSWORD"))
+    }
 }

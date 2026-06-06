@@ -1,61 +1,97 @@
 # LeakLens 🧠💧
 
-> **Professional Android Memory Leak Detection & Fix Assistant for Android Studio.**
+[![JetBrains Marketplace](https://img.shields.io/badge/JetBrains-Marketplace-32079-blue?style=for-the-badge&logo=jetbrains)](https://plugins.jetbrains.com/plugin/32079-leaklens)
+[![Version](https://img.shields.io/jetbrains/plugin/v/32079-leaklens.svg?style=for-the-badge)](https://plugins.jetbrains.com/plugin/32079-leaklens)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/dev-vikas-soni/leak-lens/build.yml?branch=main&style=for-the-badge)](https://github.com/dev-vikas-soni/leak-lens/actions)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg?style=for-the-badge)](LICENSE)
 
-[![JetBrains Marketplace](https://img.shields.io/badge/JetBrains-Marketplace-32079-blue)](https://plugins.jetbrains.com/plugin/32079-leaklens)
-[![Version](https://img.shields.io/jetbrains/plugin/v/32079-leaklens.svg)](https://plugins.jetbrains.com/plugin/32079-leaklens)
-[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
-
-**LeakLens** is a high-performance, standalone IDE plugin designed to make Android memory leak management proactive and effortless. It combines the power of the **Shark heap analysis engine** with **SonarLint-style real-time inspections**, allowing you to find and fix leaks before they ever reach your users.
+**LeakLens** is a high-performance, professional-grade memory leak detection and fix assistant for
+Android Studio. It bridges the gap between static code analysis and runtime heap debugging,
+providing a seamless "detect-analyze-fix" workflow without ever leaving your IDE.
 
 ---
 
-## 🚀 Why LeakLens?
+### 📺 Watch LeakLens in Action
 
-*   **SDK-Free Detection**: No more adding `leakcanary-android` to your `build.gradle`. LeakLens works entirely via ADB and IDE-side analysis, keeping your app binary clean and fast.
-*   **Write-Time Prevention**: 6 specialized UAST inspections detect leak-prone patterns (like static Activity references or uncancelled coroutines) while you type.
-*   **Jetpack Compose Support**: Tailored analysis for Compose recomposition scopes and state-related leaks.
-* **AI Fix Assistant**: One-click "Ask Gemini AI" button to discuss complex leaks with Android
-  Studio's built-in AI for free.
-*   **One-Click Fixes**: Real code refactoring intentions (Alt+Enter) to automatically wrap fields in `WeakReference` or add cleanup logic.
+> [!TIP]
+> Replace the placeholder below with your YouTube video thumbnail link!
+
+[![LeakLens Demo Video](https://img.youtube.com/vi/YOUR_VIDEO_ID/0.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
+
+---
+
+## 🚀 The LeakLens Advantage
+
+Most tools wait for your app to crash. **LeakLens catches leaks before they are even compiled.**
+
+### 1. Static Analysis Layer (SonarLint-Style)
+
+Using a high-performance **UAST (Universal Abstract Syntax Tree)** engine, LeakLens scans your
+Kotlin and Java code in real-time.
+
+* **Write-Time Prevention**: 6+ specialized inspections flag leaks (like static Activity references
+  or uncancelled coroutines) as you type.
+* **Editor Gutter Icons**: Visual markers (🚫, ⚠️) indicate leaking classes directly in the code
+  gutter.
+* **One-Click Fixes**: Use `Alt + Enter` to automatically apply industry-standard patterns like
+  `WeakReference` wrapping or lifecycle cleanup.
+
+> *[INSERT SCREENSHOT: Static analysis warning in the editor]*
+
+### 2. Runtime Precision (Shark-Powered)
+
+Integrates the **Shark Heap Analysis engine** (used by LeakCanary) directly into the IDE.
+
+* **SDK-Free Capture**: No need to add dependencies to your `build.gradle`. LeakLens works entirely
+  via ADB and host-side analysis.
+* **Live Memory Graph**: Monitor Java Heap, Native Heap, and PSS in real-time with an integrated
+  lite profiler.
+* **Auto-Trigger Safeguards**: Configure thresholds to automatically dump the heap when your app
+  hits critical memory levels.
+
+> *[INSERT SCREENSHOT: Leak Tree and Reference Chain in the tool window]*
+
+### 3. AI Fix Assistant (Gemini Integrated)
+
+Stop guessing. Discuss complex leak traces with Android Studio’s built-in AI.
+
+* **Context-Aware Prompts**: One click generates a professional Markdown analysis request for
+  Gemini.
+* **Actionable Solutions**: Get code-specific fix suggestions for complex library or framework
+  leaks.
 
 ---
 
 ## ✨ Key Features
 
-| Feature | Description |
-|---------|-------------|
-| **Instant Analysis** | captures heap dumps via ADB, pulls, and analyzes with Shark in the background. |
-| **SonarLint Workflow** | Manual "Analyze Current File" and "Analyze Project" actions to audit your code health. |
-| **Live Memory Graph** | Real-time monitoring of Java Heap, Native Heap, and PSS with auto-trigger safeguards. |
-| **Precision Navigation** | Click a leak trace to jump to the **exact line** in your source code. |
-| **Team Baselines** | VCS-tracked `leak-baseline.json` to suppress legacy leaks and focus on new ones. |
-| **CI-Ready Reports** | Export findings as HTML, JSON, or SARIF for GitHub Code Scanning/SonarQube. |
+|         Feature          | Technical Detail                                                                   |
+|:------------------------:|:-----------------------------------------------------------------------------------|
+|  **Universal Support**   | Native support for **Java**, **Kotlin**, and **Jetpack Compose**.                  |
+| **Precision Navigation** | Click any class in a leak trace to jump to the **exact line of code**.             |
+|    **VCS Baselines**     | Commit `leak-baseline.json` to suppress legacy leaks and focus on new regressions. |
+|     **CI/CD Ready**      | Export professional reports in **HTML**, **JSON**, or **SARIF** formats.           |
+|    **Deobfuscation**     | Automatic R8/ProGuard mapping resolution for production heap dumps.                |
 
 ---
 
-## 🛠️ Getting Started
+## 🛠️ Installation
 
-1.  **Install**: Search for `LeakLens` in **Settings → Plugins → Marketplace**.
-2.  **Open**: Click the **LeakLens** tab at the bottom of Android Studio.
-3.  **Audit**: Click the ▶️ icon to audit your current file or 🔁 to scan the entire project.
-4.  **Analyze**: Connect a device and click 📥 to capture a deep runtime heap dump.
+1. **Marketplace**: Search for `LeakLens` in **Settings → Plugins → Marketplace**.
+2. **Plugin Window**: Open the **LeakLens** tab at the bottom of Android Studio.
+3. **ADB Ready**: Connect your device/emulator and click the **Dump Heap** icon to begin.
 
 ---
 
-## 🤝 Support & Marketplace
+## 🤝 Contributing
 
-LeakLens is free and open-source. For a live rating and download count, you can embed this card on your tools page:
-
-```html
-<script src="https://plugins.jetbrains.com/assets/scripts/mp-widget.js"></script>
-<script>
-  MarketplaceWidget.setupMarketplaceWidget('card', 32079, "#leaklens-card");
-</script>
-```
+We welcome contributions from the Android community! Please see
+our [Contributing Guide](CONTRIBUTING.md) to get started with the IntelliJ Platform SDK.
 
 ---
 
 ## ⚖️ License
 
-Licensed under the [Apache License, Version 2.0](LICENSE).
+LeakLens is open-source software licensed under the [Apache License, Version 2.0](LICENSE).
+
+---
+Built with ❤️ by [Vikas Soni](https://github.com/dev-vikas-soni)

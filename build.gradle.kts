@@ -41,6 +41,7 @@ intellijPlatform {
     publishing {
         token.set(
             providers.environmentVariable("JB_MARKETPLACE_TOKEN")
+                .orElse(providers.environmentVariable("PUBLISH_TOKEN"))
                 .orElse(providers.gradleProperty("intellijPublishToken"))
                 .orElse(providers.provider { localProperties.getProperty("intellijPublishToken") })
         )

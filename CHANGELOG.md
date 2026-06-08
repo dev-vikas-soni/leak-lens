@@ -2,7 +2,15 @@
 
 # LeakLens Changelog
 
-## [Unreleased]
+## [0.1.3] - 2026-06-10
+
+### Added
+- **SEO Optimization**: Enhanced plugin metadata for better discoverability in the JetBrains Marketplace search (Keywords: OOM, Profiler, Heap Analysis).
+- **Direct Feedback**: Added "Rate LeakLens" action to the Tools menu to facilitate easier user reviews and community feedback.
+
+### Fixed
+- **Platform Stability**: Improved reliability of heap capture on the latest **Android Studio Ladybug** versions.
+- **Memory Management**: Optimized Kotlin Coroutine scopes within Project Services to prevent internal plugin leaks.
 
 ## [0.1.2] - 2026-06-06
 

@@ -14,8 +14,20 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.ide.BrowserUtil
 import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.github.devvikassoni.leaklens.inspections.*
+
+/**
+ * Action to open the Marketplace review page.
+ */
+class RatePluginAction : AnAction("Rate LeakLens", "Share your feedback on the JetBrains Marketplace", AllIcons.Actions.IntentionBulb) {
+    override fun actionPerformed(e: AnActionEvent) {
+        BrowserUtil.browse("https://plugins.jetbrains.com/plugin/com.github.devvikassoni.leaklens/reviews")
+    }
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+}
 
 /**
  * Action to run static leak inspections on the currently open file.

@@ -1,4 +1,4 @@
-# LeakLens 🧠💧
+# LeakLens: Android Memory Leak Detector & AI Fix Assistant 🧠💧
 
 [![JetBrains Marketplace](https://img.shields.io/badge/JetBrains%20Marketplace-LeakLens-blue?style=for-the-badge&logo=jetbrains)](https://plugins.jetbrains.com/plugin/32079-leaklens)
 [![Version](https://img.shields.io/jetbrains/plugin/v/32079.svg?style=for-the-badge)](https://plugins.jetbrains.com/plugin/32079-leaklens)
@@ -57,6 +57,18 @@ Stop guessing. Discuss complex leak traces with Android Studio’s built-in AI.
   Gemini.
 * **Actionable Solutions**: Get code-specific fix suggestions for complex library or framework
   leaks.
+
+---
+
+## 📊 Why LeakLens? (Comparison)
+
+| Feature | **LeakLens** | **Android Studio Profiler** | **LeakCanary** |
+| :--- | :---: | :---: | :---: |
+| **IDE Integrated** | ✅ Full | ✅ Partial | ❌ External App |
+| **AI Fix Assistant** | ✅ Yes (Gemini/GPT) | ❌ No | ❌ No |
+| **Zero Code Changes** | ✅ Yes (ADB based) | ✅ Yes | ❌ Requires SDK |
+| **Static Analysis** | ✅ Real-time (UAST) | ❌ No | ❌ No |
+| **One-Click Fixes** | ✅ Yes | ❌ No | ❌ No |
 
 ---
 

@@ -39,12 +39,14 @@
     ]]></description>
 
     <change-notes><![CDATA[
-        <h4>0.1.5</h4>
+        <h4>0.1.6 — Compatibility & CI Stability Update</h4>
         <ul>
-            <li>Fixed <b>GlobalScope</b> inspection test failures in CI.</li>
-            <li>Refined plugin name for better cross-platform ZIP extraction compatibility.</li>
+            <li><b>Binary Compatibility:</b> Fixed "Method Not Found" errors by reverting to more compatible ddmlib APIs.</li>
+            <li><b>CI Fix:</b> Resolved <code>GlobalScope</code> inspection test failures by correcting test data markers.</li>
+            <li><b>SEO & Name:</b> Refined plugin name to <b>LeakLens - Android Memory Leak Detector & AI Fix Assistant</b> for better search and extraction compatibility.</li>
+            <li><b>Clean Architecture:</b> Further optimized <code>plugin.xml</code> by removing redundant service registrations.</li>
         </ul>
-        <h4>0.1.4 — The Clean SEO & Compatibility Update</h4>
+        <h4>0.1.4</h4>
         <ul>
             <li><b>SEO Overhaul:</b> Optimized metadata for search terms like "OOM", "Heap Analysis", and "Android Profiler".</li>
             <li><b>Marketplace Compatibility:</b> Fixed plugin description formatting (removed tables) to comply with JetBrains standards.</li>

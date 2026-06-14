@@ -214,7 +214,8 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
                 if (device != null) {
                     val clients = device.clients
                     if (clients.isNotEmpty()) {
-                        return clients.mapNotNull { it.clientData.processName }
+                        @Suppress("DEPRECATION")
+                        return clients.mapNotNull { it.clientData.clientDescription }
                     }
                 }
             }

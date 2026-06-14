@@ -4,11 +4,22 @@
 
 ## [Unreleased]
 
-## [0.1.5] - 2026-06-14
+## [0.1.6] - 2026-06-14
 
 ### Fixed
-- **CI Fix**: Resolved test failure in `GlobalScopeWithContextInspection` by correcting test data markers.
-- **Archive Compatibility**: Refined plugin name to use a dash instead of a colon to avoid potential ZIP extraction issues.
+
+- **Binary Compatibility**: Reverted to `clientDescription` to fix `NoSuchMethodError` on older IDE
+  versions (e.g., 2024.2.6).
+- **CI Test Fix**: Resolved `FileComparisonFailedError` in `UastInspectionsTest` by cleaning up test
+  data markers.
+- **Archive Compatibility**: Finalized plugin name as
+  `LeakLens - Android Memory Leak Detector & AI Fix Assistant` to ensure safe ZIP extraction.
+
+## [0.1.5] - 2026-06-14
+
+### Added
+
+- **SEO Optimization**: Enhanced plugin metadata for better discoverability.
 
 ## [0.1.4] - 2026-06-14
 
@@ -98,7 +109,9 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.5...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.6...HEAD
+
+[0.1.6]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.5...0.1.6
 [0.1.5]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.4...0.1.5
 [0.1.4]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.2...0.1.3

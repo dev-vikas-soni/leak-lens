@@ -4,6 +4,17 @@
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-06-14
+
+### Added
+- **SEO Optimization**: Enhanced plugin metadata for better discoverability in the JetBrains Marketplace search.
+- **Direct Feedback**: Added "Rate LeakLens" action to the Tools menu for easier user reviews.
+
+### Fixed
+- **Configuration Fix**: Resolved "invalid configuration" errors by removing unsupported HTML tables from the description in `plugin.xml`.
+- **Service Optimization**: Cleaned up `plugin.xml` by removing redundant service registrations already handled by `@Service` annotations.
+- **Platform Stability**: Improved reliability of heap capture on the latest **Android Studio Ladybug** versions.
+
 ## [0.1.3] - 2026-06-10
 
 ### Added
@@ -79,7 +90,8 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.3...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.4...HEAD
+[0.1.4]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.0...0.1.1

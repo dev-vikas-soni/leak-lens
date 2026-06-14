@@ -39,11 +39,13 @@
     ]]></description>
 
     <change-notes><![CDATA[
-        <h4>0.1.3 — The SEO & Growth Update</h4>
+        <h4>0.1.4 — The Clean SEO & Compatibility Update</h4>
         <ul>
-            <li><b>Keyword Optimization:</b> Enhanced plugin metadata for better discoverability in <b>Android Studio</b> and <b>IntelliJ IDEA</b>.</li>
-            <li><b>Quick Review:</b> Added "Rate LeakLens" action to the Tools menu for easier user feedback.</li>
-            <li><b>Stability:</b> Improved <b>Heap Analysis</b> reliability on latest <b>Android Studio Ladybug</b> versions.</li>
+            <li><b>SEO Overhaul:</b> Optimized metadata for search terms like "OOM", "Heap Analysis", and "Android Profiler".</li>
+            <li><b>Marketplace Compatibility:</b> Fixed plugin description formatting (removed tables) to comply with JetBrains standards.</li>
+            <li><b>Internal Optimization:</b> Removed redundant service registrations to favor modern @Service annotations.</li>
+            <li><b>Quick Review:</b> Added "Rate LeakLens" action to the Tools menu for community feedback.</li>
+            <li><b>Ladybug Support:</b> Verified and improved stability for the latest Android Studio versions.</li>
         </ul>
         <h4>0.1.2</h4>
         <ul>

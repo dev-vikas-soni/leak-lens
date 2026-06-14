@@ -16,8 +16,7 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
     private val logger = thisLogger()
 
     private fun getAdbExecutable(): String {
-        @Suppress("DEPRECATION")
-        val adb = AndroidSdkUtils.getAdb(project)
+        val adb = AndroidSdkUtils.findAdb(project).adbPath
         return if (adb?.exists() == true) adb.absolutePath else "adb"
     }
 
@@ -215,8 +214,7 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
                 if (device != null) {
                     val clients = device.clients
                     if (clients.isNotEmpty()) {
-                        @Suppress("DEPRECATION")
-                        return clients.mapNotNull { it.clientData.clientDescription }
+                        return clients.mapNotNull { it.clientData.processName }
                     }
                 }
             }

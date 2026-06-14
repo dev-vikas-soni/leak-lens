@@ -1,4 +1,4 @@
-# LeakLens: Android Memory Leak Detector & AI Fix Assistant 🧠💧
+# LeakLens - Android Memory Leak Detector & AI Fix Assistant 🧠💧
 
 [![JetBrains Marketplace](https://img.shields.io/badge/JetBrains%20Marketplace-LeakLens-blue?style=for-the-badge&logo=jetbrains)](https://plugins.jetbrains.com/plugin/32079-leaklens)
 [![Version](https://img.shields.io/jetbrains/plugin/v/32079.svg?style=for-the-badge)](https://plugins.jetbrains.com/plugin/32079-leaklens)

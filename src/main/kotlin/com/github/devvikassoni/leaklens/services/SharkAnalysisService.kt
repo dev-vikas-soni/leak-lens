@@ -9,10 +9,12 @@ import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
 import shark.AndroidObjectInspectors
 import shark.AndroidReferenceMatchers
+import shark.FileSourceProvider
 import shark.FilteringLeakingObjectFinder
 import shark.HeapAnalysisFailure
 import shark.HeapAnalysisSuccess
 import shark.HeapAnalyzer
+import shark.HprofHeapGraph.Companion.openHeapGraph
 import shark.LeakTrace
 import shark.MetadataExtractor
 import shark.OnAnalysisProgressListener
@@ -59,18 +61,20 @@ class SharkAnalysisService(private val project: Project) {
         // Combine Android defaults with LeakLens custom inspectors
         val objectInspectors = AndroidObjectInspectors.appDefaults + LeakLensObjectInspectors.all
 
-        // For large files, we could make computeRetainedHeapSize configurable to save memory
-        val analysis = heapAnalyzer.analyze(
-            heapDumpFile = hprofFile,
-            leakingObjectFinder = FilteringLeakingObjectFinder(
-                AndroidObjectInspectors.appLeakingObjectFilters
-            ),
-            referenceMatchers = AndroidReferenceMatchers.appDefaults,
-            objectInspectors = objectInspectors,
-            computeRetainedHeapSize = true,
-            metadataExtractor = MetadataExtractor.NO_OP,
-            proguardMapping = null
-        )
+        val sourceProvider = FileSourceProvider(hprofFile)
+        val analysis = sourceProvider.openHeapGraph().use { graph ->
+            heapAnalyzer.analyze(
+                heapDumpFile = hprofFile,
+                graph = graph,
+                leakingObjectFinder = FilteringLeakingObjectFinder(
+                    AndroidObjectInspectors.appLeakingObjectFilters
+                ),
+                referenceMatchers = AndroidReferenceMatchers.appDefaults,
+                objectInspectors = objectInspectors,
+                computeRetainedHeapSize = true,
+                metadataExtractor = MetadataExtractor.NO_OP
+            )
+        }
 
         return when (analysis) {
             is HeapAnalysisSuccess -> {

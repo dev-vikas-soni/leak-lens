@@ -4,6 +4,7 @@ import com.github.devvikassoni.leaklens.reporting.ReportExporter
 import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.fileChooser.FileChooserFactory
@@ -32,7 +33,7 @@ class ExportReportAction : AnAction() {
         val wrapper = saveDialog.save(null as com.intellij.openapi.vfs.VirtualFile?, "leaklens-report") ?: return
 
         val file = wrapper.file
-        when (file.extension?.lowercase()) {
+        when (file.extension.lowercase()) {
             "html" -> ReportExporter.exportHtml(leaks, file)
             "json" -> ReportExporter.exportJson(leaks, file)
             "sarif" -> ReportExporter.exportSarif(leaks, file)
@@ -44,6 +45,8 @@ class ExportReportAction : AnAction() {
             .createNotification("LeakLens", "Report exported to ${file.name}", NotificationType.INFORMATION)
             .notify(project)
     }
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabledAndVisible = e.project != null

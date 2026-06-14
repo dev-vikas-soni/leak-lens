@@ -7,10 +7,12 @@
 ## [0.1.4] - 2026-06-14
 
 ### Added
+
 - **SEO Optimization**: Enhanced plugin metadata for better discoverability in the JetBrains Marketplace search.
 - **Direct Feedback**: Added "Rate LeakLens" action to the Tools menu for easier user reviews.
 
 ### Fixed
+
 - **Configuration Fix**: Resolved "invalid configuration" errors by removing unsupported HTML tables from the description in `plugin.xml`.
 - **Service Optimization**: Cleaned up `plugin.xml` by removing redundant service registrations already handled by `@Service` annotations.
 - **Platform Stability**: Improved reliability of heap capture on the latest **Android Studio Ladybug** versions.

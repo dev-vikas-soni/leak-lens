@@ -1,7 +1,7 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.github.devvikassoni.leaklens</id>
-    <name>LeakLens: Android Memory Leak Detector &amp; AI Fix Assistant</name>
+    <name>LeakLens - Android Memory Leak Detector &amp; AI Fix Assistant</name>
     <vendor email="vikasacsoni9211@gmail.com" url="https://github.com/dev-vikas-soni">Vikas Soni</vendor>
 
     <description><![CDATA[

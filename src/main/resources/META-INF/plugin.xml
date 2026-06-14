@@ -28,38 +28,12 @@
         </ul>
 
         <h3><b>📊 How we compare</b></h3>
-        <table>
-            <tr>
-                <td><b>Feature</b></td>
-                <td><b>LeakLens</b></td>
-                <td><b>Profiler</b></td>
-                <td><b>LeakCanary</b></td>
-            </tr>
-            <tr>
-                <td>IDE Integrated</td>
-                <td>✅ Full</td>
-                <td>✅ Partial</td>
-                <td>❌ External App</td>
-            </tr>
-            <tr>
-                <td>AI Fix Assistant</td>
-                <td>✅ Yes</td>
-                <td>❌ No</td>
-                <td>❌ No</td>
-            </tr>
-            <tr>
-                <td>No Dependency</td>
-                <td>✅ Yes</td>
-                <td>✅ Yes</td>
-                <td>❌ Requires SDK</td>
-            </tr>
-            <tr>
-                <td>Static Analysis</td>
-                <td>✅ Real-time</td>
-                <td>❌ No</td>
-                <td>❌ No</td>
-            </tr>
-        </table>
+        <ul>
+            <li><b>IDE Integrated:</b> LeakLens is fully integrated into Android Studio, unlike LeakCanary which is an external app.</li>
+            <li><b>AI Fix Assistant:</b> Get instant code fixes via Gemini/GPT, a feature missing in both the Profiler and LeakCanary.</li>
+            <li><b>Zero Code Changes:</b> Unlike LeakCanary, LeakLens requires NO SDK or code dependencies in your app.</li>
+            <li><b>Static Analysis:</b> Catches leaks while you write code (UAST), not just at runtime.</li>
+        </ul>
 
         <p><i>If LeakLens helps you save hours of debugging, please consider leaving a <b>5-star review</b>! It helps us keep the tool free and updated.</i></p>
     ]]></description>
@@ -102,18 +76,6 @@
             anchor="bottom"
             icon="/META-INF/leaklens_icon.svg"
             factoryClass="com.github.devvikassoni.leaklens.toolWindow.LeakLensToolWindowFactory"/>
-
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.LeakLensProjectService"/>
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.AdbHeapDumpService"/>
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.SharkAnalysisService"/>
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.LogcatHeapDumpListener"/>
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.LeakAnalysisCoordinator"/>
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.services.SourceNavigationService"/>
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.settings.LeakLensSettingsState"/>
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.ai.AiAnalysisService"/>
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.monitoring.DeviceMemoryMonitor"/>
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.baseline.LeakBaselineManager"/>
-        <projectService serviceImplementation="com.github.devvikassoni.leaklens.deobfuscation.DeobfuscationService"/>
 
         <projectConfigurable
             instance="com.github.devvikassoni.leaklens.settings.LeakLensConfigurable"

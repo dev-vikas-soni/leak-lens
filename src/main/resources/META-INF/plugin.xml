@@ -39,6 +39,11 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h4>0.1.5</h4>
+        <ul>
+            <li>Fixed <b>GlobalScope</b> inspection test failures in CI.</li>
+            <li>Refined plugin name for better cross-platform ZIP extraction compatibility.</li>
+        </ul>
         <h4>0.1.4 — The Clean SEO & Compatibility Update</h4>
         <ul>
             <li><b>SEO Overhaul:</b> Optimized metadata for search terms like "OOM", "Heap Analysis", and "Android Profiler".</li>

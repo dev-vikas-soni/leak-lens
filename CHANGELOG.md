@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-06-14
+
+### Fixed
+- **CI Fix**: Resolved test failure in `GlobalScopeWithContextInspection` by correcting test data markers.
+- **Archive Compatibility**: Refined plugin name to use a dash instead of a colon to avoid potential ZIP extraction issues.
+
 ## [0.1.4] - 2026-06-14
 
 ### Added
@@ -92,7 +98,8 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.4...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.5...HEAD
+[0.1.5]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.4...0.1.5
 [0.1.4]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.1...0.1.2

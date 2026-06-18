@@ -9,6 +9,8 @@
 Android Studio. It bridges the gap between static code analysis and runtime heap debugging,
 providing a seamless "detect-analyze-fix" workflow without ever leaving your IDE.
 
+<img width="1498" height="535" alt="latets-leallense-dashboard" src="https://github.com/user-attachments/assets/f8dc09c5-5010-4c12-bdfb-e113545419b9" />
+
 ---
 
 ### 📺 Watch LeakLens in Action
@@ -34,7 +36,7 @@ Kotlin and Java code in real-time.
 * **One-Click Fixes**: Use `Alt + Enter` to automatically apply industry-standard patterns like
   `WeakReference` wrapping or lifecycle cleanup.
 
-> <img width="1471" height="835" alt="leak-canary-sample-leak-view" src="https://github.com/user-attachments/assets/150093dd-df5b-4c42-8664-9a58ec585343" />
+<img width="1498" height="780" alt="static-analysis-leaklens" src="https://github.com/user-attachments/assets/74ba35bf-0b14-4993-90b8-0b2fc99bd302" />
 
 ### 2. Runtime Precision (Shark-Powered)
 
@@ -47,7 +49,7 @@ Integrates the **Shark Heap Analysis engine** (used by LeakCanary) directly into
 * **Auto-Trigger Safeguards**: Configure thresholds to automatically dump the heap when your app
   hits critical memory levels.
 
-> <img width="1471" height="835" alt="leak-detail-suggestion-view" src="https://github.com/user-attachments/assets/8aaa0054-f520-4ee6-b660-64984c2dd102" />
+<img width="1498" height="535" alt="leaklens-memory-graph" src="https://github.com/user-attachments/assets/64927cb8-6ab2-4f49-8e1b-901860b1e2f7" />
 
 ### 3. AI Fix Assistant (Gemini Integrated)
 
@@ -57,6 +59,8 @@ Stop guessing. Discuss complex leak traces with Android Studio’s built-in AI.
   Gemini.
 * **Actionable Solutions**: Get code-specific fix suggestions for complex library or framework
   leaks.
+
+  <img width="1498" height="780" alt="ask_ai-leaklens" src="https://github.com/user-attachments/assets/c1512879-493a-41bb-8cc9-9a8cf75b8204" />
 
 ---
 
@@ -89,6 +93,8 @@ Stop guessing. Discuss complex leak traces with Android Studio’s built-in AI.
 1. **Marketplace**: Search for `LeakLens` in **Settings → Plugins → Marketplace**.
 2. **Plugin Window**: Open the **LeakLens** tab at the bottom of Android Studio.
 3. **ADB Ready**: Connect your device/emulator and click the **Dump Heap** icon to begin.
+
+<img width="983" height="723" alt="plugin-setting-leallens" src="https://github.com/user-attachments/assets/76cd01f0-e7ea-4561-bd2b-e3e1dd26eeb6" />
 
 ---
 

@@ -1,0 +1,12 @@
+<html>
+<body>
+Detects coroutines launched in <code>GlobalScope</code> from within an <code>Activity</code> or
+<code>Fragment</code>.
+<p>
+    <code>GlobalScope</code> coroutines are not tied to any lifecycle and will continue running even
+    if the <code>Activity</code> is destroyed,
+    potentially leaking any captured references.
+</p>
+<p><b>Fix:</b> Use <code>lifecycleScope</code> or <code>viewModelScope</code> instead.</p>
+</body>
+</html>

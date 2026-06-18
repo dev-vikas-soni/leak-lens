@@ -32,23 +32,32 @@ class GlobalScopeWithContextInspection : LocalInspectionTool() {
                         val containingClass = node.getContainingUClass() ?: return false
                         if (LeakLensInspectionUtils.isActivityOrFragment(containingClass)) {
                             val elementToHighlight = node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return false
+                            val description =
+                                "LeakLens: GlobalScope.${methodName} may cause a memory leak. Use lifecycleScope."
                             holder.registerProblem(
                                 elementToHighlight,
-                                "LeakLens: GlobalScope.${methodName} may cause a memory leak. Use lifecycleScope.",
+                                description,
                                 ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                UseLifecycleScopeQuickFix()
+                                UseLifecycleScopeQuickFix(),
+                                AskGeminiFix(
+                                    description,
+                                    containingClass.name ?: "Unknown",
+                                    LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                                )
                             )
-                            
-                            if (isOnTheFly) {
-                                fileIssues.add(createLeakInfo(methodName ?: "launch", node))
-                            }
+
+                            fileIssues.add(createLeakInfo(methodName ?: "launch", node))
                         }
                     }
                     return false
                 }
 
                 override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(holder, isOnTheFly, "GlobalScopeWithContext", fileIssues)
+                    LeakLensInspectionUtils.reportLiveIssue(
+                        holder,
+                        "GlobalScopeWithContext",
+                        fileIssues
+                    )
                 }
             },
             arrayOf(UCallExpression::class.java, UFile::class.java)

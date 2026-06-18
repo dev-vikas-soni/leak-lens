@@ -33,28 +33,40 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
                     val onDestroy = node.methods.find { it.name == "onDestroy" || it.name == "onDestroyView" }
                     val bodyText = onDestroy?.uastBody?.asSourceString() ?: ""
 
-                    val hasCleanup = bodyText.contains("removeCallbacksAndMessages") || bodyText.contains("removeCallbacks")
+                    for (field in handlerFields) {
+                        val fieldName = field.name
+                        val hasCleanup = bodyText.contains("$fieldName.removeCallbacks") ||
+                                bodyText.contains("$fieldName.removeMessages") ||
+                                bodyText.contains("$fieldName?.removeCallbacks")
 
-                    if (!hasCleanup) {
-                        for (field in handlerFields) {
+                        if (!hasCleanup) {
                             val elementToHighlight = field.uastAnchor?.sourcePsi ?: field.sourcePsi ?: continue
+                            val description =
+                                "LeakLens: Handler '$fieldName' may cause a leak. Call removeCallbacks in onDestroy."
                             holder.registerProblem(
                                 elementToHighlight,
-                                "LeakLens: Handler '${field.name}' may cause a leak. Call removeCallbacks in onDestroy.",
+                                description,
                                 ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                RemoveCallbacksQuickFix(field.name)
+                                RemoveCallbacksQuickFix(fieldName),
+                                AskGeminiFix(
+                                    description,
+                                    "android.os.Handler",
+                                    LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                                )
                             )
-                            
-                            if (isOnTheFly) {
-                                fileIssues.add(createLeakInfo(field))
-                            }
+
+                            fileIssues.add(createLeakInfo(field))
                         }
                     }
                     return false
                 }
 
                 override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(holder, isOnTheFly, "MissingRemoveCallbacks", fileIssues)
+                    LeakLensInspectionUtils.reportLiveIssue(
+                        holder,
+                        "MissingRemoveCallbacks",
+                        fileIssues
+                    )
                 }
             },
             arrayOf(UClass::class.java, UFile::class.java)

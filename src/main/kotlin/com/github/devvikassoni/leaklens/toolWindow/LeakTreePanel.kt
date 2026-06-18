@@ -2,10 +2,13 @@ package com.github.devvikassoni.leaklens.toolWindow
 
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
+import com.github.devvikassoni.leaklens.services.AdbHeapDumpService
+import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
 import com.intellij.openapi.actionSystem.ActionPlaces
 import com.intellij.openapi.actionSystem.DefaultActionGroup
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.ColoredTreeCellRenderer
 import com.intellij.ui.SimpleTextAttributes
@@ -16,6 +19,7 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
+import java.awt.CardLayout
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.JTree
@@ -25,26 +29,77 @@ import javax.swing.tree.DefaultTreeModel
 
 /**
  * Left panel showing leak tree grouped by severity.
- * 
- * Updated with UI DSL 2 for better alignment.
+ * Enhanced with a "Quick Start" view when empty.
  */
 class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disposable {
 
     private val rootNode = DefaultMutableTreeNode("Leaks")
     private val treeModel = DefaultTreeModel(rootNode)
     private val tree = Tree(treeModel)
-    private val statusLabel = JBLabel("Waiting for heap dump...")
+    private val statusLabel = JBLabel("Waiting for device...")
     private val countLabel = JBLabel("")
     private var connectivityTimer: Timer? = null
 
+    private val cardLayout = CardLayout()
+    private val contentPanel = JPanel(cardLayout)
+
     var onLeakSelected: ((LeakInfo) -> Unit)? = null
+
+    private val quickStartPanel = panel {
+        row {
+            icon(AllIcons.General.Information).align(AlignX.CENTER)
+        }
+        row {
+            label("No leaks detected yet").bold().align(AlignX.CENTER)
+        }
+        row {
+            text("To get started:").align(AlignX.CENTER)
+        }
+        indent {
+            row {
+                link("1. Run your Android app in debug mode") {
+                    // Help link
+                }
+            }
+            row {
+                link("2. Start real-time memory monitor") {
+                    ActionManager.getInstance().tryToExecute(
+                        ActionManager.getInstance().getAction("LeakLens.MonitorMemory"),
+                        null,
+                        null,
+                        null,
+                        true
+                    )
+                }
+            }
+            row {
+                link("3. Click 'Dump Heap' to find leaks") {
+                    ActionManager.getInstance().tryToExecute(
+                        ActionManager.getInstance().getAction("LeakLens.DumpHeap"),
+                        null,
+                        null,
+                        null,
+                        true
+                    )
+                }
+            }
+        }
+        row {
+            label("💡 Pro Tip: LeakLens auto-detects LeakCanary logs!").applyToComponent {
+                foreground = JBUI.CurrentTheme.Label.disabledForeground()
+                font = JBUI.Fonts.smallFont()
+            }.align(AlignX.CENTER)
+        }
+    }.apply {
+        border = JBUI.Borders.empty(20)
+    }
 
     init {
         tree.isRootVisible = false
         tree.showsRootHandles = true
         tree.cellRenderer = LeakTreeCellRenderer()
 
-        tree.addTreeSelectionListener { e ->
+        tree.addTreeSelectionListener {
             val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode
             val leak = node?.userObject as? LeakInfo
             if (leak != null) {
@@ -52,11 +107,15 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
             }
         }
 
-        add(JBScrollPane(tree), BorderLayout.CENTER)
+        contentPanel.add(JBScrollPane(tree), "TREE")
+        contentPanel.add(quickStartPanel, "EMPTY")
+
+        add(contentPanel, BorderLayout.CENTER)
         add(createToolbar(), BorderLayout.NORTH)
         add(createStatusBar(), BorderLayout.SOUTH)
 
-        // Start device connectivity watcher
+        cardLayout.show(contentPanel, "EMPTY")
+
         startConnectivityWatcher()
     }
 
@@ -64,34 +123,27 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
         connectivityTimer = Timer(5000) {
             if (project.isDisposed) return@Timer
 
-            com.intellij.openapi.application.ApplicationManager.getApplication()
-                .executeOnPooledThread {
-                    if (project.isDisposed) return@executeOnPooledThread
+            ApplicationManager.getApplication().executeOnPooledThread {
+                if (project.isDisposed) return@executeOnPooledThread
 
-                    try {
-                        val adb =
-                            com.github.devvikassoni.leaklens.services.AdbHeapDumpService.getInstance(
-                                project
-                            )
-                        val devices = adb.listDevices()
+                try {
+                    val adb = AdbHeapDumpService.getInstance(project)
+                    val devices = adb.listDevices()
 
-                        com.intellij.openapi.application.ApplicationManager.getApplication()
-                            .invokeLater {
-                                if (project.isDisposed) return@invokeLater
+                    ApplicationManager.getApplication().invokeLater {
+                        if (project.isDisposed) return@invokeLater
 
-                                if (devices.isEmpty()) {
-                                    statusLabel.icon = com.intellij.icons.AllIcons.General.Warning
-                                    statusLabel.text = "No device connected"
-                                } else {
-                                    statusLabel.icon =
-                                        com.intellij.icons.AllIcons.General.InspectionsOK
-                                    statusLabel.text = "Monitoring ${devices.size} device(s)"
-                                }
-                            }
-                    } catch (_: Exception) {
-                        // Project likely disposed or service unavailable
+                        if (devices.isEmpty()) {
+                            statusLabel.icon = AllIcons.General.Warning
+                            statusLabel.text = "No device connected"
+                        } else {
+                            statusLabel.icon = AllIcons.General.InspectionsOK
+                            statusLabel.text = "Connected: ${devices.first().take(8)}..."
+                        }
                     }
+                } catch (_: Exception) {
                 }
+            }
         }
         connectivityTimer?.isRepeats = true
         connectivityTimer?.start()
@@ -102,11 +154,14 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
         rootNode.removeAllChildren()
 
         if (leaks.isEmpty()) {
-            statusLabel.text = "No leaks detected ✅"
+            cardLayout.show(contentPanel, "EMPTY")
+            statusLabel.text = "All clear! ✅"
             countLabel.text = ""
             treeModel.reload()
             return
         }
+
+        cardLayout.show(contentPanel, "TREE")
 
         // Group by severity
         val criticalNode =
@@ -132,13 +187,12 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
 
         treeModel.reload()
 
-        // Expand all
         for (i in 0 until tree.rowCount) {
             tree.expandRow(i)
         }
 
         val totalRetained = leaks.sumOf { it.retainedByteSize }
-        statusLabel.text = "${leaks.size} leak(s) detected"
+        statusLabel.text = "${leaks.size} issues found"
         countLabel.text = "Retained: ${formatBytes(totalRetained)}"
     }
 
@@ -156,7 +210,7 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
 
         val toolbar =
             actionManager.createActionToolbar(ActionPlaces.TOOLWINDOW_CONTENT, group, true)
-        toolbar.targetComponent = tree
+        toolbar.targetComponent = this
         return toolbar.component
     }
 
@@ -199,9 +253,9 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
             when (userObj) {
                 is LeakInfo -> {
                     icon = when (userObj.severity) {
-                        LeakSeverity.CRITICAL -> com.intellij.icons.AllIcons.General.Error
-                        LeakSeverity.WARNING -> com.intellij.icons.AllIcons.General.Warning
-                        LeakSeverity.LIBRARY_LEAK -> com.intellij.icons.AllIcons.General.Information
+                        LeakSeverity.CRITICAL -> AllIcons.General.Error
+                        LeakSeverity.WARNING -> AllIcons.General.Warning
+                        LeakSeverity.LIBRARY_LEAK -> AllIcons.General.Information
                     }
                     val simpleClassName = userObj.retainedObjectClassName.substringAfterLast('.')
                     append(simpleClassName, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
@@ -216,12 +270,11 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
                         append(" [Static Scan]", SimpleTextAttributes.GRAY_SMALL_ATTRIBUTES)
                     }
                 }
-
                 is String -> {
                     icon = when {
-                        userObj.startsWith("Critical") -> com.intellij.icons.AllIcons.General.Error
-                        userObj.startsWith("Warning") -> com.intellij.icons.AllIcons.General.Warning
-                        userObj.startsWith("Library Leak") -> com.intellij.icons.AllIcons.General.Information
+                        userObj.startsWith("Critical") -> AllIcons.General.Error
+                        userObj.startsWith("Warning") -> AllIcons.General.Warning
+                        userObj.startsWith("Library Leak") -> AllIcons.General.Information
                         else -> null
                     }
                     append(userObj, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)

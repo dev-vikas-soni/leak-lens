@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-06-16
+
+### Fixed
+
+- **Build Stability**: Resolved issues with `:buildSearchableOptions` task that caused build
+  failures in certain environments.
+- **Inspection Documentation**: Added missing HTML descriptions for all static analysis inspections
+  to improve IDE integration.
+- **Type Safety**: Enhanced robustness of leak inspections and utility classes for better
+  performance and fewer false positives.
+- **Build Configuration**: Corrected Kotlin version and plugin dependencies for better compatibility
+  with modern Android Studio versions.
+
 ## [0.1.6] - 2026-06-14
 
 ### Fixed
@@ -109,8 +122,9 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.6...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.7...HEAD
 
+[0.1.7]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.6...0.1.7
 [0.1.6]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.5...0.1.6
 [0.1.5]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.4...0.1.5
 [0.1.4]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.3...0.1.4

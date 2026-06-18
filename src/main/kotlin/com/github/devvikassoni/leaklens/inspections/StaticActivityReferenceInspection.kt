@@ -28,24 +28,34 @@ class StaticActivityReferenceInspection : LocalInspectionTool() {
                 override fun visitField(node: UField): Boolean {
                     if (node.isStatic && LeakLensInspectionUtils.isActivityOrFragmentType(node.type)) {
                         val elementToHighlight = node.uastAnchor?.sourcePsi ?: node.sourcePsi ?: return false
-                        
+                        val fieldName = node.name
+                        val description =
+                            "LeakLens: Static field '$fieldName' holds an Activity/Fragment reference. " +
+                                    "This causes a memory leak as static fields outlive the Activity lifecycle."
+
                         holder.registerProblem(
                             elementToHighlight,
-                            "LeakLens: Static field '${node.name}' holds an Activity/Fragment reference. " +
-                            "This causes a memory leak as static fields outlive the Activity lifecycle.",
+                            description,
                             ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                            WrapWithWeakReferenceFix(node.name)
+                            WrapWithWeakReferenceFix(fieldName),
+                            AskGeminiFix(
+                                description,
+                                node.type.canonicalText,
+                                LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                            ),
                         )
-                        
-                        if (isOnTheFly) {
-                            fileIssues.add(createLeakInfo(node))
-                        }
+
+                        fileIssues.add(createLeakInfo(node))
                     }
                     return false
                 }
                 
                 override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(holder, isOnTheFly, "StaticActivityReference", fileIssues)
+                    LeakLensInspectionUtils.reportLiveIssue(
+                        holder,
+                        "StaticActivityReference",
+                        fileIssues
+                    )
                 }
             },
             arrayOf(UField::class.java, UFile::class.java)
@@ -59,7 +69,7 @@ class StaticActivityReferenceInspection : LocalInspectionTool() {
             shortDescription = "Static Field holding Activity/Fragment",
             leakTrace = "Static field: ${node.name} (line $line)",
             retainedObjectClassName = node.type.canonicalText,
-            retainedByteSize = 0,
+            retainedByteSize = 0L,
             retainedObjectCount = 1,
             severity = LeakSeverity.WARNING,
             referenceChain = emptyList(),
@@ -67,7 +77,7 @@ class StaticActivityReferenceInspection : LocalInspectionTool() {
         )
     }
 
-    private class WrapWithWeakReferenceFix(private val fieldName: String) : LocalQuickFix {
+    internal class WrapWithWeakReferenceFix(private val fieldName: String) : LocalQuickFix {
         override fun getName() = "Wrap '$fieldName' with WeakReference"
         override fun getFamilyName() = "LeakLens quick fixes"
 
@@ -78,7 +88,7 @@ class StaticActivityReferenceInspection : LocalInspectionTool() {
             val fieldType = uField.type.presentableText
             
             if (element.language.id == "JAVA") {
-                val psiField = uField.javaPsi as? PsiField ?: return
+                val psiField = (uField.javaPsi as? PsiField) ?: return
                 val newField = factory.createFieldFromText(
                     "private static java.lang.ref.WeakReference<$fieldType> ${fieldName}Ref;", 
                     psiField.parent

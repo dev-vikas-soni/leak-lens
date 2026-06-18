@@ -31,22 +31,32 @@ class AnonymousInnerClassLeakInspection : LocalInspectionTool() {
 
                     if (isAssignedToField(node) || isPassedToLongLivedMethod(node)) {
                         val elementToHighlight = node.sourcePsi ?: return false
+                        val description =
+                            "LeakLens: Anonymous inner class holds an implicit reference to ${outerClass.name}. " +
+                                    "If this object outlives the Activity, it will prevent GC."
+                        
                         holder.registerProblem(
                             elementToHighlight,
-                            "LeakLens: Anonymous inner class holds an implicit reference to ${outerClass.name}. " +
-                            "If this object outlives the Activity, it will prevent GC.",
-                            ProblemHighlightType.GENERIC_ERROR_OR_WARNING
+                            description,
+                            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                            AskGeminiFix(
+                                description,
+                                outerClass.name ?: "Unknown",
+                                LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                            )
                         )
-                        
-                        if (isOnTheFly) {
-                            fileIssues.add(createLeakInfo(outerClass, node))
-                        }
+
+                        fileIssues.add(createLeakInfo(outerClass, node))
                     }
                     return false
                 }
 
                 override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(holder, isOnTheFly, "AnonymousInnerClassLeak", fileIssues)
+                    LeakLensInspectionUtils.reportLiveIssue(
+                        holder,
+                        "AnonymousInnerClassLeak",
+                        fileIssues
+                    )
                 }
             },
             arrayOf(UObjectLiteralExpression::class.java, UFile::class.java)
@@ -72,10 +82,23 @@ class AnonymousInnerClassLeakInspection : LocalInspectionTool() {
 
     private fun isPassedToLongLivedMethod(node: UObjectLiteralExpression): Boolean {
         val call = node.uastParent as? UCallExpression ?: return false
-        val methodName = call.methodName ?: return false
-        return methodName in listOf(
-            "postDelayed", "post", "execute", "submit", "registerListener", 
-            "addCallback", "setOnClickListener", "registerReceiver"
-        )
+
+        // Check for specific long-lived method names
+        val methodName = call.methodName
+        if (methodName != null && methodName in listOf(
+            "postDelayed", "post", "execute", "submit", "registerListener",
+                "addCallback", "setOnClickListener", "registerReceiver", "subscribe"
+            )
+        ) return true
+
+        // Check for constructors of long-lived types (e.g., new Thread(runnable))
+        if (call.kind == UastCallKind.CONSTRUCTOR_CALL) {
+            val typeName = call.returnType?.canonicalText ?: ""
+            if (typeName.contains("Thread") || typeName.contains("Timer") || typeName.contains("WorkRequest")) {
+                return true
+            }
+        }
+
+        return false
     }
 }

@@ -16,9 +16,10 @@ import com.intellij.util.xmlb.XmlSerializerUtil
 class LeakLensSettingsState : PersistentStateComponent<LeakLensSettingsState> {
 
     // General settings
-    var autoDetectEnabled: Boolean = false
+    var autoDetectEnabled: Boolean = true // Changed to true for better out-of-the-box experience
     var showGutterIcons: Boolean = true
     var analysisOnImport: Boolean = true
+    var autoStartMonitoring: Boolean = false // User can opt-in to auto-start monitoring
 
     // AI settings
     var aiEnabled: Boolean = false
@@ -29,7 +30,8 @@ class LeakLensSettingsState : PersistentStateComponent<LeakLensSettingsState> {
 
     // History settings
     var maxHistoryEntries: Int = 50
-    var persistHistory: Boolean = true
+    var persistHistory: Boolean =
+        false // Changed default to false to prevent unexpected persistence
 
     // Monitoring settings (Phase 6)
     var autoHeapDumpThresholdMb: Int = 256  // 0 = disabled

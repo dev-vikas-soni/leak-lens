@@ -1,0 +1,13 @@
+<html>
+<body>
+Detects <code>Handler</code> usage where <code>removeCallbacksAndMessages(null)</code> is not called
+in <code>onDestroy()</code>.
+<p>
+    Pending messages in a <code>Handler</code> hold a reference to the handler, which in turn often
+    holds a reference to the <code>Activity</code>.
+    Failing to clear these messages can lead to memory leaks.
+</p>
+<p><b>Fix:</b> Call <code>handler.removeCallbacksAndMessages(null)</code> in
+    <code>onDestroy()</code>.</p>
+</body>
+</html>

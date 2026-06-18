@@ -38,29 +38,38 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
 
                     for (field in viewFields) {
                         val name = field.name
+                        // Look for name = null or _name = null (common for backing fields) or name?.let { it = null } etc.
+                        // We use a simple but broader string check for UAST source string.
                         val isNulled = bodyText.contains("$name = null") ||
                                        bodyText.contains("$name=null") ||
-                                       bodyText.contains("_$name = null")
+                                bodyText.contains("_$name = null") ||
+                                bodyText.contains("$name?.let") ||
+                                bodyText.contains("$name.clear") // For some custom binding types
                         
                         if (!isNulled) {
                             val elementToHighlight = field.uastAnchor?.sourcePsi ?: field.sourcePsi ?: continue
+                            val description =
+                                "LeakLens: View field '$name' is not nulled in onDestroyView()."
                             holder.registerProblem(
                                 elementToHighlight,
-                                "LeakLens: View field '$name' is not nulled in onDestroyView().",
+                                description,
                                 ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                NullifyInOnDestroyViewFix(name)
+                                NullifyInOnDestroyViewFix(name),
+                                AskGeminiFix(
+                                    description,
+                                    field.type.canonicalText,
+                                    LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                                )
                             )
-                            
-                            if (isOnTheFly) {
-                                fileIssues.add(createLeakInfo(field))
-                            }
+
+                            fileIssues.add(createLeakInfo(field))
                         }
                     }
                     return false
                 }
 
                 override fun afterVisitFile(node: UFile) {
-                     LeakLensInspectionUtils.reportLiveIssue(holder, isOnTheFly, "ViewReferenceHeld", fileIssues)
+                    LeakLensInspectionUtils.reportLiveIssue(holder, "ViewReferenceHeld", fileIssues)
                 }
             },
             arrayOf(UClass::class.java, UFile::class.java)

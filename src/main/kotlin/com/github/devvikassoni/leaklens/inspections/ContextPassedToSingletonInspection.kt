@@ -50,16 +50,25 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
                                     )
                                 ) {
                                     val elementToHighlight = arg.sourcePsi ?: node.sourcePsi ?: continue
+                                    val description =
+                                        "LeakLens: Passing Activity Context to a Singleton will cause a memory leak."
                                     holder.registerProblem(
                                         elementToHighlight,
-                                        "LeakLens: Passing Activity Context to a Singleton will cause a memory leak.",
+                                        description,
                                         ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                        UseApplicationContextQuickFix()
+                                        UseApplicationContextQuickFix(),
+                                        AskGeminiFix(
+                                            description,
+                                            containingClass.name ?: "Singleton",
+                                            LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                                        )
                                     )
-                                    
-                                    if (isOnTheFly) {
-                                        fileIssues.add(createLeakInfo(containingClass.name ?: "Singleton", arg))
-                                    }
+
+                                    fileIssues.add(
+                                        createLeakInfo(
+                                            containingClass.name ?: "Singleton", arg
+                                        )
+                                    )
                                 }
                             }
                         }
@@ -68,7 +77,11 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
                 }
 
                 override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(holder, isOnTheFly, "ContextPassedToSingleton", fileIssues)
+                    LeakLensInspectionUtils.reportLiveIssue(
+                        holder,
+                        "ContextPassedToSingleton",
+                        fileIssues
+                    )
                 }
             },
             arrayOf(UCallExpression::class.java, UFile::class.java)

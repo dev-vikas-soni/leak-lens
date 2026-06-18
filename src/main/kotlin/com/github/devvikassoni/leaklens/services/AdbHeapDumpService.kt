@@ -15,7 +15,7 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
 
     private val logger = thisLogger()
 
-    private fun getAdbExecutable(): String {
+    fun getAdbExecutable(): String {
         val adb = AndroidSdkUtils.findAdb(project).adbPath
         return if (adb?.exists() == true) adb.absolutePath else "adb"
     }

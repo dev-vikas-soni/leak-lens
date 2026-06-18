@@ -1,0 +1,13 @@
+<html>
+<body>
+Detects <b>View</b> or <b>ViewBinding</b> references in a <code>Fragment</code> that are not cleared
+in <code>onDestroyView()</code>.
+<p>
+    In Fragments, the view lifecycle is shorter than the fragment lifecycle. Holding onto a view
+    reference
+    after <code>onDestroyView()</code> causes a memory leak until the fragment itself is destroyed.
+</p>
+<p><b>Fix:</b> Set the view/binding reference to <code>null</code> in <code>onDestroyView()</code>.
+</p>
+</body>
+</html>

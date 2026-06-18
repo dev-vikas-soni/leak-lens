@@ -1,0 +1,23 @@
+<html>
+<body>
+Detects cases where an <b>Activity</b> or <b>Fragment</b> is stored in a static field or a companion
+object.
+<p>
+    Storing an <code>Activity</code> or <code>Fragment</code> in a static field causes a memory leak
+    because static fields
+    persist for the lifetime of the application process, preventing the <code>Activity</code> or
+    <code>Fragment</code>
+    from being garbage collected after it is destroyed.
+</p>
+<p><b>Example:</b></p>
+<pre><code>
+class MyActivity : Activity() {
+  companion object {
+    var staticActivity: MyActivity? = null // Leak!
+  }
+}
+</code></pre>
+<p><b>Fix:</b> Use a <code>WeakReference</code> or clear the static reference in
+    <code>onDestroy()</code>.</p>
+</body>
+</html>

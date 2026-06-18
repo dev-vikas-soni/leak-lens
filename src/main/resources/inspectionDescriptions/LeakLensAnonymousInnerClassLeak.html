@@ -1,0 +1,13 @@
+<html>
+<body>
+Detects anonymous inner classes (like <code>Runnable</code> or <code>Handler</code>) that implicitly
+hold a reference to an outer <code>Activity</code> or <code>Fragment</code>.
+<p>
+    If these objects are passed to long-lived systems (like a background thread or a global
+    handler), they can prevent
+    the outer <code>Activity</code> from being garbage collected.
+</p>
+<p><b>Fix:</b> Convert to a static inner class and use a <code>WeakReference</code> to the Activity
+    if needed.</p>
+</body>
+</html>

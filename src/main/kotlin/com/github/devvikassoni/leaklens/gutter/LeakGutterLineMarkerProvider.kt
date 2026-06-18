@@ -67,7 +67,10 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
                 element.textRange,
                 icon,
                 { tooltip },
-                null,
+                { _, _ ->
+                    com.intellij.openapi.wm.ToolWindowManager.getInstance(project)
+                        .getToolWindow("LeakLens")?.show()
+                },
                 GutterIconRenderer.Alignment.LEFT,
                 { tooltip }
             )

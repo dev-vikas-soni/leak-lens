@@ -39,6 +39,13 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h4>0.1.7 — Stability & Documentation Update</h4>
+        <ul>
+            <li><b>Build Stability:</b> Resolved CI/Build issues with <code>buildSearchableOptions</code>.</li>
+            <li><b>Inspection Docs:</b> Added comprehensive HTML descriptions for all 6 LeakLens inspections.</li>
+            <li><b>Type Safety:</b> Hardened UAST analysis logic to prevent crashes and improve accuracy.</li>
+            <li><b>Dependency Alignment:</b> Stabilized Kotlin and Plugin SDK versions for Ladybug compatibility.</li>
+        </ul>
         <h4>0.1.6 — Compatibility & CI Stability Update</h4>
         <ul>
             <li><b>Binary Compatibility:</b> Fixed "Method Not Found" errors by reverting to more compatible ddmlib APIs.</li>
@@ -139,6 +146,15 @@
     </extensions>
 
     <actions>
+        <action class="com.github.devvikassoni.leaklens.actions.AnalyzeSelectedFilesAction"
+            description="Run LeakLens static analysis on selected files or directories"
+            icon="AllIcons.Actions.Find"
+            id="LeakLens.AnalyzeSelectedFiles"
+            text="Analyze Memory Leaks">
+            <add-to-group anchor="after" group-id="ProjectViewPopupMenu"
+                relative-to-action="AnalyzeMenu" />
+        </action>
+
         <action id="LeakLens.AnalyzeCurrentFile" class="com.github.devvikassoni.leaklens.actions.AnalyzeCurrentFileAction"
                 text="Analyze Current File" description="Run LeakLens static analysis on the active editor file"
                 icon="AllIcons.Actions.Execute"/>

@@ -12,7 +12,7 @@ dependencies {
     implementation("com.squareup.leakcanary:shark:2.14")
     implementation("com.squareup.leakcanary:shark-android:2.14")
 
-    implementation("org.jetbrains.kotlin:kotlin-reflect:2.4.0")
+    implementation("org.jetbrains.kotlin:kotlin-reflect:2.0.21")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.opentest4j:opentest4j:1.3.0")
@@ -20,11 +20,13 @@ dependencies {
     intellijPlatform {
         androidStudio("2024.2.2.13")
         testFramework(TestFrameworkType.Platform)
-        bundledPlugin("org.jetbrains.android")
+        bundledPlugins("org.jetbrains.android", "org.jetbrains.kotlin")
     }
 }
 
 intellijPlatform {
+    buildSearchableOptions.set(false)
+
     pluginVerification {
         ides {
             // By default it might use the IDE defined in dependencies

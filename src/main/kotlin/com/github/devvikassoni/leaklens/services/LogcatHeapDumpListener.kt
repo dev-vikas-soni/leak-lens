@@ -1,25 +1,29 @@
 package com.github.devvikassoni.leaklens.services
 
+import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.process.OSProcessHandler
+import com.intellij.execution.process.ProcessAdapter
+import com.intellij.execution.process.ProcessEvent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
-import java.io.BufferedReader
-import java.io.InputStreamReader
+import com.intellij.openapi.util.Key
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Monitors logcat for LeakCanary's heap dump notifications.
  * When LeakCanary dumps heap, it logs a message like:
  * "D/LeakCanary: Heap dumped to /data/user/0/.../leakcanary/2024-01-01_12-00-00_000.hprof"
+ *
+ * Modernized to use GeneralCommandLine and OSProcessHandler per JetBrains guidelines.
  */
 @Service(Service.Level.PROJECT)
 class LogcatHeapDumpListener(private val project: Project) : Disposable {
 
     private val logger = thisLogger()
     private val isListening = AtomicBoolean(false)
-    private var logcatProcess: Process? = null
-    private var listenerThread: Thread? = null
+    private var processHandler: OSProcessHandler? = null
 
     var onHeapDumpDetected: ((deviceSerial: String?, hprofPath: String) -> Unit)? = null
 
@@ -34,55 +38,50 @@ class LogcatHeapDumpListener(private val project: Project) : Disposable {
             return
         }
 
-        listenerThread = Thread({
+        com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
             try {
-                // If serial is null, try to find a device
                 val actualSerial = deviceSerial ?: AdbHeapDumpService.getInstance(project).listDevices().firstOrNull()
-                
-                val command = mutableListOf("adb").apply {
+                val adbService = AdbHeapDumpService.getInstance(project)
+                val adbPath = adbService.getAdbExecutable()
+
+                val commandLine = GeneralCommandLine(adbPath).apply {
                     if (actualSerial != null) {
-                        add("-s")
-                        add(actualSerial)
+                        addParameters("-s", actualSerial)
                     }
-                    add("logcat")
-                    add("-s")
-                    add("LeakCanary:D")
-                    add("--format=brief")
+                    addParameters("logcat", "-s", "LeakCanary:D", "--format=brief")
                 }
 
-                logger.info("LeakLens: Starting logcat listener for ${actualSerial ?: "default device"}")
+                logger.info("LeakLens: Starting logcat process listener for ${actualSerial ?: "default device"}")
 
-                logcatProcess = ProcessBuilder(command)
-                    .redirectErrorStream(true)
-                    .start()
+                processHandler = OSProcessHandler(commandLine)
+                processHandler?.addProcessListener(object : ProcessAdapter() {
+                    override fun onTextAvailable(event: ProcessEvent, outputType: Key<*>) {
+                        val line = event.text
+                        if (line.isNotBlank()) {
+                            processLogcatLine(line, actualSerial)
+                        }
+                    }
 
-                val reader = BufferedReader(InputStreamReader(logcatProcess!!.inputStream))
-                var line: String? = null
+                    override fun processTerminated(event: ProcessEvent) {
+                        isListening.set(false)
+                        logger.info("LeakLens: Logcat process terminated.")
+                    }
+                })
 
-                while (isListening.get() && reader.readLine().also { line = it } != null) {
-                    line?.let { processLogcatLine(it, deviceSerial) }
-                }
+                processHandler?.startNotify()
             } catch (e: Exception) {
-                if (isListening.get()) {
-                    logger.error("LeakLens: Logcat listener error", e)
-                }
-            } finally {
                 isListening.set(false)
+                logger.error("LeakLens: Logcat listener error during startup", e)
             }
-        }, "LeakLens-LogcatListener").apply {
-            isDaemon = true
-            start()
         }
 
-        logger.info("LeakLens: Logcat listener started for device: ${deviceSerial ?: "default"}")
+        logger.info("LeakLens: Logcat listener initialized for device: ${deviceSerial ?: "default"}")
     }
 
     fun stopListening() {
         isListening.set(false)
-        logcatProcess?.destroyForcibly()
-        logcatProcess = null
-        listenerThread?.interrupt()
-        listenerThread = null
+        processHandler?.destroyProcess()
+        processHandler = null
         logger.info("LeakLens: Logcat listener stopped")
     }
 
@@ -93,8 +92,6 @@ class LogcatHeapDumpListener(private val project: Project) : Disposable {
     fun isActive(): Boolean = isListening.get()
 
     private fun processLogcatLine(line: String, deviceSerial: String?) {
-        // LeakCanary logs: "Heap dumped to /path/to/file.hprof"
-        // Also handles: "D/LeakCanary: Heap dumped to ..."
         val heapDumpPattern = Regex("""Heap dumped to\s+(/.+\.hprof)""")
         val match = heapDumpPattern.find(line)
 
@@ -102,17 +99,13 @@ class LogcatHeapDumpListener(private val project: Project) : Disposable {
             val hprofPath = match.groupValues[1].trim()
             logger.info("LeakLens: Detected heap dump at: $hprofPath")
             
-            // Notify coordinator to pull and analyze
-            // We should use a PooledThread to not block the listener
             com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
                 onHeapDumpDetected?.invoke(deviceSerial, hprofPath)
             }
         }
 
-        // Also detect: "1 retained objects, dumping heap"
-        // And: "Analysis done: X leaks"
         if (line.contains("retained objects") || line.contains("dumping heap")) {
-            logger.info("LeakLens: LeakCanary activity detected: $line")
+            logger.info("LeakLens: LeakCanary activity detected: ${line.trim()}")
         }
     }
 
@@ -121,4 +114,3 @@ class LogcatHeapDumpListener(private val project: Project) : Disposable {
             project.getService(LogcatHeapDumpListener::class.java)
     }
 }
-

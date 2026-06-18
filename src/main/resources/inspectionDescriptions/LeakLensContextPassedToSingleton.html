@@ -1,0 +1,11 @@
+<html>
+<body>
+Detects an <b>Activity Context</b> being passed to a Singleton or a long-lived object.
+<p>
+    Singletons live as long as the application process. Passing an <code>Activity</code> context to
+    a singleton
+    will keep that <code>Activity</code> instance in memory even after it is destroyed.
+</p>
+<p><b>Fix:</b> Use <code>context.getApplicationContext()</code> instead.</p>
+</body>
+</html>

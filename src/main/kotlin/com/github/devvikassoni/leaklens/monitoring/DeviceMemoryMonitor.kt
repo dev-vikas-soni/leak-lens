@@ -3,28 +3,33 @@ package com.github.devvikassoni.leaklens.monitoring
 import com.github.devvikassoni.leaklens.services.AdbHeapDumpService
 import com.github.devvikassoni.leaklens.services.LeakAnalysisCoordinator
 import com.github.devvikassoni.leaklens.settings.LeakLensSettingsState
+import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.Timer
-import java.util.TimerTask
 
 /**
  * Phase 6: Real-time device monitoring service.
  * Periodically queries device heap stats via `adb shell dumpsys meminfo <package>`
  * and auto-triggers heap dump when retained object count exceeds threshold.
+ *
+ * Adheres to JetBrains Platform standards: Uses Coroutines for scheduling
+ * and GeneralCommandLine for process management.
  */
 @Service(Service.Level.PROJECT)
 class DeviceMemoryMonitor(private val project: Project) : Disposable {
 
     private val logger = thisLogger()
-    private var monitorTimer: Timer? = null
+    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private var monitorJob: Job? = null
     private var isMonitoring = false
 
     private val _memorySnapshots = MutableStateFlow<List<MemorySnapshot>>(emptyList())
@@ -53,9 +58,8 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
         isMonitoring = true
         _memorySnapshots.value = emptyList()
 
-        monitorTimer = Timer("LeakLens-MemoryMonitor", true)
-        monitorTimer?.scheduleAtFixedRate(object : TimerTask() {
-            override fun run() {
+        monitorJob = scope.launch {
+            while (isActive && isMonitoring) {
                 try {
                     val snapshot = queryMemoryInfo(deviceSerial, packageName)
                     if (snapshot != null) {
@@ -66,41 +70,58 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
                         checkThresholds(snapshot, deviceSerial, packageName)
                     }
                 } catch (e: Exception) {
-                    logger.warn("LeakLens: Memory monitor error", e)
+                    if (isActive) {
+                        logger.warn("LeakLens: Memory monitor error", e)
+                    }
                 }
+                delay(intervalMs)
             }
-        }, 0, intervalMs)
+        }
 
         logger.info("LeakLens: Started monitoring $packageName on ${deviceSerial ?: "default device"}")
     }
 
     fun stopMonitoring() {
-        monitorTimer?.cancel()
-        monitorTimer = null
         isMonitoring = false
+        monitorJob?.cancel()
+        monitorJob = null
         logger.info("LeakLens: Stopped monitoring")
     }
 
     override fun dispose() {
         stopMonitoring()
+        scope.cancel()
     }
 
     fun isActive(): Boolean = isMonitoring
 
     private fun queryMemoryInfo(deviceSerial: String?, packageName: String): MemorySnapshot? {
-        val command = mutableListOf("adb").apply {
-            if (deviceSerial != null) { add("-s"); add(deviceSerial) }
-            add("shell")
-            add("dumpsys")
-            add("meminfo")
-            add(packageName)
+        val adbService = AdbHeapDumpService.getInstance(project)
+        val adbPath = adbService.getAdbExecutable()
+
+        val commandLine = GeneralCommandLine(adbPath).apply {
+            if (deviceSerial != null) {
+                addParameters("-s", deviceSerial)
+            }
+            addParameters("shell", "dumpsys", "meminfo", packageName)
         }
 
-        val process = ProcessBuilder(command).redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader().readText()
-        process.waitFor()
-
-        return parseMemInfo(output, packageName)
+        return try {
+            val handler = CapturingProcessHandler(commandLine)
+            val result = handler.runProcess(5000) // 5 second timeout
+            if (result.isTimeout) {
+                logger.warn("LeakLens: dumpsys meminfo timed out")
+                null
+            } else if (result.exitCode != 0) {
+                logger.warn("LeakLens: dumpsys meminfo failed with exit code ${result.exitCode}: ${result.stderr}")
+                null
+            } else {
+                parseMemInfo(result.stdout, packageName)
+            }
+        } catch (e: Exception) {
+            logger.warn("LeakLens: Error querying memory info", e)
+            null
+        }
     }
 
     private fun parseMemInfo(output: String, packageName: String): MemorySnapshot? {
@@ -113,16 +134,28 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
 
             for (line in output.lines()) {
                 val trimmed = line.trim()
+                val lower = trimmed.lowercase()
                 when {
-                    trimmed.startsWith("TOTAL PSS:") || trimmed.startsWith("TOTAL:") -> {
+                    lower.startsWith("total pss:") || lower.startsWith("total:") -> {
                         totalPss = extractFirstNumber(trimmed)
                     }
-                    trimmed.contains("Java Heap:") -> javaHeap = extractFirstNumber(trimmed)
-                    trimmed.contains("Native Heap:") -> nativeHeap = extractFirstNumber(trimmed)
-                    trimmed.contains("ViewRootImpl:") || trimmed.contains("Views:") -> {
+
+                    lower.contains("java heap") -> {
+                        val num = extractFirstNumber(trimmed)
+                        if (num > 0) javaHeap = num
+                    }
+
+                    lower.contains("native heap") -> {
+                        val num = extractFirstNumber(trimmed)
+                        if (num > 0) nativeHeap = num
+                    }
+
+                    lower.contains("viewrootimpl") || lower.contains("views:") -> {
                         viewCount = extractFirstNumber(trimmed).toInt()
                     }
-                    trimmed.contains("Activities:") -> activities = extractFirstNumber(trimmed).toInt()
+
+                    lower.contains("activities:") -> activities =
+                        extractFirstNumber(trimmed).toInt()
                 }
             }
 
@@ -184,4 +217,3 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
             project.getService(DeviceMemoryMonitor::class.java)
     }
 }
-

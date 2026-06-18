@@ -49,6 +49,8 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
     private val classLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 12f) }
     private val sizeLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 11f) }
 
+    private var currentLeak: LeakInfo? = null
+
     private val askGeminiButton = JButton("Ask Gemini AI").apply {
         icon = AllIcons.Actions.QuickfixBulb
         toolTipText = "Copy prompt for Android Studio Gemini Assistant"
@@ -124,13 +126,24 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     fun showLeakDetail(leak: LeakInfo) {
+        currentLeak = leak
         severityLabel.icon = when (leak.severity) {
             LeakSeverity.CRITICAL -> AllIcons.General.Error
             LeakSeverity.WARNING -> AllIcons.General.Warning
             LeakSeverity.LIBRARY_LEAK -> AllIcons.General.Information
         }
         severityLabel.text = leak.severity.displayName
+
         classLabel.text = "Class: ${leak.retainedObjectClassName}"
+        classLabel.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
+        for (al in classLabel.mouseListeners) classLabel.removeMouseListener(al)
+        classLabel.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(e: MouseEvent) {
+                SourceNavigationService.getInstance(project)
+                    .navigateToClass(leak.retainedObjectClassName)
+            }
+        })
+        classLabel.toolTipText = "Click to open ${leak.retainedObjectClassName}"
 
         val sizeStr = if (leak.retainedByteSize >= 1024 * 1024) {
             "${leak.retainedByteSize / (1024 * 1024)} MB"
@@ -161,6 +174,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
     }
 
     fun showEmptyState() {
+        currentLeak = null
         severityLabel.text = ""
         severityLabel.icon = null
         classLabel.text = ""
@@ -192,7 +206,8 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         for ((index, ref) in leak.referenceChain.withIndex()) {
             doc.insertString(doc.length, "  ".repeat(index) + "↓ ", normalStyle)
             doc.insertString(doc.length, ref.owningClassName, linkStyle)
-            doc.insertString(doc.length, ".${ref.referenceName} (${ref.referenceType})\n", normalStyle)
+            doc.insertString(doc.length, ".${ref.referenceName}", linkStyle)
+            doc.insertString(doc.length, " (${ref.referenceType})\n", normalStyle)
         }
         
         doc.insertString(doc.length, "\n═══ FULL TRACE ═══\n\n", normalStyle)
@@ -203,18 +218,28 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         val offset = tracePane.viewToModel2D(e.point)
         val doc = tracePane.styledDocument
         val text = doc.getText(0, doc.length)
-        val className = extractClassNameAtOffset(text, offset)
+
+        // Find if we clicked a word
+        var start = offset;
+        var end = offset
+        while (start > 0 && (text[start - 1].isLetterOrDigit() || text[start - 1] == '.' || text[start - 1] == '$' || text[start - 1] == '_')) start--
+        while (end < text.length && (text[end].isLetterOrDigit() || text[end] == '.' || text[end] == '$' || text[end] == '_')) end++
+        val word = text.substring(start, end)
+
+        if (word.isBlank()) return
+
+        // 1. Try to find if this is a field in our reference chain
+        currentLeak?.referenceChain?.forEach { ref ->
+            if (word.endsWith(ref.referenceName) || word == ref.owningClassName) {
+                SourceNavigationService.getInstance(project).navigateToReference(ref)
+                return
+            }
+        }
+
+        // 2. Fallback: navigate to class
+        val className = if (word.contains('.') && word.first().isLetter()) word else null
         if (className != null) {
             SourceNavigationService.getInstance(project).navigateToClass(className)
         }
-    }
-
-    private fun extractClassNameAtOffset(text: String, offset: Int): String? {
-        if (offset < 0 || offset >= text.length) return null
-        var start = offset; var end = offset
-        while (start > 0 && (text[start - 1].isLetterOrDigit() || text[start - 1] == '.' || text[start - 1] == '$')) start--
-        while (end < text.length && (text[end].isLetterOrDigit() || text[end] == '.' || text[end] == '$')) end++
-        val word = text.substring(start, end)
-        return if (word.contains('.') && word.first().isLetter()) word else null
     }
 }

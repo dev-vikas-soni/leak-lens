@@ -15,18 +15,17 @@ import org.jetbrains.uast.UClass
 object LeakLensInspectionUtils {
 
     /**
-     * Reports a live issue to the LeakLens tool window while typing.
+     * Reports a live issue to the LeakLens tool window.
+     * Called by inspections after visiting a file to ensure the dashboard is in sync.
      */
     fun reportLiveIssue(
         holder: ProblemsHolder,
-        isOnTheFly: Boolean,
         inspectionName: String,
         fileIssues: List<LeakInfo>
     ) {
-        if (isOnTheFly) {
-            LeakLensProjectService.getInstance(holder.project)
-                .updateLiveIssues(holder.file.virtualFile.path, inspectionName, fileIssues)
-        }
+        val virtualFile = holder.file.virtualFile ?: return
+        LeakLensProjectService.getInstance(holder.project)
+            .updateLiveIssues(virtualFile.path, inspectionName, fileIssues)
     }
 
     /**
@@ -51,8 +50,10 @@ object LeakLensInspectionUtils {
         val text = type.canonicalText
         return text.contains("Activity") ||
                 text.contains("Fragment") ||
+                text.contains("Context") ||
                 text.contains("android.app.Activity") ||
                 text.contains("androidx.fragment.app.Fragment") ||
+                text.contains("android.content.Context") ||
                 text.contains("androidx.appcompat.app.AppCompatActivity")
     }
 

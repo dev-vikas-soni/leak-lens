@@ -1,131 +1,258 @@
 package com.github.devvikassoni.leaklens.monitoring
 
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.JBColor
+import com.intellij.ui.components.JBLabel
+import com.intellij.ui.components.JBPanel
+import com.intellij.util.ui.JBFont
+import com.intellij.util.ui.JBUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import java.awt.BasicStroke
-import java.awt.Color
-import java.awt.Dimension
-import java.awt.Font
-import java.awt.Graphics
-import java.awt.Graphics2D
-import java.awt.RenderingHints
-import javax.swing.JPanel
-import javax.swing.Timer
+import java.awt.*
+import javax.swing.SwingConstants
 
 /**
  * Real-time memory graph panel (lite profiler).
  * Shows Java heap, native heap, and total PSS over time.
+ *
+ * Modernized to use JBPanel and direct reactive Flow repaint triggers,
+ * and enhanced with tooltips and clearer visual cues.
  */
-class MemoryGraphPanel(private val project: Project) : JPanel(), Disposable {
+class MemoryGraphPanel(private val project: Project) : JBPanel<MemoryGraphPanel>(BorderLayout()),
+    Disposable {
 
     private val monitor = DeviceMemoryMonitor.getInstance(project)
     private val graphData = mutableListOf<DeviceMemoryMonitor.MemorySnapshot>()
-    private val refreshTimer = Timer(1000) { repaint() }
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
+    // Theme-aware colors
     private val javaHeapColor = JBColor(Color(0x4C, 0xAF, 0x50), Color(0x66, 0xBB, 0x6A))
     private val nativeHeapColor = JBColor(Color(0xFF, 0x98, 0x00), Color(0xFF, 0xB7, 0x4D))
     private val totalPssColor = JBColor(Color(0x21, 0x96, 0xF3), Color(0x64, 0xB5, 0xF6))
+    private val gridColor = JBColor(Color(0, 0, 0, 20), Color(255, 255, 255, 20))
+
+    private val graphCanvas = object : JBPanel<JBPanel<*>>() {
+        init {
+            isOpaque = false
+        }
+
+        override fun paintComponent(g: Graphics) {
+            super.paintComponent(g)
+            renderGraph(g as Graphics2D)
+        }
+    }
 
     init {
-        preferredSize = Dimension(400, 150)
+        preferredSize = Dimension(400, 200)
         background = JBColor.background()
-        refreshTimer.start()
+        border = JBUI.Borders.empty(10)
 
-        // Poll snapshots
+        val header = JBPanel<JBPanel<*>>(BorderLayout()).apply {
+            isOpaque = false
+            add(JBLabel("Real-time Memory (Lite Profiler)", SwingConstants.LEFT).apply {
+                font = JBFont.label().asBold()
+            }, BorderLayout.WEST)
+            add(JBLabel("Updating every 5s", SwingConstants.RIGHT).apply {
+                font = JBFont.small()
+                foreground = JBColor.GRAY
+            }, BorderLayout.EAST)
+        }
+
+        add(header, BorderLayout.NORTH)
+        add(graphCanvas, BorderLayout.CENTER)
+
+        // Poll snapshots reactively
         scope.launch {
             monitor.memorySnapshots.collectLatest { snapshots ->
                 synchronized(graphData) {
                     graphData.clear()
                     graphData.addAll(snapshots)
                 }
+                ApplicationManager.getApplication().invokeLater {
+                    if (!project.isDisposed) {
+                        updateTooltip()
+                        graphCanvas.repaint()
+                    }
+                }
             }
         }
     }
 
-    override fun paintComponent(g: Graphics) {
-        super.paintComponent(g)
-        val g2 = g as Graphics2D
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+    private fun updateTooltip() {
+        val current = synchronized(graphData) { graphData.lastOrNull() }
+        if (current != null) {
+            toolTipText = """
+                <html>
+                <b>Current Memory Stats:</b><br/>
+                Java Heap: ${current.javaHeap / 1024} MB<br/>
+                Native Heap: ${current.nativeHeap / 1024} MB<br/>
+                Total PSS: ${current.totalPss / 1024} MB<br/>
+                Active Activities: ${current.activities}
+                </html>
+            """.trimIndent()
+        } else {
+            toolTipText = "Start monitoring to see memory trends"
+        }
+    }
 
-        val w = width
-        val h = height
-        val padding = 40
+    private fun renderGraph(g2: Graphics2D) {
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g2.setRenderingHint(
+            RenderingHints.KEY_TEXT_ANTIALIASING,
+            RenderingHints.VALUE_TEXT_ANTIALIAS_ON
+        )
+
+        val w = graphCanvas.width
+        val h = graphCanvas.height
+        val paddingLeft = 45
+        val paddingRight = 10
+        val paddingTop = 25
+        val paddingBottom = 40
 
         synchronized(graphData) {
             if (graphData.isEmpty()) {
                 g2.color = JBColor.GRAY
-                g2.font = Font("SansSerif", Font.PLAIN, 12)
-                g2.drawString("No memory data. Start monitoring to see graph.", padding, h / 2)
+                g2.font = JBFont.regular()
+                g2.drawString(
+                    "No memory data. Connect device and start monitoring.",
+                    paddingLeft,
+                    h / 2
+                )
                 return
             }
 
-            val maxVal = graphData.maxOf { maxOf(it.totalPss, it.javaHeap + it.nativeHeap) }.coerceAtLeast(1)
-            val graphW = w - padding * 2
-            val graphH = h - padding * 2
+            val maxVal = graphData.maxOf { maxOf(it.totalPss, it.javaHeap + it.nativeHeap) }
+                .coerceAtLeast(1024L * 10)
+            val graphW = w - paddingLeft - paddingRight
+            val graphH = h - paddingTop - paddingBottom
+
+            // Draw Background Grid
+            g2.color = gridColor
+            for (i in 0..4) {
+                val y = paddingTop + (graphH * i / 4)
+                g2.drawLine(paddingLeft, y, w - paddingRight, y)
+            }
 
             // Draw axes
-            g2.color = JBColor.GRAY
-            g2.drawLine(padding, h - padding, w - padding, h - padding) // X
-            g2.drawLine(padding, padding, padding, h - padding) // Y
+            g2.color = JBColor.border()
+            g2.drawLine(paddingLeft, h - paddingBottom, w - paddingRight, h - paddingBottom) // X
+            g2.drawLine(paddingLeft, paddingTop, paddingLeft, h - paddingBottom) // Y
 
             // Y-axis labels
-            g2.font = Font("SansSerif", Font.PLAIN, 10)
-            g2.drawString("${maxVal / 1024} MB", 2, padding + 10)
-            g2.drawString("0", 2, h - padding)
+            g2.font = JBFont.small()
+            g2.color = JBColor.GRAY
+            g2.drawString("${maxVal / 1024}MB", 2, paddingTop + 5)
+            g2.drawString("${(maxVal / 2) / 1024}MB", 2, paddingTop + (graphH / 2) + 5)
+            g2.drawString("0", 2, h - paddingBottom)
 
-            // Draw lines
+            // Draw lines with area fill
             val stepX = graphW.toFloat() / (graphData.size - 1).coerceAtLeast(1)
 
-            drawLine(g2, graphData.map { it.totalPss }, maxVal, stepX, graphW, graphH, padding, totalPssColor)
-            drawLine(g2, graphData.map { it.javaHeap }, maxVal, stepX, graphW, graphH, padding, javaHeapColor)
-            drawLine(g2, graphData.map { it.nativeHeap }, maxVal, stepX, graphW, graphH, padding, nativeHeapColor)
+            drawMemoryLine(
+                g2,
+                graphData.map { it.totalPss },
+                maxVal,
+                stepX,
+                graphH,
+                paddingLeft,
+                paddingTop,
+                totalPssColor,
+                true
+            )
+            drawMemoryLine(
+                g2,
+                graphData.map { it.javaHeap },
+                maxVal,
+                stepX,
+                graphH,
+                paddingLeft,
+                paddingTop,
+                javaHeapColor,
+                false
+            )
+            drawMemoryLine(
+                g2,
+                graphData.map { it.nativeHeap },
+                maxVal,
+                stepX,
+                graphH,
+                paddingLeft,
+                paddingTop,
+                nativeHeapColor,
+                false
+            )
 
-            // Legend
-            val legendY = padding - 10
-            g2.color = totalPssColor; g2.fillRect(padding, legendY, 10, 10)
-            g2.color = JBColor.foreground(); g2.drawString("Total PSS", padding + 14, legendY + 9)
-            g2.color = javaHeapColor; g2.fillRect(padding + 90, legendY, 10, 10)
-            g2.color = JBColor.foreground(); g2.drawString("Java Heap", padding + 104, legendY + 9)
-            g2.color = nativeHeapColor; g2.fillRect(padding + 185, legendY, 10, 10)
-            g2.color = JBColor.foreground(); g2.drawString("Native", padding + 199, legendY + 9)
+            // Modern Legend (Bottom)
+            val legendX = paddingLeft
+            val legendY = h - 15
+            renderLegendItem(g2, legendX, legendY, totalPssColor, "Total PSS")
+            renderLegendItem(g2, legendX + 90, legendY, javaHeapColor, "Java Heap")
+            renderLegendItem(g2, legendX + 185, legendY, nativeHeapColor, "Native")
 
-            // Current value
+            // Current summary text
             val current = graphData.lastOrNull()
             if (current != null) {
                 g2.color = JBColor.foreground()
-                g2.drawString(
-                    "Java: ${current.javaHeap / 1024}MB | Native: ${current.nativeHeap / 1024}MB | Total: ${current.totalPss / 1024}MB | Activities: ${current.activities}",
-                    padding, h - 5
-                )
+                g2.font = JBFont.small().asBold()
+                val summary =
+                    "Total: ${current.totalPss / 1024}MB | Java: ${current.javaHeap / 1024}MB"
+                val metrics = g2.fontMetrics
+                g2.drawString(summary, w - metrics.stringWidth(summary) - paddingRight, legendY)
             }
         }
     }
 
-    private fun drawLine(g2: Graphics2D, values: List<Long>, maxVal: Long, stepX: Float, graphW: Int, graphH: Int, padding: Int, color: Color) {
-        if (values.size < 2) return
+    private fun renderLegendItem(g2: Graphics2D, x: Int, y: Int, color: Color, label: String) {
         g2.color = color
-        g2.stroke = BasicStroke(2f)
+        g2.fillRoundRect(x, y - 8, 8, 8, 2, 2)
+        g2.color = JBColor.foreground()
+        g2.font = JBFont.small()
+        g2.drawString(label, x + 12, y)
+    }
 
-        for (i in 1 until values.size) {
-            val x1 = padding + ((i - 1) * stepX).toInt()
-            val y1 = padding + graphH - ((values[i - 1].toFloat() / maxVal) * graphH).toInt()
-            val x2 = padding + (i * stepX).toInt()
-            val y2 = padding + graphH - ((values[i].toFloat() / maxVal) * graphH).toInt()
-            g2.drawLine(x1, y1, x2, y2)
+    private fun drawMemoryLine(
+        g2: Graphics2D,
+        values: List<Long>,
+        maxVal: Long,
+        stepX: Float,
+        graphH: Int,
+        paddingLeft: Int,
+        paddingTop: Int,
+        color: Color,
+        fill: Boolean
+    ) {
+        if (values.size < 2) return
+
+        val xPoints = IntArray(values.size)
+        val yPoints = IntArray(values.size)
+
+        for (i in values.indices) {
+            xPoints[i] = paddingLeft + (i * stepX).toInt()
+            yPoints[i] = paddingTop + graphH - ((values[i].toFloat() / maxVal) * graphH).toInt()
         }
+
+        if (fill) {
+            val fillPath = Polygon()
+            fillPath.addPoint(xPoints[0], paddingTop + graphH)
+            for (i in xPoints.indices) fillPath.addPoint(xPoints[i], yPoints[i])
+            fillPath.addPoint(xPoints.last(), paddingTop + graphH)
+
+            g2.color = Color(color.red, color.green, color.blue, 30)
+            g2.fill(fillPath)
+        }
+
+        g2.color = color
+        g2.stroke = BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+        g2.drawPolyline(xPoints, yPoints, values.size)
     }
 
     override fun dispose() {
-        refreshTimer.stop()
         scope.cancel()
     }
 }
-

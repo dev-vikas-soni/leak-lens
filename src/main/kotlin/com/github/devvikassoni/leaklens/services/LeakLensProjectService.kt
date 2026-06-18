@@ -84,6 +84,19 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
         }
     }
 
+    fun clearLiveIssuesForFile(filePath: String) {
+        synchronized(this) {
+            val currentMap = _liveIssues.value.toMutableMap()
+            if (currentMap.remove(filePath) != null) {
+                _liveIssues.value = currentMap
+            }
+        }
+    }
+
+    fun clearAllLiveIssues() {
+        _liveIssues.value = emptyMap()
+    }
+
     fun setAnalyzing(analyzing: Boolean) {
         _isAnalyzing.value = analyzing
     }
@@ -116,10 +129,12 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
         _history.value = emptyList()
         val settings = LeakLensSettingsState.getInstance(project)
         settings.historyEntries.clear()
+        // Force state save if necessary, though IntelliJ usually handles this
     }
 
     private fun persistHistory(entry: AnalysisHistoryEntry) {
         val settings = LeakLensSettingsState.getInstance(project)
+        // Only persist if the user explicitly enabled it in settings
         if (!settings.persistHistory) return
 
         settings.historyEntries.add(

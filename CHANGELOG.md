@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-06-17
+
+### Added
+
+- **Final Polish**: Refined plugin name and description for the JetBrains Staff Picks program.
+- **Dark Mode Support**: Added `pluginIcon_dark.svg` for full compatibility with the Marketplace's
+  dark theme.
+- **Improved UX**: Integrated the YouTube demo and an optimized "Getting Started" guide into the
+  plugin description.
+
 ## [0.1.7] - 2026-06-16
 
 ### Fixed
@@ -122,8 +132,9 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.7...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.8...HEAD
 
+[0.1.8]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.7...0.1.8
 [0.1.7]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.6...0.1.7
 [0.1.6]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.5...0.1.6
 [0.1.5]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.4...0.1.5

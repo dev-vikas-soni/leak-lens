@@ -1,44 +1,42 @@
 <!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
 <idea-plugin>
     <id>com.github.devvikassoni.leaklens</id>
-    <name>LeakLens - Android Memory Leak Detector &amp; AI Fix Assistant</name>
+    <name>LeakLens - Memory Leak Detector &amp; AI Assistant</name>
     <vendor email="vikasacsoni9211@gmail.com" url="https://github.com/dev-vikas-soni">Vikas Soni</vendor>
 
     <description><![CDATA[
-        <h2><b>Stop Out-of-Memory (OOM) errors before they reach your users.</b></h2>
-        <p><b>LeakLens</b> is the ultimate <b>Android Studio Plugin</b> for <b>Memory Leak Detection</b> and <b>Heap Analysis</b>. It brings the power of LeakCanary’s <b>Shark engine</b> directly into your IDE, enhanced with <b>AI-powered fix suggestions</b> (OpenAI/Gemini).</p>
+        <p><a href="https://www.youtube.com/watch?v=BcKYf34Jr1Q">📺 Watch the 2-minute demo</a></p>
 
-        <h3><b>🚀 Why LeakLens?</b></h3>
-        <p>Tired of switching between your app, Logcat, and Profiler? LeakLens automates the workflow to find, analyze, and fix <b>Android memory leaks</b> in real-time.</p>
+        <h2><b>The Ultimate Memory Tool for Modern Android</b></h2>
+        <p><b>LeakLens</b> is a professional-grade memory leak detector that bridges the gap between the Android Profiler and LeakCanary. It brings the power of the <b>Shark Heap Analysis engine</b> directly into your IDE, enhanced with <b>AI-powered fix suggestions</b>.</p>
 
-        <h3><b>🛠️ Core SEO Features</b></h3>
+        <h3><b>✨ Key Highlights</b></h3>
         <ul>
-            <li><b>🔍 Deep Heap Analysis:</b> Capture heap dumps from devices or import <b>.hprof</b> files for instant Shark-powered analysis.</li>
-            <li><b>🤖 AI Fix Engine:</b> Use <b>GPT-4o</b> or <b>Gemini Pro</b> to explain complex leak traces and generate <b>Kotlin/Java code fixes</b>.</li>
-            <li><b>🛡️ Preventive Inspections:</b> 6+ <b>Static Analysis (UAST)</b> inspections catch leaks <i>as you write code</i> (e.g., Static Activity Refs, Inner Class Leaks).</li>
-            <li><b>📊 Real-time Memory Monitor:</b> A built-in graph to track <b>Android JVM Heap</b> usage and trigger auto-dumps when thresholds are hit.</li>
-            <li><b>💡 Smart Fix Suggestions:</b> Actionable templates for 11+ common patterns like <b>Context leaks</b>, <b>View Binding</b>, and <b>Handler</b> leaks.</li>
-            <li><b>🎯 One-Click Trace Navigation:</b> Click any part of the leak trace to jump directly to the problematic line in your source code.</li>
+            <li><b>🤖 AI Fix Assistant:</b> Instantly translate complex, cryptic leak traces into actionable Kotlin/Java code fixes using Gemini or GPT-4.</li>
+            <li><b>🛡️ Preventive UAST Inspections:</b> Catch 6+ critical leak patterns (Static Activity Refs, Anonymous Inner Classes, etc.) <i>as you write code</i>.</li>
+            <li><b>🔍 SDK-Free Analysis:</b> No project setup required. Capture heap dumps via ADB and analyze them host-side without adding dependencies to your APK.</li>
+            <li><b>📊 Real-time Monitor:</b> An integrated memory graph to track JVM Heap usage with configurable auto-dump thresholds.</li>
+            <li><b>🎯 Precision Navigation:</b> Click any part of a leak trace to jump directly to the problematic line in your source code.</li>
         </ul>
 
-        <h3><b>✅ Compatible With</b></h3>
-        <ul>
-            <li><b>Languages:</b> 100% support for <b>Kotlin</b> and <b>Java</b>.</li>
-            <li><b>Frameworks:</b> Optimized for <b>Jetpack Compose</b>, Fragments, ViewModels, and Coroutines.</li>
-        </ul>
+        <h3><b>🚀 How to Get Started</b></h3>
+        <ol>
+            <li>Connect your debuggable Android device or emulator.</li>
+            <li>Open the <b>LeakLens</b> tool window (bottom tab).</li>
+            <li>Click <b>"Dump Heap Now"</b> to capture and analyze your first leak.</li>
+        </ol>
 
-        <h3><b>📊 How we compare</b></h3>
-        <ul>
-            <li><b>IDE Integrated:</b> LeakLens is fully integrated into Android Studio, unlike LeakCanary which is an external app.</li>
-            <li><b>AI Fix Assistant:</b> Get instant code fixes via Gemini/GPT, a feature missing in both the Profiler and LeakCanary.</li>
-            <li><b>Zero Code Changes:</b> Unlike LeakCanary, LeakLens requires NO SDK or code dependencies in your app.</li>
-            <li><b>Static Analysis:</b> Catches leaks while you write code (UAST), not just at runtime.</li>
-        </ul>
-
-        <p><i>If LeakLens helps you save hours of debugging, please consider leaving a <b>5-star review</b>! It helps us keep the tool free and updated.</i></p>
+        <p><i>Building high-quality Android apps shouldn't be slowed down by memory leaks. If LeakLens saves you time, please consider leaving a 5-star review!</i></p>
     ]]></description>
 
     <change-notes><![CDATA[
+        <h4>0.1.8 — Staff Pick Edition (Final Polish)</h4>
+        <ul>
+            <li><b>Branding:</b> Refined name and description for better clarity and professional appearance.</li>
+            <li><b>UI:</b> Added high-quality SVG icons for both Light and Dark IDE themes.</li>
+            <li><b>Onboarding:</b> Added a direct link to the video demo and improved the "Getting Started" guide.</li>
+            <li><b>AI:</b> Finalized the "Ask AI" integration across all 6 static inspection types.</li>
+        </ul>
         <h4>0.1.7 — Stability & Documentation Update</h4>
         <ul>
             <li><b>Build Stability:</b> Resolved CI/Build issues with <code>buildSearchableOptions</code>.</li>

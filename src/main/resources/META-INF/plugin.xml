@@ -5,17 +5,20 @@
     <vendor email="vikasacsoni9211@gmail.com" url="https://github.com/dev-vikas-soni">Vikas Soni</vendor>
 
     <description><![CDATA[
-        <p><a href="https://www.youtube.com/watch?v=BcKYf34Jr1Q">📺 Watch the 2-minute demo</a></p>
+        LeakLens is a professional-grade memory leak detector that bridges the gap between the Android Profiler and LeakCanary.
+        It brings the power of the <b>Shark Heap Analysis engine</b> directly into your IDE, enhanced with <b>AI-powered fix suggestions</b>.
+
+        <p><a href="https://www.youtube.com/watch?v=BcKYf34Jr1Q">Watch the 2-minute demo</a></p>
 
         <h2><b>The Ultimate Memory Tool for Modern Android</b></h2>
-        <p><b>LeakLens</b> is a professional-grade memory leak detector that bridges the gap between the Android Profiler and LeakCanary. It brings the power of the <b>Shark Heap Analysis engine</b> directly into your IDE, enhanced with <b>AI-powered fix suggestions</b>.</p>
+        <p><b>LeakLens</b> provides a seamless "detect-analyze-fix" workflow without ever leaving your IDE.</p>
 
         <h3><b>✨ Key Highlights</b></h3>
         <ul>
             <li><b>🤖 AI Fix Assistant:</b> Instantly translate complex, cryptic leak traces into actionable Kotlin/Java code fixes using Gemini or GPT-4.</li>
             <li><b>🛡️ Preventive UAST Inspections:</b> Catch 6+ critical leak patterns (Static Activity Refs, Anonymous Inner Classes, etc.) <i>as you write code</i>.</li>
             <li><b>🔍 SDK-Free Analysis:</b> No project setup required. Capture heap dumps via ADB and analyze them host-side without adding dependencies to your APK.</li>
-            <li><b>📊 Real-time Monitor:</b> An integrated memory graph to track JVM Heap usage with configurable auto-dump thresholds.</li>
+            <li><b>📊 Real-time Monitor :</b> An integrated memory graph to track JVM Heap usage with configurable auto-dump thresholds.</li>
             <li><b>🎯 Precision Navigation:</b> Click any part of a leak trace to jump directly to the problematic line in your source code.</li>
         </ul>
 

@@ -67,19 +67,19 @@ Stop guessing. Discuss complex leak traces with Android Studio’s built-in AI.
 ## 📊 Why LeakLens? (Comparison)
 
 | Feature | **LeakLens** | **Android Studio Profiler** | **LeakCanary** |
-| :--- | :---: | :---: | :---: |
-| **IDE Integrated** | ✅ Full | ✅ Partial | ❌ External App |
-| **AI Fix Assistant** | ✅ Yes (Gemini/GPT) | ❌ No | ❌ No |
-| **Zero Code Changes** | ✅ Yes (ADB based) | ✅ Yes | ❌ Requires SDK |
-| **Static Analysis** | ✅ Real-time (UAST) | ❌ No | ❌ No |
-| **One-Click Fixes** | ✅ Yes | ❌ No | ❌ No |
+| :---                  | :---                | :---      | :---            |
+| **IDE Integrated**    | ✅ Full             | ✅ Partial | ❌ External App |
+| **AI Fix Assistant**  | ✅ Yes (Gemini/GPT) | ❌ No      | ❌ No           |
+| **Zero Code Changes** | ✅ Yes (ADB based)  | ✅ Yes     | ❌ Requires SDK |
+| **Static Analysis**   | ✅ Real-time (UAST) | ❌ No      | ❌ No           |
+| **One-Click Fixes**   | ✅ Yes              | ❌ No      | ❌ No           |
 
 ---
 
 ## ✨ Key Features
 
 |         Feature          | Technical Detail                                                                   |
-|:------------------------:|:-----------------------------------------------------------------------------------|
+|:-------------------------|:------------------------------------------------------------------------------------|
 |  **Universal Support**   | Native support for **Java**, **Kotlin**, and **Jetpack Compose**.                  |
 | **Precision Navigation** | Click any class in a leak trace to jump to the **exact line of code**.             |
 |    **VCS Baselines**     | Commit `leak-baseline.json` to suppress legacy leaks and focus on new regressions. |

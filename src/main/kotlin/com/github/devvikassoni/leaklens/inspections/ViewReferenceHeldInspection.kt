@@ -1,14 +1,22 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.intellij.codeInspection.*
-import com.intellij.psi.*
-import org.jetbrains.uast.*
-import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
-import com.intellij.uast.UastHintedVisitorAdapter
-import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
+import com.intellij.codeInspection.LocalInspectionTool
+import com.intellij.codeInspection.LocalQuickFix
+import com.intellij.codeInspection.ProblemDescriptor
+import com.intellij.codeInspection.ProblemHighlightType
+import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.Project
+import com.intellij.psi.JavaPsiFacade
+import com.intellij.psi.PsiElementVisitor
+import com.intellij.uast.UastHintedVisitorAdapter
+import org.jetbrains.uast.UClass
+import org.jetbrains.uast.UField
+import org.jetbrains.uast.UFile
+import org.jetbrains.uast.getContainingUClass
+import org.jetbrains.uast.toUElementOfType
+import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
  * Detects View references held in Fragment fields that are not nulled out in onDestroyView.

@@ -4,14 +4,14 @@ import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.LocalInspectionToolSession
 import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
+import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UElement
 import org.jetbrains.uast.UQualifiedReferenceExpression
 import org.jetbrains.uast.getContainingUClass
-import org.jetbrains.uast.toUElement
+import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 class FlowLifecycleInspection : LocalInspectionTool() {
 
@@ -24,39 +24,38 @@ class FlowLifecycleInspection : LocalInspectionTool() {
         isOnTheFly: Boolean,
         session: LocalInspectionToolSession
     ): PsiElementVisitor {
-        return object : PsiElementVisitor() {
-            override fun visitElement(element: PsiElement) {
-                val uElement = element.toUElement() ?: return
-                if (uElement is UCallExpression) {
-                    visitCallExpression(uElement)
-                }
-            }
-
-            private fun visitCallExpression(node: UCallExpression) {
-                val methodName = node.methodName
-                if (methodName == "collect" || methodName == "collectLatest") {
-                    val containingClass = node.getContainingUClass()
-                    if (containingClass != null && isAndroidUiClass(containingClass)) {
-                        // Check if inside repeatOnLifecycle
-                        if (!isInsideRepeatOnLifecycle(node) && !usesFlowWithLifecycle(node)) {
-                            val sourcePsi =
-                                node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return
-                            val className = containingClass.name ?: "Activity/Fragment"
-                            val line = LeakLensInspectionUtils.getLineNumber(sourcePsi)
-                            val description =
-                                "LeakLens: Unsafe collection of Flow in UI. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks."
-                            holder.registerProblem(
-                                sourcePsi,
-                                description,
-                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                WrapWithRepeatOnLifecycleFix(),
-                                AskGeminiFix(description, className, line)
-                            )
+        return UastHintedVisitorAdapter.create(
+            holder.file.language,
+            object : AbstractUastNonRecursiveVisitor() {
+                override fun visitCallExpression(node: UCallExpression): Boolean {
+                    val methodName = node.methodName
+                    if (methodName == "collect" || methodName == "collectLatest") {
+                        val containingClass = node.getContainingUClass()
+                        if (containingClass != null && isAndroidUiClass(containingClass)) {
+                            // Check if inside repeatOnLifecycle
+                            if (!isInsideRepeatOnLifecycle(node) && !usesFlowWithLifecycle(node)) {
+                                val sourcePsi =
+                                    node.methodIdentifier?.sourcePsi ?: node.sourcePsi
+                                    ?: return super.visitCallExpression(node)
+                                val className = containingClass.name ?: "Activity/Fragment"
+                                val line = LeakLensInspectionUtils.getLineNumber(sourcePsi)
+                                val description =
+                                    "LeakLens: Unsafe collection of Flow in UI. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks."
+                                holder.registerProblem(
+                                    sourcePsi,
+                                    description,
+                                    ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                                    WrapWithRepeatOnLifecycleFix(),
+                                    AskGeminiFix(description, className, line)
+                                )
+                            }
                         }
                     }
+                    return super.visitCallExpression(node)
                 }
-            }
-        }
+            },
+            arrayOf(UCallExpression::class.java)
+        )
     }
 
     private fun isAndroidUiClass(uClass: UClass): Boolean {

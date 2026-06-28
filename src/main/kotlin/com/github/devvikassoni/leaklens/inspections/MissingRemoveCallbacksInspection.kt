@@ -9,14 +9,14 @@ import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.Project
 import com.intellij.psi.JavaPsiFacade
-import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
+import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UField
 import org.jetbrains.uast.UFile
 import org.jetbrains.uast.getContainingUClass
-import org.jetbrains.uast.toUElement
 import org.jetbrains.uast.toUElementOfType
+import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
  * Detects Handler usage without removeCallbacksAndMessages in onDestroy.
@@ -30,62 +30,59 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         val fileIssues = mutableListOf<LeakInfo>()
 
-        return object : PsiElementVisitor() {
-            override fun visitElement(element: PsiElement) {
-                val uElement = element.toUElement() ?: return
-                if (uElement is UClass) {
-                    visitClass(uElement)
-                } else if (uElement is UFile) {
-                    visitFile(uElement)
-                }
-            }
+        return UastHintedVisitorAdapter.create(
+            holder.file.language,
+            object : AbstractUastNonRecursiveVisitor() {
+                override fun visitClass(node: UClass): Boolean {
+                    if (!LeakLensInspectionUtils.isActivityOrFragment(node)) return false
 
-            private fun visitClass(node: UClass) {
-                if (!LeakLensInspectionUtils.isActivityOrFragment(node)) return
+                    val handlerFields =
+                        node.fields.filter { it.type.canonicalText.contains("Handler") }
+                    if (handlerFields.isEmpty()) return false
 
-                val handlerFields = node.fields.filter { it.type.canonicalText.contains("Handler") }
-                if (handlerFields.isEmpty()) return
+                    val onDestroy =
+                        node.methods.find { it.name == "onDestroy" || it.name == "onDestroyView" }
+                    val bodyText = onDestroy?.uastBody?.asSourceString() ?: ""
 
-                val onDestroy =
-                    node.methods.find { it.name == "onDestroy" || it.name == "onDestroyView" }
-                val bodyText = onDestroy?.uastBody?.asSourceString() ?: ""
+                    for (field in handlerFields) {
+                        val fieldName = field.name
+                        val hasCleanup = bodyText.contains("$fieldName.removeCallbacks") ||
+                                bodyText.contains("$fieldName.removeMessages") ||
+                                bodyText.contains("$fieldName?.removeCallbacks")
 
-                for (field in handlerFields) {
-                    val fieldName = field.name
-                    val hasCleanup = bodyText.contains("$fieldName.removeCallbacks") ||
-                            bodyText.contains("$fieldName.removeMessages") ||
-                            bodyText.contains("$fieldName?.removeCallbacks")
-
-                    if (!hasCleanup) {
-                        val elementToHighlight =
-                            field.uastAnchor?.sourcePsi ?: field.sourcePsi ?: continue
-                        val description =
-                            "LeakLens: Handler '$fieldName' may cause a leak. Call removeCallbacks in onDestroy."
-                        holder.registerProblem(
-                            elementToHighlight,
-                            description,
-                            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                            RemoveCallbacksQuickFix(fieldName),
-                            AskGeminiFix(
+                        if (!hasCleanup) {
+                            val elementToHighlight =
+                                field.uastAnchor?.sourcePsi ?: field.sourcePsi ?: continue
+                            val description =
+                                "LeakLens: Handler '$fieldName' may cause a leak. Call removeCallbacks in onDestroy."
+                            holder.registerProblem(
+                                elementToHighlight,
                                 description,
-                                "android.os.Handler",
-                                LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                                RemoveCallbacksQuickFix(fieldName),
+                                AskGeminiFix(
+                                    description,
+                                    "android.os.Handler",
+                                    LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                                )
                             )
-                        )
 
-                        fileIssues.add(createLeakInfo(field))
+                            fileIssues.add(createLeakInfo(field))
+                        }
                     }
+                    return false
                 }
-            }
 
-            private fun visitFile(node: UFile) {
-                LeakLensInspectionUtils.reportLiveIssue(
-                    holder,
-                    "MissingRemoveCallbacks",
-                    fileIssues
-                )
-            }
-        }
+                override fun afterVisitFile(node: UFile) {
+                    LeakLensInspectionUtils.reportLiveIssue(
+                        holder,
+                        "MissingRemoveCallbacks",
+                        fileIssues
+                    )
+                }
+            },
+            arrayOf(UClass::class.java, UFile::class.java)
+        )
     }
 
     private fun createLeakInfo(field: UField): LeakInfo {

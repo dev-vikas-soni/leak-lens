@@ -33,14 +33,18 @@
     ]]></description>
 
     <change-notes><![CDATA[
-        <h3>0.1.9 — SonarLint-style Real-time Detection & Stability</h3>
+        <h3>0.2.0 — SonarLint-style Real-time Detection & Stability</h3>
         <ul>
             <li><b>SonarLint-style Analysis:</b> Potential leaks (Static Fields, Inner Classes, Context leaks) are now detected <b>as you type</b> with instant squiggly lines and gutter markers.</li>
             <li><b>Status Bar Widget:</b> A new counter in the IDE status bar keeps you updated on total project leaks at all times.</li>
-            <li><b>New Inspections:</b> Added specialized checks for <b>Hilt Scope Mismatch</b>, <b>WorkManager Context leaks</b>, and <b>Unsafe Flow collection</b>.</li>
+            <li><b>New Specialized Inspections:</b> Added checks for <b>Hilt Scope Mismatch</b>, <b>WorkManager Context leaks</b>, and <b>Unsafe Flow collection</b>.</li>
             <li><b>Unified UX:</b> Real-time static issues now merge seamlessly with deep heap analysis results in the tool window.</li>
             <li><b>Critical Compatibility:</b> Fixed binary incompatibilities and <code>INTERNAL_API_USAGES</code> for IntelliJ IDEA Ultimate and future platform releases (2025.x/2026.x).</li>
             <li><b>API Modernization:</b> Fully resolved all deprecated API warnings (ProcessAdapter, FileSaverDescriptor).</li>
+        </ul>
+        <h4>0.1.9 (Internal)</h4>
+        <ul>
+            <li>Internal stability and compatibility improvements.</li>
         </ul>
         <h4>0.1.8 — Staff Pick Edition (Final Polish)</h4>
         <ul>

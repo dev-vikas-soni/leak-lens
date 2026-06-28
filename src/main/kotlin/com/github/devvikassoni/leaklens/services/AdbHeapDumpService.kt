@@ -214,7 +214,7 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
                 if (device != null) {
                     val clients = device.clients
                     if (clients.isNotEmpty()) {
-                        return clients.mapNotNull { it.clientData.processName }
+                        return clients.mapNotNull { getProcessNameSafely(it.clientData) }
                     }
                 }
             }
@@ -256,6 +256,22 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
         } catch (e: Exception) {
             logger.error("LeakLens: Error listing processes via shell", e)
             emptyList()
+        }
+    }
+
+    /**
+     * Safely gets the process name from ClientData, handling API differences
+     * across Android Studio / IntelliJ versions.
+     */
+    private fun getProcessNameSafely(data: com.android.ddmlib.ClientData): String? {
+        return try {
+            // Try getProcessName() via reflection (available in newer ddmlib)
+            val method = data.javaClass.getMethod("getProcessName")
+            method.invoke(data) as? String
+        } catch (e: Exception) {
+            // Fallback to getClientDescription() (available in older ddmlib)
+            @Suppress("DEPRECATION")
+            data.clientDescription
         }
     }
 

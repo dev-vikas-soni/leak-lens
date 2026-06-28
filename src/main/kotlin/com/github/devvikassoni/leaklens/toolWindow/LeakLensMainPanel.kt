@@ -52,6 +52,14 @@ class LeakLensMainPanel(
         tabbedPane.addTab("Memory", memoryPanel)
         tabbedPane.addTab("History", historyPanel)
 
+        // Create Toolbar
+        val actionManager = com.intellij.openapi.actionSystem.ActionManager.getInstance()
+        val actionGroup =
+            actionManager.getAction("LeakLens.ActionGroup") as com.intellij.openapi.actionSystem.ActionGroup
+        val actionToolbar = actionManager.createActionToolbar("LeakLensToolbar", actionGroup, false)
+        actionToolbar.targetComponent = this
+
+        add(actionToolbar.component, BorderLayout.WEST)
         add(tabbedPane, BorderLayout.CENTER)
 
         // Wire selection

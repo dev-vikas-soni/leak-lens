@@ -1,12 +1,20 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.intellij.codeInspection.*
-import com.intellij.psi.*
-import org.jetbrains.uast.*
-import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
-import com.intellij.uast.UastHintedVisitorAdapter
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
+import com.intellij.codeInspection.LocalInspectionTool
+import com.intellij.codeInspection.ProblemHighlightType
+import com.intellij.codeInspection.ProblemsHolder
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiElementVisitor
+import org.jetbrains.uast.UCallExpression
+import org.jetbrains.uast.UClass
+import org.jetbrains.uast.UField
+import org.jetbrains.uast.UFile
+import org.jetbrains.uast.UObjectLiteralExpression
+import org.jetbrains.uast.UastCallKind
+import org.jetbrains.uast.getContainingUClass
+import org.jetbrains.uast.toUElement
 
 /**
  * Detects anonymous inner classes that implicitly hold a reference to an outer Activity/Fragment.
@@ -20,47 +28,51 @@ class AnonymousInnerClassLeakInspection : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         val fileIssues = mutableListOf<LeakInfo>()
 
-        return UastHintedVisitorAdapter.create(
-            holder.file.language,
-            object : AbstractUastNonRecursiveVisitor() {
-                override fun visitObjectLiteralExpression(node: UObjectLiteralExpression): Boolean {
-                    val anonymousClass = node.declaration
-                    val outerClass = anonymousClass.getContainingUClass() ?: return false
-                    
-                    if (!LeakLensInspectionUtils.isActivityOrFragment(outerClass)) return false
+        return object : PsiElementVisitor() {
+            override fun visitElement(element: PsiElement) {
+                val uElement = element.toUElement() ?: return
+                if (uElement is UObjectLiteralExpression) {
+                    visitObjectLiteralExpression(uElement)
+                } else if (uElement is UFile) {
+                    visitFile(uElement)
+                }
+            }
 
-                    if (isAssignedToField(node) || isPassedToLongLivedMethod(node)) {
-                        val elementToHighlight = node.sourcePsi ?: return false
-                        val description =
-                            "LeakLens: Anonymous inner class holds an implicit reference to ${outerClass.name}. " +
-                                    "If this object outlives the Activity, it will prevent GC."
-                        
-                        holder.registerProblem(
-                            elementToHighlight,
+            private fun visitObjectLiteralExpression(node: UObjectLiteralExpression) {
+                val anonymousClass = node.declaration
+                val outerClass = anonymousClass.getContainingUClass() ?: return
+
+                if (!LeakLensInspectionUtils.isActivityOrFragment(outerClass)) return
+
+                if (isAssignedToField(node) || isPassedToLongLivedMethod(node)) {
+                    val elementToHighlight = node.sourcePsi ?: return
+                    val description =
+                        "LeakLens: Anonymous inner class holds an implicit reference to ${outerClass.name}. " +
+                                "If this object outlives the Activity, it will prevent GC."
+
+                    holder.registerProblem(
+                        elementToHighlight,
+                        description,
+                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                        AskGeminiFix(
                             description,
-                            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                            AskGeminiFix(
-                                description,
-                                outerClass.name ?: "Unknown",
-                                LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                            )
+                            outerClass.name ?: "Unknown",
+                            LeakLensInspectionUtils.getLineNumber(elementToHighlight)
                         )
-
-                        fileIssues.add(createLeakInfo(outerClass, node))
-                    }
-                    return false
-                }
-
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(
-                        holder,
-                        "AnonymousInnerClassLeak",
-                        fileIssues
                     )
+
+                    fileIssues.add(createLeakInfo(outerClass, node))
                 }
-            },
-            arrayOf(UObjectLiteralExpression::class.java, UFile::class.java)
-        )
+            }
+
+            private fun visitFile(node: UFile) {
+                LeakLensInspectionUtils.reportLiveIssue(
+                    holder,
+                    "AnonymousInnerClassLeak",
+                    fileIssues
+                )
+            }
+        }
     }
 
     private fun createLeakInfo(outerClass: UClass, node: UObjectLiteralExpression): LeakInfo {

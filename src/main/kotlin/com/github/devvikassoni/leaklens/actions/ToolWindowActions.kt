@@ -1,10 +1,12 @@
 package com.github.devvikassoni.leaklens.actions
 
 import com.github.devvikassoni.leaklens.LeakLensBundle
-import com.github.devvikassoni.leaklens.inspections.*
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.github.devvikassoni.leaklens.model.LeakTraceReference
+import com.github.devvikassoni.leaklens.inspections.AnonymousInnerClassLeakInspection
+import com.github.devvikassoni.leaklens.inspections.ContextPassedToSingletonInspection
+import com.github.devvikassoni.leaklens.inspections.GlobalScopeWithContextInspection
+import com.github.devvikassoni.leaklens.inspections.MissingRemoveCallbacksInspection
+import com.github.devvikassoni.leaklens.inspections.StaticActivityReferenceInspection
+import com.github.devvikassoni.leaklens.inspections.ViewReferenceHeldInspection
 import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.intellij.codeInspection.InspectionManager
 import com.intellij.codeInspection.ProblemsHolder
@@ -19,12 +21,10 @@ import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
-import com.intellij.openapi.project.Project
 import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
-import com.intellij.util.concurrency.AppExecutorUtil
 
 /**
  * Action to open the Marketplace review page.
@@ -35,7 +35,7 @@ class RatePluginAction : AnAction(
     AllIcons.Actions.IntentionBulb
 ) {
     override fun actionPerformed(e: AnActionEvent) {
-        BrowserUtil.browse("https://plugins.jetbrains.com/plugin/com.github.devvikassoni.leaklens/reviews")
+        BrowserUtil.browse("https://plugins.jetbrains.com/plugin/32079-leaklens--memory-leak-detector--ai-assistant/edit/reviews")
     }
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT

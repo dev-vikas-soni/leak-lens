@@ -2,6 +2,7 @@ package com.github.devvikassoni.leaklens.actions
 
 import com.github.devvikassoni.leaklens.reporting.ReportExporter
 import com.github.devvikassoni.leaklens.services.LeakLensProjectService
+import com.intellij.notification.NotificationAction
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.ActionUpdateThread
@@ -9,10 +10,14 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.fileChooser.FileChooserFactory
 import com.intellij.openapi.fileChooser.FileSaverDescriptor
+import com.intellij.openapi.vfs.LocalFileSystem
+import java.awt.Desktop
 import java.io.File
 
 /**
  * Action to export leak analysis results as HTML/JSON/SARIF report.
+ * After export, shows a balloon notification with a "Show in Files" CTA
+ * that opens the containing folder in the system file manager.
  */
 class ExportReportAction : AnAction() {
 
@@ -40,10 +45,40 @@ class ExportReportAction : AnAction() {
             else -> ReportExporter.exportHtml(leaks, File(file.path + ".html"))
         }
 
-        NotificationGroupManager.getInstance()
+        // Refresh VFS so the file appears in IDE immediately
+        LocalFileSystem.getInstance().refreshAndFindFileByIoFile(file)
+
+        val notification = NotificationGroupManager.getInstance()
             .getNotificationGroup("LeakLens Notifications")
-            .createNotification("LeakLens", "Report exported to ${file.name}", NotificationType.INFORMATION)
-            .notify(project)
+            .createNotification(
+                "LeakLens — Report Exported",
+                "Saved as <b>${file.name}</b>",
+                NotificationType.INFORMATION
+            )
+
+        // "Show in Files" CTA — opens the folder in the system file manager
+        notification.addAction(NotificationAction.createSimple("Show in Files") {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop()
+                    .isSupported(Desktop.Action.BROWSE_FILE_DIR)
+            ) {
+                Desktop.getDesktop().browseFileDirectory(file)
+            } else if (Desktop.isDesktopSupported() && Desktop.getDesktop()
+                    .isSupported(Desktop.Action.OPEN)
+            ) {
+                Desktop.getDesktop().open(file.parentFile)
+            }
+        })
+
+        // "Open File" CTA — open the report directly
+        notification.addAction(NotificationAction.createSimple("Open Report") {
+            if (Desktop.isDesktopSupported() && Desktop.getDesktop()
+                    .isSupported(Desktop.Action.OPEN)
+            ) {
+                Desktop.getDesktop().open(file)
+            }
+        })
+
+        notification.notify(project)
     }
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
@@ -52,4 +87,3 @@ class ExportReportAction : AnAction() {
         e.presentation.isEnabledAndVisible = e.project != null
     }
 }
-

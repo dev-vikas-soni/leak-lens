@@ -29,12 +29,14 @@ Most tools wait for your app to crash. **LeakLens catches leaks before they are 
 Using a high-performance **UAST (Universal Abstract Syntax Tree)** engine, LeakLens scans your
 Kotlin and Java code in real-time.
 
-* **Write-Time Prevention**: 6+ specialized inspections flag leaks (like static Activity references
-  or uncancelled coroutines) as you type.
+* **Write-Time Prevention**: 12 specialized inspections flag leaks (static Activity refs,
+  uncancelled coroutines, Hilt scope mismatches, WorkManager context leaks, and more) as you type.
 * **Editor Gutter Icons**: Visual markers (🚫, ⚠️) indicate leaking classes directly in the code
   gutter.
-* **One-Click Fixes**: Use `Alt + Enter` to automatically apply industry-standard patterns like
-  `WeakReference` wrapping or lifecycle cleanup.
+* **One-Click Fixes**: Use `Alt + Enter` to apply fixes like `WeakReference` wrapping, lifecycle
+  cleanup, `repeatOnLifecycle` wrapping, or `applicationContext` substitution.
+* **AI Fix Assistant**: Every inspection surfaces an "Ask AI" action that builds a structured
+  Gemini prompt pre-loaded with the leak context.
 
 <img width="1498" height="780" alt="static-analysis-leaklens" src="https://github.com/user-attachments/assets/74ba35bf-0b14-4993-90b8-0b2fc99bd302" />
 
@@ -78,13 +80,17 @@ Stop guessing. Discuss complex leak traces with Android Studio’s built-in AI.
 
 ## ✨ Key Features
 
-|         Feature          | Technical Detail                                                                   |
-|:-------------------------|:------------------------------------------------------------------------------------|
-|  **Universal Support**   | Native support for **Java**, **Kotlin**, and **Jetpack Compose**.                  |
-| **Precision Navigation** | Click any class in a leak trace to jump to the **exact line of code**.             |
-|    **VCS Baselines**     | Commit `leak-baseline.json` to suppress legacy leaks and focus on new regressions. |
-|     **CI/CD Ready**      | Export professional reports in **HTML**, **JSON**, or **SARIF** formats.           |
-|    **Deobfuscation**     | Automatic R8/ProGuard mapping resolution for production heap dumps.                |
+| Feature                  | Technical Detail                                                                            |
+|:-------------------------|:--------------------------------------------------------------------------------------------|
+| **Universal Support**    | Native support for **Java**, **Kotlin**, and **Jetpack Compose**.                           |
+| **12 UAST Inspections**  | Covers ViewModel, Handler, Coroutine, Flow, Compose, Hilt DI, WorkManager and more.         |
+| **1-Click Quick Fixes**  | `WrapWithRepeatOnLifecycle`, `UseApplicationContext`, `RemoveContextArg` fixes built-in.    |
+| **Tool Window Toolbar**  | All actions (Dump, Monitor, Export, Baseline) unified in the side panel — always reachable. |
+| **Precision Navigation** | Click any class in a leak trace to jump to the **exact line of code**.                      |
+| **VCS Baselines**        | Commit `leak-baseline.json` to suppress legacy leaks and focus on new regressions.          |
+| **CI/CD Ready**          | Export professional reports in **HTML**, **JSON**, or **SARIF** formats.                    |
+| **"Show in Files" CTA**  | After export, one click reveals the report in Finder/Explorer.                              |
+| **Deobfuscation**        | Automatic R8/ProGuard mapping resolution for production heap dumps.                         |
 
 ---
 

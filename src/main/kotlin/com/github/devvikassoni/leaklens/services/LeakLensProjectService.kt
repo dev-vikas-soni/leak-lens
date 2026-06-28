@@ -31,6 +31,13 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             initialValue = emptyList()
         )
 
+    /**
+     * Returns live issues for a specific file to support efficient gutter markers.
+     */
+    fun getLiveIssuesForFile(filePath: String): List<LeakInfo> {
+        return _liveIssues.value[filePath]?.values?.flatten() ?: emptyList()
+    }
+
     // O(1) cache for gutter markers to avoid O(N*M) lag on the highlighting thread
     @Volatile
     var retainedClassNames: Set<String> = emptySet()
@@ -39,6 +46,9 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
     @Volatile
     var referenceChainClassNames: Set<String> = emptySet()
         private set
+
+    @Volatile
+    private var liveLeakyLines: Map<String, Set<Int>> = emptyMap()
 
     private val _isAnalyzing = MutableStateFlow(false)
     val isAnalyzing: StateFlow<Boolean> = _isAnalyzing.asStateFlow()
@@ -81,7 +91,25 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             }
             
             _liveIssues.value = currentFileMap
+
+            // Update line cache for gutter markers
+            val newLiveLeakyLines = liveLeakyLines.toMutableMap()
+            val fileIssues = currentFileMap[filePath]?.values?.flatten() ?: emptyList()
+            if (fileIssues.isEmpty()) {
+                newLiveLeakyLines.remove(filePath)
+            } else {
+                // Extract line numbers from signatures like "static_leak_myField_42"
+                val lines =
+                    fileIssues.mapNotNull { it.signature.substringAfterLast('_').toIntOrNull() }
+                        .toSet()
+                newLiveLeakyLines[filePath] = lines
+            }
+            liveLeakyLines = newLiveLeakyLines
         }
+    }
+
+    fun isLineLeaky(filePath: String, line: Int): Boolean {
+        return liveLeakyLines[filePath]?.contains(line) ?: false
     }
 
     fun clearLiveIssuesForFile(filePath: String) {
@@ -89,12 +117,17 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             val currentMap = _liveIssues.value.toMutableMap()
             if (currentMap.remove(filePath) != null) {
                 _liveIssues.value = currentMap
+
+                val newLiveLeakyLines = liveLeakyLines.toMutableMap()
+                newLiveLeakyLines.remove(filePath)
+                liveLeakyLines = newLiveLeakyLines
             }
         }
     }
 
     fun clearAllLiveIssues() {
         _liveIssues.value = emptyMap()
+        liveLeakyLines = emptyMap()
     }
 
     fun setAnalyzing(analyzing: Boolean) {

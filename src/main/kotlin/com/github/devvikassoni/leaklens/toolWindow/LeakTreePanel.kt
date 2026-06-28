@@ -6,11 +6,10 @@ import com.github.devvikassoni.leaklens.services.AdbHeapDumpService
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.actionSystem.ActionManager
-import com.intellij.openapi.actionSystem.ActionPlaces
-import com.intellij.openapi.actionSystem.DefaultActionGroup
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.ui.ColoredTreeCellRenderer
+import com.intellij.ui.JBColor
 import com.intellij.ui.SimpleTextAttributes
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
@@ -20,7 +19,7 @@ import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.ui.JBUI
 import java.awt.BorderLayout
 import java.awt.CardLayout
-import javax.swing.JComponent
+import java.awt.Color
 import javax.swing.JPanel
 import javax.swing.JTree
 import javax.swing.Timer
@@ -111,7 +110,6 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
         contentPanel.add(quickStartPanel, "EMPTY")
 
         add(contentPanel, BorderLayout.CENTER)
-        add(createToolbar(), BorderLayout.NORTH)
         add(createStatusBar(), BorderLayout.SOUTH)
 
         cardLayout.show(contentPanel, "EMPTY")
@@ -194,25 +192,31 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
         val totalRetained = leaks.sumOf { it.retainedByteSize }
         statusLabel.text = "${leaks.size} issues found"
         countLabel.text = "Retained: ${formatBytes(totalRetained)}"
+        pulseStatus()   // ✨ Animate the status badge
     }
 
-    private fun createToolbar(): JComponent {
-        val actionManager = ActionManager.getInstance()
-        val group = DefaultActionGroup().apply {
-            add(actionManager.getAction("LeakLens.AnalyzeCurrentFile"))
-            add(actionManager.getAction("LeakLens.AnalyzeProject"))
-            addSeparator()
-            add(actionManager.getAction("LeakLens.DumpHeap"))
-            add(actionManager.getAction("LeakLens.MonitorMemory"))
-            addSeparator()
-            add(actionManager.getAction("LeakLens.ClearAll"))
+    /**
+     * Briefly pulses the status label with a warning color to draw attention
+     * when new leaks are detected. Cycles 4 times over ~600ms.
+     */
+    private fun pulseStatus() {
+        val originalFg = statusLabel.foreground
+        val warningColor = JBColor(Color(0xE6, 0x7E, 0x22), Color(0xFF, 0xA5, 0x00))
+        var pulseCount = 0
+        val pulseTimer = Timer(150) { _ ->
+            statusLabel.foreground = if (pulseCount % 2 == 0) warningColor else originalFg
+            pulseCount++
+            if (pulseCount >= 8) {
+                statusLabel.foreground = originalFg
+            }
         }
-
-        val toolbar =
-            actionManager.createActionToolbar(ActionPlaces.TOOLWINDOW_CONTENT, group, true)
-        toolbar.targetComponent = this
-        return toolbar.component
+        pulseTimer.initialDelay = 0
+        pulseTimer.isRepeats = true
+        pulseTimer.start()
+        // Auto-stop after 8 pulses (1.2s)
+        Timer(1250) { pulseTimer.stop() }.apply { isRepeats = false; start() }
     }
+
 
     private fun createStatusBar() = panel {
         separator()

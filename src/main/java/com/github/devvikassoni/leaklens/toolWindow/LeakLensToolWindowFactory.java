@@ -7,7 +7,6 @@ import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
 import com.intellij.ui.content.Content;
 import com.intellij.ui.content.ContentFactory;
-
 import org.jetbrains.annotations.NotNull;
 
 public class LeakLensToolWindowFactory implements ToolWindowFactory, DumbAware {
@@ -19,7 +18,7 @@ public class LeakLensToolWindowFactory implements ToolWindowFactory, DumbAware {
         LeakLensMainPanel mainPanel = new LeakLensMainPanel(project, leakListPanel, leakDetailPanel);
 
         // Tab 1: Leak Analysis
-        Content leakContent = ContentFactory.getInstance().createContent(mainPanel, "LeakLens", false);
+        Content leakContent = ContentFactory.getInstance().createContent(mainPanel, "Leaks", false);
         toolWindow.getContentManager().addContent(leakContent);
         Disposer.register(leakContent, mainPanel);
     }

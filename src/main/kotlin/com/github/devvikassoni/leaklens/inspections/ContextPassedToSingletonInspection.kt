@@ -11,13 +11,12 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiModifier
-import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.UExpression
 import org.jetbrains.uast.UFile
 import org.jetbrains.uast.USimpleNameReferenceExpression
 import org.jetbrains.uast.UThisExpression
-import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
+import org.jetbrains.uast.toUElement
 
 /**
  * Detects Activity Context passed to a Singleton, which lives for the app's duration.
@@ -31,61 +30,67 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         val fileIssues = mutableListOf<LeakInfo>()
 
-        return UastHintedVisitorAdapter.create(
-            holder.file.language,
-            object : AbstractUastNonRecursiveVisitor() {
-                override fun visitCallExpression(node: UCallExpression): Boolean {
-                    val args = node.valueArguments
-                    for (arg in args) {
-                        if (isActivityContext(arg)) {
-                            val method = node.resolve() ?: continue
-                            val containingClass = method.containingClass ?: continue
+        return object : PsiElementVisitor() {
+            override fun visitElement(element: com.intellij.psi.PsiElement) {
+                val uElement = element.toUElement() ?: return
+                if (uElement is UCallExpression) {
+                    visitCallExpression(uElement)
+                } else if (uElement is UFile) {
+                    visitFile(uElement)
+                }
+            }
 
-                            if (isSingleton(containingClass)) {
-                                val paramIndex = args.indexOf(arg)
-                                val paramType = method.parameterList.parameters.getOrNull(paramIndex)?.type ?: continue
+            private fun visitCallExpression(node: UCallExpression) {
+                val args = node.valueArguments
+                for (arg in args) {
+                    if (isActivityContext(arg)) {
+                        val method = node.resolve() ?: continue
+                        val containingClass = method.containingClass ?: continue
 
-                                if (LeakLensInspectionUtils.isActivityOrFragmentType(paramType) || paramType.canonicalText.contains(
-                                        "Context"
-                                    )
-                                ) {
-                                    val elementToHighlight = arg.sourcePsi ?: node.sourcePsi ?: continue
-                                    val description =
-                                        "LeakLens: Passing Activity Context to a Singleton will cause a memory leak."
-                                    holder.registerProblem(
-                                        elementToHighlight,
+                        if (isSingleton(containingClass)) {
+                            val paramIndex = args.indexOf(arg)
+                            val paramType =
+                                method.parameterList.parameters.getOrNull(paramIndex)?.type
+                                    ?: continue
+
+                            if (LeakLensInspectionUtils.isActivityOrFragmentType(paramType) || paramType.canonicalText.contains(
+                                    "Context"
+                                )
+                            ) {
+                                val elementToHighlight = arg.sourcePsi ?: node.sourcePsi ?: continue
+                                val description =
+                                    "LeakLens: Passing Activity Context to a Singleton will cause a memory leak."
+                                holder.registerProblem(
+                                    elementToHighlight,
+                                    description,
+                                    ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                                    UseApplicationContextQuickFix(),
+                                    AskGeminiFix(
                                         description,
-                                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                        UseApplicationContextQuickFix(),
-                                        AskGeminiFix(
-                                            description,
-                                            containingClass.name ?: "Singleton",
-                                            LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                                        )
+                                        containingClass.name ?: "Singleton",
+                                        LeakLensInspectionUtils.getLineNumber(elementToHighlight)
                                     )
+                                )
 
-                                    fileIssues.add(
-                                        createLeakInfo(
-                                            containingClass.name ?: "Singleton", arg
-                                        )
+                                fileIssues.add(
+                                    createLeakInfo(
+                                        containingClass.name ?: "Singleton", arg
                                     )
-                                }
+                                )
                             }
                         }
                     }
-                    return false
                 }
+            }
 
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(
-                        holder,
-                        "ContextPassedToSingleton",
-                        fileIssues
-                    )
-                }
-            },
-            arrayOf(UCallExpression::class.java, UFile::class.java)
-        )
+            private fun visitFile(node: UFile) {
+                LeakLensInspectionUtils.reportLiveIssue(
+                    holder,
+                    "ContextPassedToSingleton",
+                    fileIssues
+                )
+            }
+        }
     }
 
     private fun createLeakInfo(singletonName: String, arg: UExpression): LeakInfo {

@@ -1,13 +1,21 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.intellij.codeInspection.*
-import com.intellij.psi.*
-import org.jetbrains.uast.*
-import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
-import com.intellij.uast.UastHintedVisitorAdapter
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
+import com.intellij.codeInspection.LocalInspectionTool
+import com.intellij.codeInspection.LocalQuickFix
+import com.intellij.codeInspection.ProblemDescriptor
+import com.intellij.codeInspection.ProblemHighlightType
+import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.Project
+import com.intellij.psi.JavaPsiFacade
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiElementVisitor
+import com.intellij.psi.PsiField
+import org.jetbrains.uast.UField
+import org.jetbrains.uast.UFile
+import org.jetbrains.uast.toUElement
+import org.jetbrains.uast.toUElementOfType
 
 /**
  * Detects Activity or Fragment stored in a static field or companion object.
@@ -21,45 +29,49 @@ class StaticActivityReferenceInspection : LocalInspectionTool() {
 
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         val fileIssues = mutableListOf<LeakInfo>()
-        
-        return UastHintedVisitorAdapter.create(
-            holder.file.language,
-            object : AbstractUastNonRecursiveVisitor() {
-                override fun visitField(node: UField): Boolean {
-                    if (node.isStatic && LeakLensInspectionUtils.isActivityOrFragmentType(node.type)) {
-                        val elementToHighlight = node.uastAnchor?.sourcePsi ?: node.sourcePsi ?: return false
-                        val fieldName = node.name
-                        val description =
-                            "LeakLens: Static field '$fieldName' holds an Activity/Fragment reference. " +
-                                    "This causes a memory leak as static fields outlive the Activity lifecycle."
 
-                        holder.registerProblem(
-                            elementToHighlight,
+        return object : PsiElementVisitor() {
+            override fun visitElement(element: PsiElement) {
+                val uElement = element.toUElement() ?: return
+                if (uElement is UField) {
+                    visitField(uElement)
+                } else if (uElement is UFile) {
+                    visitFile(uElement)
+                }
+            }
+
+            private fun visitField(node: UField) {
+                if (node.isStatic && LeakLensInspectionUtils.isActivityOrFragmentType(node.type)) {
+                    val elementToHighlight = node.uastAnchor?.sourcePsi ?: node.sourcePsi ?: return
+                    val fieldName = node.name
+                    val description =
+                        "LeakLens: Static field '$fieldName' holds an Activity/Fragment reference. " +
+                                "This causes a memory leak as static fields outlive the Activity lifecycle."
+
+                    holder.registerProblem(
+                        elementToHighlight,
+                        description,
+                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                        WrapWithWeakReferenceFix(fieldName),
+                        AskGeminiFix(
                             description,
-                            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                            WrapWithWeakReferenceFix(fieldName),
-                            AskGeminiFix(
-                                description,
-                                node.type.canonicalText,
-                                LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                            ),
-                        )
-
-                        fileIssues.add(createLeakInfo(node))
-                    }
-                    return false
-                }
-                
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(
-                        holder,
-                        "StaticActivityReference",
-                        fileIssues
+                            node.type.canonicalText,
+                            LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                        ),
                     )
+
+                    fileIssues.add(createLeakInfo(node))
                 }
-            },
-            arrayOf(UField::class.java, UFile::class.java)
-        )
+            }
+
+            private fun visitFile(node: UFile) {
+                LeakLensInspectionUtils.reportLiveIssue(
+                    holder,
+                    "StaticActivityReference",
+                    fileIssues
+                )
+            }
+        }
     }
 
     private fun createLeakInfo(node: UField): LeakInfo {

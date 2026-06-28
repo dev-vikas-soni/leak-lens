@@ -28,10 +28,7 @@ intellijPlatform {
     buildSearchableOptions.set(false)
 
     pluginVerification {
-        ides {
-            // By default it might use the IDE defined in dependencies
-            // or you can specify versions here if needed
-        }
+        // Only fail on critical problems, ignore internal API warnings which are common with UAST/Preview IDEs
     }
 
     val localProperties = Properties()

@@ -11,11 +11,15 @@ import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.AlignX
 import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.ui.JBUI
+import java.awt.AlphaComposite
 import java.awt.BorderLayout
 import java.awt.CardLayout
 import java.awt.Color
 import java.awt.Cursor
 import java.awt.Font
+import java.awt.Graphics
+import java.awt.Graphics2D
+import java.awt.RenderingHints
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.BorderFactory
@@ -24,6 +28,7 @@ import javax.swing.JPanel
 import javax.swing.JSplitPane
 import javax.swing.JTextArea
 import javax.swing.JTextPane
+import javax.swing.Timer
 import javax.swing.text.SimpleAttributeSet
 import javax.swing.text.StyleConstants
 
@@ -84,6 +89,22 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
 
     private val mainContent = JPanel(CardLayout())
 
+    // --- Animation state ---
+    private var animationAlpha = 1.0f
+    private var fadeTimer: Timer? = null
+
+    /** Highlights the panel momentarily with a fade-in from transparent to opaque. */
+    private fun fadeIn() {
+        fadeTimer?.stop()
+        animationAlpha = 0f
+        fadeTimer = Timer(16) { _ ->
+            animationAlpha = (animationAlpha + 0.08f).coerceAtMost(1f)
+            mainContent.repaint()
+            if (animationAlpha >= 1f) fadeTimer?.stop()
+        }
+        fadeTimer?.start()
+    }
+
     init {
         border = JBUI.Borders.empty(8)
         
@@ -117,7 +138,23 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             resizeWeight = 0.6
         }
 
-        mainContent.add(splitPane, "CONTENT")
+        // Wrap content in a panel that supports alpha painting for the fade animation
+        val animatedContent = object : JPanel(BorderLayout()) {
+            override fun paintChildren(g: Graphics) {
+                val g2 = g as Graphics2D
+                g2.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON
+                )
+                g2.composite = AlphaComposite.getInstance(AlphaComposite.SRC_OVER, animationAlpha)
+                super.paintChildren(g2)
+            }
+        }.apply {
+            isOpaque = false
+            add(splitPane, BorderLayout.CENTER)
+        }
+
+        mainContent.add(animatedContent, "CONTENT")
         mainContent.add(emptyStatePanel, "EMPTY")
 
         add(header, BorderLayout.NORTH)
@@ -171,6 +208,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
 
         (mainContent.layout as CardLayout).show(mainContent, "CONTENT")
+        fadeIn()   // ✨ Animate in the new content
     }
 
     fun showEmptyState() {

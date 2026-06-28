@@ -1,13 +1,19 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.intellij.codeInspection.*
-import com.intellij.psi.*
-import org.jetbrains.uast.*
-import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
-import com.intellij.uast.UastHintedVisitorAdapter
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
+import com.intellij.codeInspection.LocalInspectionTool
+import com.intellij.codeInspection.LocalQuickFix
+import com.intellij.codeInspection.ProblemDescriptor
+import com.intellij.codeInspection.ProblemHighlightType
+import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.Project
+import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiElementVisitor
+import org.jetbrains.uast.UCallExpression
+import org.jetbrains.uast.UFile
+import org.jetbrains.uast.getContainingUClass
+import org.jetbrains.uast.toUElement
 
 /**
  * Detects coroutines launched in GlobalScope that capture Context/Activity references.
@@ -21,47 +27,56 @@ class GlobalScopeWithContextInspection : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         val fileIssues = mutableListOf<LeakInfo>()
 
-        return UastHintedVisitorAdapter.create(
-            holder.file.language,
-            object : AbstractUastNonRecursiveVisitor() {
-                override fun visitCallExpression(node: UCallExpression): Boolean {
-                    val methodName = node.methodName
-                    val receiver = node.receiver
-
-                    if (receiver?.asSourceString() == "GlobalScope" && methodName in listOf("launch", "async")) {
-                        val containingClass = node.getContainingUClass() ?: return false
-                        if (LeakLensInspectionUtils.isActivityOrFragment(containingClass)) {
-                            val elementToHighlight = node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return false
-                            val description =
-                                "LeakLens: GlobalScope.${methodName} may cause a memory leak. Use lifecycleScope."
-                            holder.registerProblem(
-                                elementToHighlight,
-                                description,
-                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                UseLifecycleScopeQuickFix(),
-                                AskGeminiFix(
-                                    description,
-                                    containingClass.name ?: "Unknown",
-                                    LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                                )
-                            )
-
-                            fileIssues.add(createLeakInfo(methodName ?: "launch", node))
-                        }
-                    }
-                    return false
+        return object : PsiElementVisitor() {
+            override fun visitElement(element: PsiElement) {
+                val uElement = element.toUElement() ?: return
+                if (uElement is UCallExpression) {
+                    visitCallExpression(uElement)
+                } else if (uElement is UFile) {
+                    visitFile(uElement)
                 }
+            }
 
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(
-                        holder,
-                        "GlobalScopeWithContext",
-                        fileIssues
+            private fun visitCallExpression(node: UCallExpression) {
+                val methodName = node.methodName
+                val receiver = node.receiver
+
+                if (receiver?.asSourceString() == "GlobalScope" && methodName in listOf(
+                        "launch",
+                        "async"
                     )
+                ) {
+                    val containingClass = node.getContainingUClass() ?: return
+                    if (LeakLensInspectionUtils.isActivityOrFragment(containingClass)) {
+                        val elementToHighlight =
+                            node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return
+                        val description =
+                            "LeakLens: GlobalScope.${methodName} may cause a memory leak. Use lifecycleScope."
+                        holder.registerProblem(
+                            elementToHighlight,
+                            description,
+                            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                            UseLifecycleScopeQuickFix(),
+                            AskGeminiFix(
+                                description,
+                                containingClass.name ?: "Unknown",
+                                LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                            )
+                        )
+
+                        fileIssues.add(createLeakInfo(methodName ?: "launch", node))
+                    }
                 }
-            },
-            arrayOf(UCallExpression::class.java, UFile::class.java)
-        )
+            }
+
+            private fun visitFile(node: UFile) {
+                LeakLensInspectionUtils.reportLiveIssue(
+                    holder,
+                    "GlobalScopeWithContext",
+                    fileIssues
+                )
+            }
+        }
     }
 
     private fun createLeakInfo(methodName: String, node: UCallExpression): LeakInfo {

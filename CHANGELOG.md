@@ -4,6 +4,50 @@
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-06-28
+
+### Added
+
+- **Hilt Scope Mismatch Inspection**: New UAST inspection that detects when a `@Singleton` class
+  injects an `@ActivityScoped` or `@FragmentScoped` dependency. The wider-scoped object holds a
+  reference to the narrower-scoped one for the entire app lifetime, leaking Activities. Surfaces
+  an **Ask AI** fix action to guide refactoring.
+- **WorkManager Context Leak Inspection**: Detects `Worker` subclasses that store the injected
+  `Context` as a class field (`val context: Context` or `private var ctx`). Includes a 1-click
+  **UseApplicationContextFix** that rewrites the Kotlin property to a safe computed getter:
+  `val context: Context get() = applicationContext`.
+- **Quick-Fix Actions — WrapWithRepeatOnLifecycleFix**: 1-click fix for the
+  `FlowLifecycleInspection` that wraps unsafe `lifecycleScope.launch` blocks with
+  `repeatOnLifecycle(Lifecycle.State.STARTED)`.
+- **Quick-Fix Actions — RemoveContextArgFix**: 1-click fix for `ComposeContextLeakInspection`
+  that removes the `Context`/`Activity` parameter from a ViewModel call site.
+- **Tool Window Toolbar**: All actions (Dump Heap, Monitor Memory, Export Report, Import .hprof,
+  Save Baseline, Analyze Project) are now accessible via a unified vertical `ActionToolbar` inside
+  the LeakLens panel — no more hunting through the Tools menu.
+- **"Show in Files" & "Open Report" Export CTAs**: After exporting a report, the balloon
+  notification includes actionable buttons that reveal the file in Finder/Explorer and open it
+  directly.
+- **Animations — Fade-In on Leak Select**: The detail panel fades in smoothly (16ms / ~300ms
+  total) when a new leak is selected, using `AlphaComposite.SRC_OVER`.
+- **Animations — Status Pulse**: The status badge pulses orange 4× over ~1.2s when new leaks are
+  detected, giving a clear visual signal that the tree has updated.
+
+### Fixed
+
+- **Duplicate Toolbar**: Removed the legacy horizontal toolbar inside `LeakTreePanel` that caused
+  actions like "Start Memory Monitor" and "Dump Heap" to appear twice.
+- **Distinct Action Icons**: Added missing icons for `ToggleAutoDetectAction` (Watch),
+  `ExportReportAction` (Export), and `SaveBaselineAction` (MenuSaveall).
+- **Review URL**: `RatePluginAction` now navigates to the correct JetBrains Marketplace review URL.
+- **Test Harness**: Fixed `TestLoggerAssertionError` for Hilt and WorkManager inspections by
+  adding properly stubbed mock classes (`Worker.java`, `Singleton.java`, `ActivityScoped.java`) to
+  the `setUp()` method.
+
+### Changed
+
+- **ToolWindowFactory**: Migrated `LeakLensToolWindowFactory` from Java to Kotlin for consistency
+  with the rest of the UI codebase.
+
 ## [0.1.8] - 2026-06-17
 
 ### Added
@@ -132,8 +176,9 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.8...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.9...HEAD
 
+[0.1.9]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.8...0.1.9
 [0.1.8]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.7...0.1.8
 [0.1.7]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.6...0.1.7
 [0.1.6]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.5...0.1.6

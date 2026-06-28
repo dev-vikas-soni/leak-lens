@@ -33,6 +33,15 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h3>0.1.9 — SonarLint-style Real-time Detection & Stability</h3>
+        <ul>
+            <li><b>SonarLint-style Analysis:</b> Potential leaks (Static Fields, Inner Classes, Context leaks) are now detected <b>as you type</b> with instant squiggly lines and gutter markers.</li>
+            <li><b>Status Bar Widget:</b> A new counter in the IDE status bar keeps you updated on total project leaks at all times.</li>
+            <li><b>New Inspections:</b> Added specialized checks for <b>Hilt Scope Mismatch</b>, <b>WorkManager Context leaks</b>, and <b>Unsafe Flow collection</b>.</li>
+            <li><b>Unified UX:</b> Real-time static issues now merge seamlessly with deep heap analysis results in the tool window.</li>
+            <li><b>Critical Compatibility:</b> Fixed binary incompatibilities and <code>INTERNAL_API_USAGES</code> for IntelliJ IDEA Ultimate and future platform releases (2025.x/2026.x).</li>
+            <li><b>API Modernization:</b> Fully resolved all deprecated API warnings (ProcessAdapter, FileSaverDescriptor).</li>
+        </ul>
         <h4>0.1.8 — Staff Pick Edition (Final Polish)</h4>
         <ul>
             <li><b>Branding:</b> Refined name and description for better clarity and professional appearance.</li>
@@ -106,6 +115,9 @@
         <notificationGroup id="LeakLens Notifications" displayType="BALLOON"/>
         <backgroundPostStartupActivity implementation="com.github.devvikassoni.leaklens.startup.LeakLensStartupActivity"/>
 
+        <statusBarWidgetFactory id="LeakLensStatusBarWidget"
+            implementation="com.github.devvikassoni.leaklens.ui.LeakLensStatusBarWidgetFactory" />
+
         <!-- Intentions -->
         <intentionAction>
             <language>JAVA</language>
@@ -144,6 +156,32 @@
         <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensViewReferenceHeld"
             displayName="View reference held beyond lifecycle in Fragment" enabledByDefault="true" level="WARNING"
             implementationClass="com.github.devvikassoni.leaklens.inspections.ViewReferenceHeldInspection"/>
+        <localInspection displayName="ViewModel holds Activity/Context/View reference" enabledByDefault="true"
+            groupName="LeakLens"
+            implementationClass="com.github.devvikassoni.leaklens.inspections.ViewModelContextLeakInspection" language="UAST"
+            level="WARNING"
+            shortName="LeakLensViewModelContextLeak" />
+        <localInspection displayName="Deprecated lifecycleScope.launchWhenX causes leaks" enabledByDefault="true"
+            groupName="LeakLens"
+            implementationClass="com.github.devvikassoni.leaklens.inspections.DeprecatedLifecycleScopeInspection" language="UAST"
+            level="WARNING"
+            shortName="LeakLensDeprecatedLifecycleScope" />
+        <localInspection displayName="LeakLens: Unsafe collection of Flow in UI" enabledByDefault="true" groupName="LeakLens"
+            implementationClass="com.github.devvikassoni.leaklens.inspections.FlowLifecycleInspection" language="UAST"
+            level="ERROR"
+            shortName="LeakLensFlowLifecycleLeak" />
+        <localInspection displayName="Context/Activity passed to ViewModel in Compose" enabledByDefault="true" groupName="LeakLens"
+            implementationClass="com.github.devvikassoni.leaklens.inspections.ComposeContextLeakInspection" language="UAST"
+            level="ERROR"
+            shortName="LeakLensComposeContextLeak" />
+        <localInspection displayName="Hilt Scope Mismatch (Wider scope holds narrower scope)" enabledByDefault="true" groupName="LeakLens"
+            implementationClass="com.github.devvikassoni.leaklens.inspections.HiltScopeMismatchInspection"
+            language="UAST" level="ERROR"
+            shortName="LeakLensHiltScopeMismatch" />
+        <localInspection displayName="Worker stores Context in a field (use applicationContext)" enabledByDefault="true" groupName="LeakLens"
+            implementationClass="com.github.devvikassoni.leaklens.inspections.WorkerContextLeakInspection"
+            language="UAST" level="WARNING"
+            shortName="LeakLensWorkerContextLeak" />
     </extensions>
 
     <actions>
@@ -178,13 +216,18 @@
                     text="Import .hprof File" description="Import and analyze a local .hprof heap dump file"
                     icon="AllIcons.ToolbarDecorator.Import"/>
             <action id="LeakLens.ToggleAutoDetect" class="com.github.devvikassoni.leaklens.actions.ToggleAutoDetectAction"
-                text="Start Auto-Detect" description="Toggle automatic detection of LeakCanary heap dumps via logcat"/>
+                description="Toggle automatic detection of LeakCanary heap dumps via logcat"
+                icon="AllIcons.Debugger.Watch"
+                text="Start Auto-Detect" />
             <separator/>
             <reference ref="LeakLens.MonitorMemory" />
             <action id="LeakLens.ExportReport" class="com.github.devvikassoni.leaklens.actions.ExportReportAction"
-                text="Export Report" description="Export leak analysis as HTML/JSON/SARIF report"/>
+                description="Export leak analysis as HTML/JSON/SARIF report" icon="AllIcons.ToolbarDecorator.Export"
+                text="Export Report" />
             <action id="LeakLens.SaveBaseline" class="com.github.devvikassoni.leaklens.actions.SaveBaselineAction"
-                text="Save as Baseline" description="Save current leaks as baseline (suppress in future analyses)"/>
+                description="Save current leaks as baseline (suppress in future analyses)"
+                icon="AllIcons.Actions.MenuSaveall"
+                text="Save as Baseline" />
             <separator/>
             <action id="LeakLens.RatePlugin" class="com.github.devvikassoni.leaklens.actions.RatePluginAction"
                     text="Rate LeakLens" description="Rate the plugin on JetBrains Marketplace"

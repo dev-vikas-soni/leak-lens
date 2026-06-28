@@ -7,10 +7,7 @@ import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProvider
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.editor.markup.GutterIconRenderer
-import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiElement
-import com.intellij.psi.PsiIdentifier
 import javax.swing.Icon
 
 /**
@@ -48,7 +45,38 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
 
         val project = element.project
         val service = LeakLensProjectService.getInstance(project)
-        
+        val virtualFile = element.containingFile.virtualFile
+        val filePath = virtualFile?.path
+
+        // 1. Check for live issues (static analysis)
+        if (filePath != null) {
+            val document = element.containingFile.viewProvider.document
+            if (document != null) {
+                val line = document.getLineNumber(element.textRange.startOffset) + 1
+                if (service.isLineLeaky(filePath, line)) {
+                    val liveIssues = service.getLiveIssuesForFile(filePath)
+                    val issue = liveIssues.find { it.signature.endsWith("_$line") }
+                    if (issue != null) {
+                        val tooltip =
+                            "⚠️ LeakLens (Live): ${issue.shortDescription}\n\n${issue.suggestedFix ?: ""}"
+                        return LineMarkerInfo(
+                            element,
+                            element.textRange,
+                            AllIcons.General.Warning,
+                            { tooltip },
+                            { _, _ ->
+                                com.intellij.openapi.wm.ToolWindowManager.getInstance(project)
+                                    .getToolWindow("LeakLens")?.show()
+                            },
+                            GutterIconRenderer.Alignment.LEFT,
+                            { tooltip }
+                        )
+                    }
+                }
+            }
+        }
+
+        // 2. Check for heap analysis leaks (existing logic)
         // Fast O(1) check
         if (!service.retainedClassNames.contains(qualifiedName) && 
             !service.referenceChainClassNames.contains(qualifiedName)) {

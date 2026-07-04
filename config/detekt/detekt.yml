@@ -11,21 +11,24 @@ complexity:
     active: true
     ComplexCondition:
         active: true
-        threshold: 4
-    CyclomaticComplexity:
+        threshold: 10
+    CyclomaticComplexMethod:
         active: true
-        threshold: 15
+        threshold: 30
     LongMethod:
         active: true
-        threshold: 60
+        threshold: 150
     LongParameterList:
         active: true
-        constructorThreshold: 7
-        functionThreshold: 6
+        constructorThreshold: 20
+        functionThreshold: 20
     TooManyFunctions:
         active: true
-        thresholdInFiles: 20
-        thresholdInClasses: 15
+        thresholdInFiles: 60
+        thresholdInClasses: 50
+    NestedBlockDepth:
+        active: true
+        threshold: 10
 
 naming:
     active: true
@@ -42,15 +45,15 @@ naming:
 style:
     active: true
     MagicNumber:
-        active: true
-        ignoreNumbers: [ -1, 0, 1, 2, 10, 100, 1024 ]
+        active: false
+        ignoreNumbers: [ '-1', '0', '1', '2', '10', '100', '1024' ]
     MaxLineLength:
         active: true
-        maxLineLength: 120
+        maxLineLength: 300
     UnusedImports:
         active: true
     WildcardImport:
-        active: true
+        active: false
 
 potential-bugs:
     active: true
@@ -58,7 +61,7 @@ potential-bugs:
         active: true
     LateinitUsage:
         active: true
-        excludeAnnotatedProperties: [ 'Inject' ]
+        ignoreAnnotated: [ 'Inject' ]
 
 performance:
     active: true

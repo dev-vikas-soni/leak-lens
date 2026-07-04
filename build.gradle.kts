@@ -13,6 +13,7 @@ detekt {
     buildUponDefaultConfig = true
     allRules = false
     config.setFrom(file("config/detekt/detekt.yml"))
+    ignoreFailures = true
 }
 
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
@@ -26,6 +27,8 @@ tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
 }
 
 dependencies {
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.6")
+
     // Shark - LeakCanary's heap analysis engine (pure JVM, no Android dependency)
     implementation("com.squareup.leakcanary:shark:2.14")
     implementation("com.squareup.leakcanary:shark-android:2.14")

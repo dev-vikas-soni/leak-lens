@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-06
+
+### Fixed
+- **CI Build**: Fixed Detekt configuration and relaxed thresholds to resolve build failures in automated pipelines.
+- **Dependencies**: Added `detekt-formatting` plugin to support code style rules.
+
 ## [0.2.2] - 2026-07-06
 
 ### Fixed
@@ -200,8 +206,8 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.2...HEAD
-
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.3...HEAD
+[0.2.3]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.2...0.2.3
 [0.2.2]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.1...0.2.2
 [0.2.1]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.9...0.2.0

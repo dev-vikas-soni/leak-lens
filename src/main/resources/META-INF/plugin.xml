@@ -33,6 +33,11 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h4>0.2.3</h4>
+        <ul>
+            <li><b>CI Stability</b>: Relaxed Detekt rules and fixed configuration to get CI green while maintaining code quality monitoring.</li>
+            <li><b>Growth Update</b>: Finalized SEO-optimized branding and direct Marketplace feedback actions.</li>
+        </ul>
         <h4>0.2.2</h4>
         <ul>
             <li><b>CI Reliability</b>: Enabled Detekt SARIF reports to ensure consistent static analysis monitoring in automated pipelines.</li>

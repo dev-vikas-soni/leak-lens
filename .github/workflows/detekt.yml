@@ -10,10 +10,10 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             -   name: Checkout
-                uses: actions/checkout@v4
+                uses: actions/checkout@v7
 
             -   name: Setup Java
-                uses: actions/setup-java@v4
+                uses: actions/setup-java@v5
                 with:
                     distribution: 'zulu'
                     java-version: '21'
@@ -23,6 +23,8 @@ jobs:
                 continue-on-error: true
 
             -   name: Upload SARIF report
+                if: always()
                 uses: github/codeql-action/upload-sarif@v3
+                continue-on-error: true
                 with:
                     sarif_file: build/reports/detekt/detekt.sarif

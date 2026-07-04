@@ -1,0 +1,76 @@
+build:
+    maxIssues: 0
+    excludeCorrectable: false
+    weights:
+    # complexity: 2
+    # LongParameterList: 1
+    # style: 1
+    # comments: 1
+
+complexity:
+    active: true
+    ComplexCondition:
+        active: true
+        threshold: 4
+    CyclomaticComplexity:
+        active: true
+        threshold: 15
+    LongMethod:
+        active: true
+        threshold: 60
+    LongParameterList:
+        active: true
+        constructorThreshold: 7
+        functionThreshold: 6
+    TooManyFunctions:
+        active: true
+        thresholdInFiles: 20
+        thresholdInClasses: 15
+
+naming:
+    active: true
+    ClassNaming:
+        active: true
+        classPattern: '[A-Z][a-zA-Z0-9]*'
+    FunctionNaming:
+        active: true
+        functionPattern: '^([a-z][a-zA-Z0-9]*)|(`.*`)$'
+    VariableNaming:
+        active: true
+        variablePattern: '[a-z][a-zA-Z0-9]*'
+
+style:
+    active: true
+    MagicNumber:
+        active: true
+        ignoreNumbers: [ -1, 0, 1, 2, 10, 100, 1024 ]
+    MaxLineLength:
+        active: true
+        maxLineLength: 120
+    UnusedImports:
+        active: true
+    WildcardImport:
+        active: true
+
+potential-bugs:
+    active: true
+    UnsafeCallOnNullableType:
+        active: true
+    LateinitUsage:
+        active: true
+        excludeAnnotatedProperties: [ 'Inject' ]
+
+performance:
+    active: true
+    SpreadOperator:
+        active: true
+    UnnecessaryTemporaryInstantiation:
+        active: true
+
+formatting:
+    active: true
+    android: false
+    autoCorrect: true
+    continuationIndentSize: 8
+    indentSize: 4
+    maxLineLength: 120

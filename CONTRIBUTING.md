@@ -33,14 +33,49 @@ We take stability seriously. Please ensure all tests pass before submitting a PR
 If you are adding a new inspection, please include a test case in
 `src/test/kotlin/com/github/devvikassoni/leaklens/inspections/`.
 
-## 📬 Pull Request Process
+## 🏗️ Architecture for Contributors
 
-1. **Branching**: Create a feature branch from `main` (e.g., `feature/awesome-new-detector`).
-2. **Code Style**: Follow standard Kotlin/Java coding conventions.
-3. **Commits**: Use clear, descriptive commit messages.
-4. **Documentation**: Update `CHANGELOG.md` and any relevant docs if your change adds or modifies
-   user-facing features.
-5. **Submit**: Open a PR against the `main` branch. Provide screenshots or videos for UI changes.
+Before diving into the code, please review
+the [Architectural Overview](docs/ARCHITECTURAL_OVERVIEW.md).
+
+### Key Components:
+
+- **`AdbHeapDumpService`**: Handles all communication with the Android Debug Bridge.
+- **`SharkAnalysisService`**: The bridge to the Shark heap analysis engine.
+- **`LeakLensProjectService`**: The central state manager (StateFlow) for all detected leaks.
+- **`inspections/`**: Contains UAST-based static analysis rules.
+
+## 📬 Pull Request Review Process
+
+To maintain the stability of LeakLens, all PRs undergo a technical review:
+
+1. **Automated Checks**: PRs must pass the Build, Detekt, and Plugin Verification workflows.
+2. **Manual Review**: At least one maintainer will review the code for architectural alignment.
+3. **Verification**:
+    * **Inspections**: New inspections must include a test data file.
+    * **UI/ADB**: UI changes or ADB refactors must be accompanied by a screen recording or
+      verification log from a physical device/emulator.
+
+## ✍️ Creating a New Inspection
+
+To maintain our sub-15ms typing latency on 1M LOC projects, all new inspections **must** follow the
+hinted visitor pattern.
+
+1. **Define the Problem**: Create a class in `inspections/` inheriting from `LocalInspectionTool`.
+2. **Use Hinted Visitors**: Do not visit every PSI element. Use `UastHintedVisitorAdapter` to target
+   only specific nodes (e.g., `UField` or `UCallExpression`).
+3. **Semantic Resolution**: Use `com.intellij.psi.util.InheritanceUtil` with fully qualified names.
+   Avoid `.text.contains()` which leads to false positives.
+4. **Register**: Add the tool to `src/main/resources/META-INF/plugin.xml`.
+5. **Test**: Add a `.kt` sample to `src/test/testData/inspections/` and verify highlighting in
+   `UastInspectionsTest`.
+
+## 🎨 Coding Standards
+
+- **Structured Concurrency**: Use `scope.launch` within project services; never use `GlobalScope`.
+- **Non-blocking IO**: All ADB/Shell commands must be run via `AdbFacade` on a background thread.
+- **PSI Transformations**: Quick fixes must use `KtPsiFactory` or `PsiElementFactory`. Direct string
+  replacement in documents is prohibited.
 
 ## 🐞 Reporting Issues
 

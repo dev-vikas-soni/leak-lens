@@ -9,17 +9,17 @@ import com.intellij.codeInspection.ProblemHighlightType
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.Project
 import com.intellij.psi.JavaPsiFacade
-import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiField
+import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UField
-import org.jetbrains.uast.UFile
-import org.jetbrains.uast.toUElement
 import org.jetbrains.uast.toUElementOfType
+import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
  * Detects Activity or Fragment stored in a static field or companion object.
- * Migrated to UAST for robust multi-language support.
+ * Uses UastHintedVisitorAdapter so the visitor fires only on UField nodes,
+ * avoiding the O(N) toUElement() cost of visiting every PSI element.
  */
 class StaticActivityReferenceInspection : LocalInspectionTool() {
 
@@ -30,48 +30,38 @@ class StaticActivityReferenceInspection : LocalInspectionTool() {
     override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
         val fileIssues = mutableListOf<LeakInfo>()
 
-        return object : PsiElementVisitor() {
-            override fun visitElement(element: PsiElement) {
-                val uElement = element.toUElement() ?: return
-                if (uElement is UField) {
-                    visitField(uElement)
-                } else if (uElement is UFile) {
-                    visitFile(uElement)
-                }
-            }
+        return UastHintedVisitorAdapter.create(
+            holder.file.language,
+            object : AbstractUastNonRecursiveVisitor() {
 
-            private fun visitField(node: UField) {
-                if (node.isStatic && LeakLensInspectionUtils.isActivityOrFragmentType(node.type)) {
-                    val elementToHighlight = node.uastAnchor?.sourcePsi ?: node.sourcePsi ?: return
-                    val fieldName = node.name
-                    val description =
-                        "LeakLens: Static field '$fieldName' holds an Activity/Fragment reference. " +
-                                "This causes a memory leak as static fields outlive the Activity lifecycle."
+                override fun visitField(node: UField): Boolean {
+                    if (node.isStatic && LeakLensInspectionUtils.isActivityOrFragmentType(node.type)) {
+                        val elementToHighlight =
+                            node.uastAnchor?.sourcePsi ?: node.sourcePsi ?: return false
+                        val fieldName = node.name
+                        val description =
+                            "LeakLens: Static field '$fieldName' holds an Activity/Fragment reference. " +
+                                    "This causes a memory leak as static fields outlive the Activity lifecycle."
 
-                    holder.registerProblem(
-                        elementToHighlight,
-                        description,
-                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                        WrapWithWeakReferenceFix(fieldName),
-                        AskGeminiFix(
+                        holder.registerProblem(
+                            elementToHighlight,
                             description,
-                            node.type.canonicalText,
-                            LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                        ),
-                    )
+                            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                            WrapWithWeakReferenceFix(fieldName),
+                            AskGeminiFix(
+                                description,
+                                node.type.canonicalText,
+                                LeakLensInspectionUtils.getLineNumber(elementToHighlight)
+                            ),
+                        )
 
-                    fileIssues.add(createLeakInfo(node))
+                        fileIssues.add(createLeakInfo(node))
+                    }
+                    return false
                 }
-            }
-
-            private fun visitFile(node: UFile) {
-                LeakLensInspectionUtils.reportLiveIssue(
-                    holder,
-                    "StaticActivityReference",
-                    fileIssues
-                )
-            }
-        }
+            },
+            arrayOf(UField::class.java)
+        )
     }
 
     private fun createLeakInfo(node: UField): LeakInfo {
@@ -95,20 +85,23 @@ class StaticActivityReferenceInspection : LocalInspectionTool() {
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
             val element = descriptor.psiElement
-            val factory = JavaPsiFacade.getElementFactory(project)
             val uField = element.toUElementOfType<UField>() ?: return
             val fieldType = uField.type.presentableText
-            
+
             if (element.language.id == "JAVA") {
+                val factory = JavaPsiFacade.getElementFactory(project)
                 val psiField = (uField.javaPsi as? PsiField) ?: return
                 val newField = factory.createFieldFromText(
-                    "private static java.lang.ref.WeakReference<$fieldType> ${fieldName}Ref;", 
+                    "private static java.lang.ref.WeakReference<$fieldType> ${fieldName}Ref;",
                     psiField.parent
                 )
                 psiField.replace(newField)
-            } else {
-                val comment = factory.createCommentFromText("// LeakLens: Consider using WeakReference<$fieldType> to avoid leaks", element)
-                element.parent.addBefore(comment, element)
+            } else if (element.language.id == "kotlin") {
+                val ktFactory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
+                val ktProperty = uField.sourcePsi as? org.jetbrains.kotlin.psi.KtProperty ?: return
+                val newProp =
+                    ktFactory.createProperty("private val ${fieldName}Ref = java.lang.ref.WeakReference<$fieldType>($fieldName)")
+                ktProperty.parent.addAfter(newProp, ktProperty)
             }
         }
     }

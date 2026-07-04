@@ -1,0 +1,19 @@
+labels: [ "show-and-tell" ]
+title: "[Show & Tell] "
+body:
+    -   type: markdown
+        attributes:
+            value: |
+                Did LeakLens help you fix a particularly nasty leak? Share it with the community!
+    -   type: textarea
+        id: story
+        attributes:
+            label: Share your story
+            description: What was the leak, and how did LeakLens help you solve it?
+        validations:
+            required: true
+    -   type: textarea
+        id: feedback
+        attributes:
+            label: Feedback for us
+            description: Anything we could have made easier in this specific scenario?

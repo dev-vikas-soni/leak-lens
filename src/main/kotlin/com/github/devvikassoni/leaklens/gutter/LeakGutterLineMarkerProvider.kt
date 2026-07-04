@@ -28,17 +28,8 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
         var qualifiedName: String? = null
         if (parent is com.intellij.psi.PsiClass) {
             qualifiedName = parent.qualifiedName
-        } else if (parent.javaClass.name.endsWith("KtClass") || parent.javaClass.name.endsWith("KtObjectDeclaration")) {
-            try {
-                val fqNameMethod = parent.javaClass.getMethod("getFqName")
-                val fqName = fqNameMethod.invoke(parent)
-                if (fqName != null) {
-                    val asStringMethod = fqName.javaClass.getMethod("asString")
-                    qualifiedName = asStringMethod.invoke(fqName) as? String
-                }
-            } catch (e: Exception) {
-                // Ignore
-            }
+        } else if (parent is org.jetbrains.kotlin.psi.KtClassOrObject) {
+            qualifiedName = parent.fqName?.asString()
         }
         
         if (qualifiedName == null) return null

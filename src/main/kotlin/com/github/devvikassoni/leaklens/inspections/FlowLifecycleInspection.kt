@@ -9,6 +9,7 @@ import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UElement
+import org.jetbrains.uast.UMethod
 import org.jetbrains.uast.UQualifiedReferenceExpression
 import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
@@ -29,29 +30,61 @@ class FlowLifecycleInspection : LocalInspectionTool() {
             object : AbstractUastNonRecursiveVisitor() {
                 override fun visitCallExpression(node: UCallExpression): Boolean {
                     val methodName = node.methodName
-                    if (methodName == "collect" || methodName == "collectLatest") {
+                    val isUnsafeCollect =
+                        methodName == "collect" || methodName == "collectLatest" || methodName == "launchIn"
+                    val isUnsafeComposeCollect = methodName == "collectAsState"
+
+                    if (isUnsafeCollect || isUnsafeComposeCollect) {
                         val containingClass = node.getContainingUClass()
-                        if (containingClass != null && isAndroidUiClass(containingClass)) {
-                            // Check if inside repeatOnLifecycle
-                            if (!isInsideRepeatOnLifecycle(node) && !usesFlowWithLifecycle(node)) {
-                                val sourcePsi =
-                                    node.methodIdentifier?.sourcePsi ?: node.sourcePsi
-                                    ?: return super.visitCallExpression(node)
-                                val className = containingClass.name ?: "Activity/Fragment"
+                        val isInsideUi =
+                            containingClass != null && isAndroidUiClass(containingClass)
+                        val isInsideComposable = isInsideComposable(node)
+
+                        if (isInsideUi || isInsideComposable) {
+                            // Check if inside lifecycle-aware wrappers
+                            if (!isInsideRepeatOnLifecycle(node) && !usesFlowWithLifecycle(node) && !isUsingLifecycleSafeCompose(
+                                    node
+                                )
+                            ) {
+                                val sourcePsi = node.methodIdentifier?.sourcePsi ?: node.sourcePsi
+                                ?: return super.visitCallExpression(node)
+                                val className = containingClass?.name ?: "UI Component"
                                 val line = LeakLensInspectionUtils.getLineNumber(sourcePsi)
-                                val description =
-                                    "LeakLens: Unsafe collection of Flow in UI. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks."
+
+                                val message = if (isUnsafeComposeCollect) {
+                                    "LeakLens: Unsafe use of collectAsState(). Use collectAsStateWithLifecycle() for better memory management in Compose."
+                                } else {
+                                    "LeakLens: Unsafe Flow collection. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks."
+                                }
+
                                 holder.registerProblem(
                                     sourcePsi,
-                                    description,
+                                    message,
                                     ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
                                     WrapWithRepeatOnLifecycleFix(),
-                                    AskGeminiFix(description, className, line)
+                                    AskGeminiFix(message, className, line)
                                 )
                             }
                         }
                     }
                     return super.visitCallExpression(node)
+                }
+
+                private fun isInsideComposable(node: UCallExpression): Boolean {
+                    var parent = node.uastParent
+                    while (parent != null) {
+                        if (parent is UMethod && isComposable(parent)) return true
+                        parent = parent.uastParent
+                    }
+                    return false
+                }
+
+                private fun isComposable(method: UMethod): Boolean {
+                    return method.annotations.any { it.qualifiedName?.contains("Composable") == true }
+                }
+
+                private fun isUsingLifecycleSafeCompose(node: UCallExpression): Boolean {
+                    return node.methodName == "collectAsStateWithLifecycle"
                 }
             },
             arrayOf(UCallExpression::class.java)
@@ -59,23 +92,7 @@ class FlowLifecycleInspection : LocalInspectionTool() {
     }
 
     private fun isAndroidUiClass(uClass: UClass): Boolean {
-        val psiClass = uClass.javaPsi
-        val superTypes = psiClass.supers
-        for (superType in superTypes) {
-            val fqName = superType.qualifiedName
-            if (fqName == "android.app.Activity" ||
-                fqName == "androidx.fragment.app.Fragment" ||
-                fqName == "android.app.Fragment" ||
-                fqName == "androidx.activity.ComponentActivity" ||
-                fqName == "androidx.appcompat.app.AppCompatActivity"
-            ) {
-                return true
-            }
-            if (superType.supers.any { it.qualifiedName == "android.app.Activity" || it.qualifiedName == "androidx.fragment.app.Fragment" }) {
-                return true
-            }
-        }
-        return false
+        return LeakLensInspectionUtils.isAndroidUiClass(uClass.javaPsi)
     }
 
     private fun isInsideRepeatOnLifecycle(node: UElement): Boolean {

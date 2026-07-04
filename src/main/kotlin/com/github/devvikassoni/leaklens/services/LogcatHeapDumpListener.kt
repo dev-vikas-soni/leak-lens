@@ -13,10 +13,10 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Monitors logcat for LeakCanary's heap dump notifications.
- * When LeakCanary dumps heap, it logs a message like:
- * "D/LeakCanary: Heap dumped to /data/user/0/.../leakcanary/2024-01-01_12-00-00_000.hprof"
  *
- * Modernized to use GeneralCommandLine and OSProcessHandler per JetBrains guidelines.
+ * When LeakCanary dumps a heap on the device, it logs a specific message containing
+ * the path to the .hprof file. This listener captures that path and triggers
+ * the local analysis pipeline.
  */
 @Service(Service.Level.PROJECT)
 class LogcatHeapDumpListener(private val project: Project) : Disposable {
@@ -103,7 +103,7 @@ class LogcatHeapDumpListener(private val project: Project) : Disposable {
         if (match != null) {
             val hprofPath = match.groupValues[1].trim()
             logger.info("LeakLens: Detected heap dump at: $hprofPath")
-            
+
             com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
                 onHeapDumpDetected?.invoke(deviceSerial, hprofPath)
             }

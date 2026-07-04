@@ -9,7 +9,6 @@ import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UField
-import org.jetbrains.uast.UFile
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
@@ -38,8 +37,7 @@ class ViewModelContextLeakInspection : LocalInspectionTool() {
                     }
 
                     if (isViewModel) {
-                        for (field in node.fields) {
-                            val uField = field as? UField ?: continue
+                        for (uField in node.fields) {
                             val fieldType = uField.type.canonicalText
 
                             if (LeakLensInspectionUtils.isActivityOrFragmentType(uField.type) ||
@@ -74,16 +72,8 @@ class ViewModelContextLeakInspection : LocalInspectionTool() {
 
                     return false
                 }
-
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(
-                        holder,
-                        "ViewModelContextLeak",
-                        fileIssues
-                    )
-                }
             },
-            arrayOf(UClass::class.java, UFile::class.java)
+            arrayOf(UClass::class.java)
         )
     }
 

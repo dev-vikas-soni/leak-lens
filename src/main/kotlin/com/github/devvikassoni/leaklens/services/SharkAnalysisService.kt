@@ -1,33 +1,25 @@
 package com.github.devvikassoni.leaklens.services
 
+import com.github.devvikassoni.leaklens.compat.CompatibilityLogger
+import com.github.devvikassoni.leaklens.compat.ProgressFacade
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.model.LeakTraceReference
 import com.github.devvikassoni.leaklens.shark.LeakLensObjectInspectors
 import com.intellij.openapi.components.Service
-import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
-import shark.AndroidObjectInspectors
-import shark.AndroidReferenceMatchers
-import shark.FileSourceProvider
-import shark.FilteringLeakingObjectFinder
-import shark.HeapAnalysisFailure
-import shark.HeapAnalysisSuccess
-import shark.HeapAnalyzer
+import shark.*
 import shark.HprofHeapGraph.Companion.openHeapGraph
-import shark.LeakTrace
-import shark.MetadataExtractor
-import shark.OnAnalysisProgressListener
 import java.io.File
 
 /**
- * Shark-powered heap analysis service.
- * Configured with optimizations for memory efficiency and large file handling.
+ * Service that encapsulates the Shark heap analysis engine.
+ *
+ * It is configured with Android-specific inspectors and optimized for large
+ * heap dump handling on the developer's machine.
  */
 @Service(Service.Level.PROJECT)
-class SharkAnalysisService(private val project: Project) {
-
-    private val logger = thisLogger()
+class SharkAnalysisService {
 
     companion object {
         private const val LARGE_HEAP_THRESHOLD_BYTES = 500 * 1024 * 1024L // 500 MB
@@ -37,26 +29,31 @@ class SharkAnalysisService(private val project: Project) {
     }
 
     /**
-     * Analyze a heap dump with optimizations for large files.
+     * Analyze a heap dump with optimizations for large files and cancellation support.
      */
-    fun analyzeHprof(hprofFile: File): List<LeakInfo> {
+    fun analyzeHprof(
+        hprofFile: File,
+        indicator: com.intellij.openapi.progress.ProgressIndicator? = null
+    ): List<LeakInfo> {
         if (!hprofFile.exists()) {
-            logger.warn("LeakLens: Cannot analyze non-existent file: ${hprofFile.absolutePath}")
+            CompatibilityLogger.warn("LeakLens: Cannot analyze non-existent file: ${hprofFile.absolutePath}")
             return emptyList()
         }
 
         val fileSize = hprofFile.length()
         val isLargeFile = fileSize > LARGE_HEAP_THRESHOLD_BYTES
 
-        logger.info("LeakLens: Starting Shark analysis of ${hprofFile.name} (${fileSize / 1024 / 1024} MB)")
+        CompatibilityLogger.info("LeakLens: Starting Shark analysis of ${hprofFile.name} (${fileSize / 1024 / 1024} MB)")
 
         if (isLargeFile) {
-            logger.warn("LeakLens: ${hprofFile.name} is large ($fileSize bytes). Analysis may be slow and memory-intensive.")
+            CompatibilityLogger.warn("LeakLens: ${hprofFile.name} is large ($fileSize bytes). Analysis may be slow and memory-intensive.")
         }
 
-        val heapAnalyzer = HeapAnalyzer(OnAnalysisProgressListener { step ->
-            logger.info("LeakLens: Analysis step - $step")
-        })
+        val heapAnalyzer = HeapAnalyzer { step ->
+            ProgressFacade.checkCanceled(indicator)
+            CompatibilityLogger.info("Analysis step: $step")
+            ProgressFacade.setText(indicator, "Analyzing heap: $step")
+        }
 
         // Combine Android defaults with LeakLens custom inspectors
         val objectInspectors = AndroidObjectInspectors.appDefaults + LeakLensObjectInspectors.all
@@ -79,22 +76,20 @@ class SharkAnalysisService(private val project: Project) {
         return when (analysis) {
             is HeapAnalysisSuccess -> {
                 val leakCount = analysis.allLeaks.sumOf { it.leakTraces.size }
-                logger.info("LeakLens: Analysis successful - $leakCount leak traces found")
+                CompatibilityLogger.info("LeakLens: Analysis successful - $leakCount leak traces found")
 
                 if (leakCount == 0) {
-                    logger.info("LeakLens: No leaks found in success object. Check matching filters.")
+                    CompatibilityLogger.info("LeakLens: No leaks found in success object. Check matching filters.")
                 }
 
                 convertToLeakInfoList(analysis)
             }
 
             is HeapAnalysisFailure -> {
-                logger.error("LeakLens: Analysis failed with Shark exception", analysis.exception)
-                emptyList()
-            }
-
-            else -> {
-                logger.warn("LeakLens: Unknown analysis result type")
+                CompatibilityLogger.error(
+                    "LeakLens: Analysis failed with Shark exception",
+                    analysis.exception
+                )
                 emptyList()
             }
         }

@@ -7,7 +7,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 /**
- * Phase 7: Export analysis results as HTML, JSON, or SARIF reports.
+ * Utility for exporting analysis results as HTML, JSON, or SARIF reports.
  */
 object ReportExporter {
 

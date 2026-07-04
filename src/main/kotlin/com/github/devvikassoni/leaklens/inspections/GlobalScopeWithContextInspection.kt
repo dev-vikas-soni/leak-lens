@@ -11,7 +11,6 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UCallExpression
-import org.jetbrains.uast.UFile
 import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
@@ -62,16 +61,8 @@ class GlobalScopeWithContextInspection : LocalInspectionTool() {
                     }
                     return false
                 }
-
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(
-                        holder,
-                        "GlobalScopeWithContext",
-                        fileIssues
-                    )
-                }
             },
-            arrayOf(UCallExpression::class.java, UFile::class.java)
+            arrayOf(UCallExpression::class.java)
         )
     }
 
@@ -96,9 +87,10 @@ class GlobalScopeWithContextInspection : LocalInspectionTool() {
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
             val element = descriptor.psiElement
-            val document = element.containingFile.viewProvider.document ?: return
-            val newText = element.text.replace("GlobalScope", "lifecycleScope")
-            document.replaceString(element.textRange.startOffset, element.textRange.endOffset, newText)
+            if (element is org.jetbrains.kotlin.psi.KtSimpleNameExpression) {
+                val factory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
+                element.replace(factory.createSimpleName("lifecycleScope"))
+            }
         }
     }
 }

@@ -1,10 +1,19 @@
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import java.util.Properties
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
     id("org.jetbrains.intellij.platform")
     id("org.jetbrains.changelog")
+    id("io.gitlab.arturbosch.detekt") version "1.23.6"
+}
+
+detekt {
+    toolVersion = "1.23.6"
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(file("config/detekt/detekt.yml"))
 }
 
 dependencies {
@@ -28,7 +37,9 @@ intellijPlatform {
     buildSearchableOptions.set(false)
 
     pluginVerification {
-        // Only fail on critical problems, ignore internal API warnings which are common with UAST/Preview IDEs
+        ides {
+            recommended()
+        }
     }
 
     val localProperties = Properties()

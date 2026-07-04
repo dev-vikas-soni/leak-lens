@@ -1,0 +1,29 @@
+# Area Labels
+"area:inspections":
+    -   changed-files:
+            -   any-glob-to-any-file: "src/main/kotlin/com/github/devvikassoni/leaklens/inspections/**/*"
+
+"area:ui":
+    -   changed-files:
+            -   any-glob-to-any-file:
+                    - "src/main/kotlin/com/github/devvikassoni/leaklens/ui/**/*"
+                    - "src/main/kotlin/com/github/devvikassoni/leaklens/toolWindow/**/*"
+
+"area:shark":
+    -   changed-files:
+            -   any-glob-to-any-file: "src/main/kotlin/com/github/devvikassoni/leaklens/shark/**/*"
+
+"area:adb":
+    -   changed-files:
+            -   any-glob-to-any-file: "src/main/kotlin/com/github/devvikassoni/leaklens/services/AdbHeapDumpService.kt"
+
+# Type Labels
+"type:documentation":
+    -   changed-files:
+            -   any-glob-to-any-file:
+                    - "docs/**/*"
+                    - "*.md"
+
+"type:ci":
+    -   changed-files:
+            -   any-glob-to-any-file: ".github/workflows/**/*"

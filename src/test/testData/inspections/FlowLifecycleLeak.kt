@@ -31,16 +31,33 @@ fun Activity.repeatOnLifecycle(state: Any, block: suspend () -> Unit) {
 fun println(message: Any?) {
 }
 
+annotation class Composable
+
+@Suppress("UNUSED_PARAMETER")
+fun <T> Flow<T>.collectAsState(initial: T): Any = this
+
+@Suppress("UNUSED_PARAMETER")
+fun <T> Flow<T>.collectAsStateWithLifecycle(initial: T): Any = this
+
+@Suppress("UNUSED_PARAMETER")
+fun <T> Flow<T>.launchIn(scope: CoroutineScope): Any = this
+
 class FlowLifecycleLeak : Activity() {
 
     fun observeFlows(myFlow: Flow<String>) {
         // Bad: Collecting directly in launch
         GlobalScope.launch {
             myFlow.< error descr =
-                "LeakLens: Unsafe collection of Flow in UI. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks." > collect < / error > { value ->
+                "LeakLens: Unsafe Flow collection. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks." > collect < / error > { value ->
                     println(value)
                 }
         }
+
+        // Bad: launchIn without lifecycle awareness
+        myFlow.< error descr =
+            "LeakLens: Unsafe Flow collection. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks." > launchIn < / error >(
+                GlobalScope
+            )
 
         // Good: Using repeatOnLifecycle
         GlobalScope.launch {
@@ -50,12 +67,17 @@ class FlowLifecycleLeak : Activity() {
                 }
             }
         }
+    }
 
-        // Good: Using flowWithLifecycle
-        GlobalScope.launch {
-            myFlow.flowWithLifecycle(null, Lifecycle.State.STARTED).collect {
-                println(it)
-            }
-        }
+    @Composable
+    fun MyComposable(myFlow: Flow<String>) {
+        // Bad: collectAsState in Compose
+        myFlow.< error descr =
+            "LeakLens: Unsafe use of collectAsState(). Use collectAsStateWithLifecycle() for better memory management in Compose." > collectAsState < / error >(
+                ""
+            )
+
+        // Good: collectAsStateWithLifecycle
+        myFlow.collectAsStateWithLifecycle("")
     }
 }

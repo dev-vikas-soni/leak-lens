@@ -11,7 +11,6 @@ import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.util.PsiTypesUtil
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UClass
-import org.jetbrains.uast.UFile
 import org.jetbrains.uast.UParameter
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
@@ -94,12 +93,8 @@ class HiltScopeMismatchInspection : LocalInspectionTool() {
                     }
                     return false
                 }
-
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(holder, "HiltScopeMismatch", fileIssues)
-                }
             },
-            arrayOf(UClass::class.java, UFile::class.java)
+            arrayOf(UClass::class.java)
         )
     }
 

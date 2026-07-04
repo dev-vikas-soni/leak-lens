@@ -8,7 +8,6 @@ import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UCallExpression
-import org.jetbrains.uast.UFile
 import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
@@ -59,16 +58,8 @@ class DeprecatedLifecycleScopeInspection : LocalInspectionTool() {
                     }
                     return false
                 }
-
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(
-                        holder,
-                        "DeprecatedLifecycleScope",
-                        fileIssues
-                    )
-                }
             },
-            arrayOf(UCallExpression::class.java, UFile::class.java)
+            arrayOf(UCallExpression::class.java)
         )
     }
 

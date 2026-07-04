@@ -2,6 +2,7 @@ package com.github.devvikassoni.leaklens.monitoring
 
 import com.github.devvikassoni.leaklens.services.AdbHeapDumpService
 import com.github.devvikassoni.leaklens.services.LeakAnalysisCoordinator
+import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.github.devvikassoni.leaklens.settings.LeakLensSettingsState
 import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.CapturingProcessHandler
@@ -17,20 +18,26 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Phase 6: Real-time device monitoring service.
- * Periodically queries device heap stats via `adb shell dumpsys meminfo <package>`
- * and auto-triggers heap dump when retained object count exceeds threshold.
+ * Service responsible for real-time device memory monitoring.
  *
- * Adheres to JetBrains Platform standards: Uses Coroutines for scheduling
- * and GeneralCommandLine for process management.
+ * Periodically queries device heap statistics using `adb shell dumpsys meminfo`
+ * and automatically triggers a heap dump when thresholds are exceeded.
  */
 @Service(Service.Level.PROJECT)
 class DeviceMemoryMonitor(private val project: Project) : Disposable {
 
     private val logger = thisLogger()
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val scope get() = LeakLensProjectService.getInstance(project).scope
     private var monitorJob: Job? = null
     private var isMonitoring = false
+
+    enum class Status { DISCONNECTED, CONNECTED, ERROR }
+
+    private val _status = MutableStateFlow(Status.DISCONNECTED)
+    val status: StateFlow<Status> = _status.asStateFlow()
+
+    private val _lastError = MutableStateFlow<String?>(null)
+    val lastError: StateFlow<String?> = _lastError.asStateFlow()
 
     private val _memorySnapshots = MutableStateFlow<List<MemorySnapshot>>(emptyList())
     val memorySnapshots: StateFlow<List<MemorySnapshot>> = _memorySnapshots.asStateFlow()
@@ -57,21 +64,35 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
 
         isMonitoring = true
         _memorySnapshots.value = emptyList()
+        _status.value = Status.CONNECTED
+        _lastError.value = null
 
         monitorJob = scope.launch {
+            var consecutiveFailures = 0
             while (isActive && isMonitoring) {
                 try {
                     val snapshot = queryMemoryInfo(deviceSerial, packageName)
                     if (snapshot != null) {
+                        consecutiveFailures = 0
+                        _status.value = Status.CONNECTED
                         _currentMemory.value = snapshot
                         _memorySnapshots.value = (_memorySnapshots.value + snapshot).takeLast(360) // ~30 min at 5s
 
                         // Auto-trigger heap dump if threshold exceeded
                         checkThresholds(snapshot, deviceSerial, packageName)
+                    } else {
+                        consecutiveFailures++
+                        if (consecutiveFailures >= 3) {
+                            _status.value = Status.ERROR
+                            _lastError.value =
+                                "Failed to query memory info repeatedly for '$packageName'. Ensure the app is running and debuggable."
+                        }
                     }
                 } catch (e: Exception) {
                     if (isActive) {
                         logger.warn("LeakLens: Memory monitor error", e)
+                        _status.value = Status.ERROR
+                        _lastError.value = e.message
                     }
                 }
                 delay(intervalMs)
@@ -83,6 +104,7 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
 
     fun stopMonitoring() {
         isMonitoring = false
+        _status.value = Status.DISCONNECTED
         monitorJob?.cancel()
         monitorJob = null
         logger.info("LeakLens: Stopped monitoring")
@@ -90,7 +112,6 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
 
     override fun dispose() {
         stopMonitoring()
-        scope.cancel()
     }
 
     fun isActive(): Boolean = isMonitoring
@@ -100,26 +121,30 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
         val adbPath = adbService.getAdbExecutable()
 
         val commandLine = GeneralCommandLine(adbPath).apply {
-            if (deviceSerial != null) {
-                addParameters("-s", deviceSerial)
+            if (!deviceSerial.isNullOrBlank()) {
+                addParameter("-s")
+                addParameter(deviceSerial)
             }
             addParameters("shell", "dumpsys", "meminfo", packageName)
         }
 
         return try {
             val handler = CapturingProcessHandler(commandLine)
-            val result = handler.runProcess(5000) // 5 second timeout
+            val result = handler.runProcess(15000) // Increase to 15 second timeout for dumpsys
             if (result.isTimeout) {
-                logger.warn("LeakLens: dumpsys meminfo timed out")
+                logger.warn("LeakLens: dumpsys meminfo timed out for $packageName")
                 null
             } else if (result.exitCode != 0) {
-                logger.warn("LeakLens: dumpsys meminfo failed with exit code ${result.exitCode}: ${result.stderr}")
+                logger.warn("LeakLens: dumpsys meminfo failed (exit ${result.exitCode}): ${result.stderr}")
+                null
+            } else if (result.stdout.isBlank()) {
+                logger.warn("LeakLens: dumpsys meminfo returned empty output for $packageName")
                 null
             } else {
                 parseMemInfo(result.stdout, packageName)
             }
         } catch (e: Exception) {
-            logger.warn("LeakLens: Error querying memory info", e)
+            logger.warn("LeakLens: Error querying memory info for $packageName", e)
             null
         }
     }

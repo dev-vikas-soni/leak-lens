@@ -14,7 +14,6 @@ import com.intellij.psi.PsiModifier
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.UExpression
-import org.jetbrains.uast.UFile
 import org.jetbrains.uast.USimpleNameReferenceExpression
 import org.jetbrains.uast.UThisExpression
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
@@ -78,16 +77,8 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
                     }
                     return false
                 }
-
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(
-                        holder,
-                        "ContextPassedToSingleton",
-                        fileIssues
-                    )
-                }
             },
-            arrayOf(UCallExpression::class.java, UFile::class.java)
+            arrayOf(UCallExpression::class.java)
         )
     }
 
@@ -114,7 +105,7 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
 
     private fun isSingleton(psiClass: PsiClass): Boolean {
         val hasInstance = psiClass.fields.any { field ->
-            field.hasModifierProperty(PsiModifier.STATIC) &&
+            field.hasModifierProperty(com.intellij.psi.PsiModifier.STATIC) &&
             (field.name == "INSTANCE" || field.name == "instance" || field.name == "sInstance")
         }
         val hasSingletonAnnotation = psiClass.annotations.any { it.qualifiedName?.contains("Singleton") == true }
@@ -128,11 +119,19 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
             val element = descriptor.psiElement
             val isKotlin = element.language.id.equals("kotlin", ignoreCase = true)
-            val suffix = if (isKotlin) ".applicationContext" else ".getApplicationContext()"
-            val newText = "${element.text}$suffix"
-            
-            val document = element.containingFile.viewProvider.document ?: return
-            document.replaceString(element.textRange.startOffset, element.textRange.endOffset, newText)
+
+            if (isKotlin) {
+                val factory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
+                element.replace(factory.createExpression("${element.text}.applicationContext"))
+            } else {
+                val factory = com.intellij.psi.JavaPsiFacade.getElementFactory(project)
+                element.replace(
+                    factory.createExpressionFromText(
+                        "${element.text}.getApplicationContext()",
+                        element
+                    )
+                )
+            }
         }
     }
 }

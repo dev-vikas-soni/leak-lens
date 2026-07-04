@@ -37,7 +37,7 @@ class UseApplicationContextFix(private val fieldName: String) : LocalQuickFix {
         while (current != null && current !is KtProperty) {
             current = current.parent
         }
-        val property = current as? KtProperty ?: return
+        val property = current as KtProperty
 
         val factory = KtPsiFactory(project)
         // Replace the stored field with a computed property backed by applicationContext

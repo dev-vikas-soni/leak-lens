@@ -27,7 +27,7 @@ class MonitorMemoryAction : AnAction() {
         }
 
         val adbService = AdbHeapDumpService.getInstance(project)
-        
+
         com.intellij.openapi.application.ApplicationManager.getApplication().executeOnPooledThread {
             val devices = adbService.listDevices()
             com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {

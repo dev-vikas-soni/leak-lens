@@ -1,0 +1,24 @@
+# JetBrains / Kotlin Foundation Standard EditorConfig
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 4
+trim_trailing_whitespace = true
+
+[*.kt]
+kotlin_imports_layout = idea
+# Standard Kotlin Style
+continuation_indent_size = 8
+
+[*.java]
+indent_size = 4
+
+[*.xml]
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false

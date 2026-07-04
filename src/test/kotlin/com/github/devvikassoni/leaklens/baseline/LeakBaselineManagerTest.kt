@@ -53,6 +53,13 @@ class LeakBaselineManagerTest : BasePlatformTestCase() {
         assertTrue(baselineManager.isInBaseline(leak))
         assertEquals(1, baselineManager.getBaselineCount())
 
+        // Wait for async IO to complete
+        var retries = 50
+        while (!baselineFile.exists() && retries > 0) {
+            Thread.sleep(10)
+            retries--
+        }
+
         // File should be created and contain signature
         assertTrue(baselineFile.exists())
         val content = baselineFile.readText()
@@ -109,6 +116,12 @@ class LeakBaselineManagerTest : BasePlatformTestCase() {
             suggestedFix = null
         )
         baselineManager.saveBaseline(listOf(leak))
+
+        var retries = 50
+        while (!baselineFile.exists() && retries > 0) {
+            Thread.sleep(10)
+            retries--
+        }
 
         // Create new manager instance to test loading from disk
         val newManager = LeakBaselineManager(project)

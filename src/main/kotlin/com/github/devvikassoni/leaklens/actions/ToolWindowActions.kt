@@ -1,12 +1,8 @@
 package com.github.devvikassoni.leaklens.actions
 
 import com.github.devvikassoni.leaklens.LeakLensBundle
-import com.github.devvikassoni.leaklens.inspections.AnonymousInnerClassLeakInspection
-import com.github.devvikassoni.leaklens.inspections.ContextPassedToSingletonInspection
-import com.github.devvikassoni.leaklens.inspections.GlobalScopeWithContextInspection
-import com.github.devvikassoni.leaklens.inspections.MissingRemoveCallbacksInspection
-import com.github.devvikassoni.leaklens.inspections.StaticActivityReferenceInspection
-import com.github.devvikassoni.leaklens.inspections.ViewReferenceHeldInspection
+import com.github.devvikassoni.leaklens.compat.ProgressFacade
+import com.github.devvikassoni.leaklens.inspections.*
 import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.intellij.codeInspection.InspectionManager
 import com.intellij.codeInspection.ProblemsHolder
@@ -16,7 +12,6 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationManager
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
@@ -77,8 +72,8 @@ class AnalyzeCurrentFileAction : AnAction(
                 val manager = InspectionManager.getInstance(project)
                 val projectService = LeakLensProjectService.getInstance(project)
 
-                // Use non-blocking read action for better IDE responsiveness
-                ReadAction.nonBlocking<Unit> {
+                // Use read action to access PSI
+                com.intellij.openapi.application.runReadAction {
                     projectService.clearLiveIssuesForFile(virtualFile.path)
 
                     for (inspection in inspections) {
@@ -86,7 +81,7 @@ class AnalyzeCurrentFileAction : AnAction(
                         val visitor = inspection.buildVisitor(holder, false)
                         psiFile.accept(visitor)
                     }
-                }.executeSynchronously()
+                }
             }
         })
     }
@@ -145,23 +140,28 @@ class AnalyzeProjectAction : AnAction(
                 val allFiles = kotlinFiles + javaFiles
 
                 projectService.clearAllLiveIssues()
-                
+
                 allFiles.forEachIndexed { index, virtualFile ->
                     if (indicator.isCanceled) return@forEachIndexed
-                    indicator.text =
+                    ProgressFacade.setText(
+                        indicator,
                         LeakLensBundle.message("leaklens.progress.analyzing.file", virtualFile.name)
-                    indicator.fraction = index.toDouble() / allFiles.size.coerceAtLeast(1)
+                    )
+                    ProgressFacade.setFraction(
+                        indicator,
+                        index.toDouble() / allFiles.size.coerceAtLeast(1)
+                    )
 
-                    // Execute each file analysis in a non-blocking way to keep EDT free
-                    ReadAction.nonBlocking<Unit> {
+                    // Use read action to access PSI
+                    com.intellij.openapi.application.runReadAction {
                         val psiFile = PsiManager.getInstance(project).findFile(virtualFile)
-                            ?: return@nonBlocking
-                        
+                            ?: return@runReadAction
+
                         for (inspection in inspections) {
                             val holder = ProblemsHolder(manager, psiFile, false)
                             psiFile.accept(inspection.buildVisitor(holder, false))
                         }
-                    }.executeSynchronously()
+                    }
                 }
             }
         })
@@ -223,22 +223,28 @@ class AnalyzeSelectedFilesAction : AnAction(
 
                     filesToScan.forEachIndexed { index, virtualFile ->
                         if (indicator.isCanceled) return@forEachIndexed
-                        indicator.text = LeakLensBundle.message(
-                            "leaklens.progress.analyzing.file",
-                            virtualFile.name
+                        ProgressFacade.setText(
+                            indicator,
+                            LeakLensBundle.message(
+                                "leaklens.progress.analyzing.file",
+                                virtualFile.name
+                            )
                         )
-                        indicator.fraction = index.toDouble() / filesToScan.size.coerceAtLeast(1)
+                        ProgressFacade.setFraction(
+                            indicator,
+                            index.toDouble() / filesToScan.size.coerceAtLeast(1)
+                        )
 
-                        ReadAction.nonBlocking<Unit> {
+                        com.intellij.openapi.application.runReadAction {
                             val psiFile = PsiManager.getInstance(project).findFile(virtualFile)
-                                ?: return@nonBlocking
+                                ?: return@runReadAction
                             projectService.clearLiveIssuesForFile(virtualFile.path)
 
                             for (inspection in inspections) {
                                 val holder = ProblemsHolder(manager, psiFile, false)
                                 psiFile.accept(inspection.buildVisitor(holder, false))
                             }
-                        }.executeSynchronously()
+                        }
                     }
                 }
 

@@ -204,41 +204,31 @@ class AiAnalysisService(private val project: Project) {
     }
 
     private fun extractOpenAIContent(json: String): String? {
-        // Simple JSON extraction without adding a JSON library dependency
-        val contentStart = json.indexOf("\"content\":\"")
-        if (contentStart == -1) {
-            val contentStart2 = json.indexOf("\"content\": \"")
-            if (contentStart2 == -1) return null
-            val start = contentStart2 + 12
-            val end = json.indexOf("\"", start)
-            return if (end > start) json.substring(start, end).replace("\\n", "\n").replace("\\\"", "\"") else null
+        return try {
+            val root = com.google.gson.JsonParser.parseString(json).asJsonObject
+            root.getAsJsonArray("choices")
+                ?.get(0)?.asJsonObject
+                ?.getAsJsonObject("message")
+                ?.get("content")?.asString
+        } catch (e: Exception) {
+            logger.warn("LeakLens AI: Failed to parse OpenAI response", e)
+            null
         }
-        val start = contentStart + 11
-        val end = findClosingQuote(json, start)
-        return if (end > start) json.substring(start, end).replace("\\n", "\n").replace("\\\"", "\"") else null
     }
 
     private fun extractGeminiContent(json: String): String? {
-        val textStart = json.indexOf("\"text\":\"")
-        if (textStart == -1) {
-            val textStart2 = json.indexOf("\"text\": \"")
-            if (textStart2 == -1) return null
-            val start = textStart2 + 9
-            val end = findClosingQuote(json, start)
-            return if (end > start) json.substring(start, end).replace("\\n", "\n").replace("\\\"", "\"") else null
+        return try {
+            val root = com.google.gson.JsonParser.parseString(json).asJsonObject
+            root.getAsJsonArray("candidates")
+                ?.get(0)?.asJsonObject
+                ?.getAsJsonObject("content")
+                ?.getAsJsonArray("parts")
+                ?.get(0)?.asJsonObject
+                ?.get("text")?.asString
+        } catch (e: Exception) {
+            logger.warn("LeakLens AI: Failed to parse Gemini response", e)
+            null
         }
-        val start = textStart + 8
-        val end = findClosingQuote(json, start)
-        return if (end > start) json.substring(start, end).replace("\\n", "\n").replace("\\\"", "\"") else null
-    }
-
-    private fun findClosingQuote(json: String, startAfterQuote: Int): Int {
-        var i = startAfterQuote
-        while (i < json.length) {
-            if (json[i] == '"' && json[i - 1] != '\\') return i
-            i++
-        }
-        return -1
     }
 
     private fun escapeJson(text: String): String {

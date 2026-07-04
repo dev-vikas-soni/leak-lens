@@ -1,0 +1,19 @@
+labels: [ "idea" ]
+title: "[Idea] "
+body:
+    -   type: markdown
+        attributes:
+            value: |
+                Have a technical idea for LeakLens? We'd love to hear it!
+    -   type: textarea
+        id: idea
+        attributes:
+            label: Summary of your idea
+            description: What is the high-level concept?
+        validations:
+            required: true
+    -   type: textarea
+        id: technical-detail
+        attributes:
+            label: Technical implementation thoughts
+            description: How do you think this could be built within our current UAST/Shark architecture?

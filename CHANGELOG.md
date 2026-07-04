@@ -4,6 +4,26 @@
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-04
+
+### Added
+
+- **Adaptive Compatibility Layer**: Robust support for multiple Android Studio versions (Koala,
+  Ladybug, Meerkat) using capability detection instead of brittle version checks.
+- **Enterprise-Grade Governance**: Formalized versioning strategy, community governance model, and
+  legal attribution for third-party components (Shark, IntelliJ SDK).
+- **Hardened Quick Fixes**: Migrated from string-based replacements to semantic PSI transformations
+  for 100% reliable code refactoring.
+
+### Fixed
+
+- **Memory Safety**: Implemented history capping and explicit resource cleanup to prevent IDE memory
+  pressure during long-running sessions.
+- **ADB Discovery**: Resolved connectivity issues in AS Ladybug by implementing a recursive
+  reflection discovery engine for the ADB binary.
+- **Thread Safety**: Hardened background task execution to ensure non-blocking UI interactions
+  during complex analysis steps.
+
 ## [0.2.0] - 2026-06-28
 
 ### Added
@@ -164,8 +184,9 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.9...HEAD
-
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.1...HEAD
+[0.2.1]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.0...0.2.1
+[0.2.0]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.9...0.2.0
 [0.1.9]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.8...0.1.9
 [0.1.8]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.7...0.1.8
 [0.1.7]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.6...0.1.7

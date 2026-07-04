@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+    -   name: LeakLens Discussions
+        url: https://github.com/dev-vikas-soni/leak-lens/discussions
+        about: Please use discussions for questions or general brainstorming.

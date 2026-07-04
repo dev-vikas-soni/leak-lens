@@ -58,6 +58,12 @@ class UastInspectionsTest : BasePlatformTestCase() {
             "dagger/hilt/android/scopes/ActivityScoped.java",
             "package dagger.hilt.android.scopes; public @interface ActivityScoped {}"
         )
+
+        // Mock Compose
+        myFixture.addFileToProject(
+            "androidx/compose/runtime/Composable.kt",
+            "package androidx.compose.runtime; annotation class Composable"
+        )
     }
 
     @Test

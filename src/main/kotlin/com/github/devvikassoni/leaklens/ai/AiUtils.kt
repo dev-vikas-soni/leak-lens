@@ -26,7 +26,11 @@ object AiUtils {
             ${leak.leakTrace}
             ```
             
-            Please suggest the best way to fix this in Kotlin/Java.
+            Please suggest the best way to fix this. 
+            **Requirements:**
+            1. Provide an idiomatic Kotlin solution (e.g., using `weakReference`, `Lifecycle` observers, `repeatOnLifecycle`, or `autoCleared` delegates).
+            2. Explain the root cause of the leak in 2 sentences.
+            3. Show the "Before" (leaking) and "After" (fixed) code snippets.
         """.trimIndent()
 
         // Copy to clipboard

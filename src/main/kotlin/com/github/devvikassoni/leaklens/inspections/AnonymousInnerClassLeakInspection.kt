@@ -10,7 +10,6 @@ import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UField
-import org.jetbrains.uast.UFile
 import org.jetbrains.uast.UObjectLiteralExpression
 import org.jetbrains.uast.UastCallKind
 import org.jetbrains.uast.getContainingUClass
@@ -58,16 +57,8 @@ class AnonymousInnerClassLeakInspection : LocalInspectionTool() {
                     }
                     return false
                 }
-
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(
-                        holder,
-                        "AnonymousInnerClassLeak",
-                        fileIssues
-                    )
-                }
             },
-            arrayOf(UObjectLiteralExpression::class.java, UFile::class.java)
+            arrayOf(UObjectLiteralExpression::class.java)
         )
     }
 

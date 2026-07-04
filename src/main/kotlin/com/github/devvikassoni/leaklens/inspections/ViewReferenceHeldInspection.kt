@@ -13,7 +13,6 @@ import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UField
-import org.jetbrains.uast.UFile
 import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.toUElementOfType
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
@@ -36,8 +35,8 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
                 override fun visitClass(node: UClass): Boolean {
                     if (!LeakLensInspectionUtils.isFragment(node)) return false
 
-                    val viewFields = node.fields.filter { 
-                        LeakLensInspectionUtils.isViewOrBindingType(it.type) 
+                    val viewFields = node.fields.filter {
+                        LeakLensInspectionUtils.isViewOrBindingType(it.type)
                     }
                     if (viewFields.isEmpty()) return false
 
@@ -53,7 +52,7 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
                                 bodyText.contains("_$name = null") ||
                                 bodyText.contains("$name?.let") ||
                                 bodyText.contains("$name.clear") // For some custom binding types
-                        
+
                         if (!isNulled) {
                             val elementToHighlight = field.uastAnchor?.sourcePsi ?: field.sourcePsi ?: continue
                             val description =
@@ -75,12 +74,8 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
                     }
                     return false
                 }
-
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(holder, "ViewReferenceHeld", fileIssues)
-                }
             },
-            arrayOf(UClass::class.java, UFile::class.java)
+            arrayOf(UClass::class.java)
         )
     }
 
@@ -105,25 +100,41 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
             val element = descriptor.psiElement
-            val factory = JavaPsiFacade.getElementFactory(project)
-            
+            val uField = element.toUElementOfType<UField>() ?: return
+            val uClass = uField.getContainingUClass() ?: return
+
             if (element.language.id == "JAVA") {
-                val uField = element.toUElementOfType<UField>() ?: return
-                val psiClass = uField.getContainingUClass()?.javaPsi ?: return
+                val factory = JavaPsiFacade.getElementFactory(project)
+                val psiClass = uClass.javaPsi
                 val onDestroyView = psiClass.findMethodsByName("onDestroyView", false).firstOrNull()
-                
+
                 if (onDestroyView != null) {
                     val body = onDestroyView.body ?: return
                     body.addBefore(factory.createStatementFromText("$fieldName = null;", psiClass), body.rBrace)
                 } else {
                     val newMethod = factory.createMethodFromText(
-                        "@Override public void onDestroyView() { super.onDestroyView(); $fieldName = null; }", 
+                        "@Override public void onDestroyView() { super.onDestroyView(); $fieldName = null; }",
                         psiClass
                     )
                     psiClass.add(newMethod)
                 }
-            } else {
-                element.parent.addBefore(factory.createCommentFromText("// LeakLens: Set $fieldName = null in onDestroyView()", element), element)
+            } else if (element.language.id == "kotlin") {
+                val factory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
+                val ktClass =
+                    uClass.sourcePsi as? org.jetbrains.kotlin.psi.KtClassOrObject ?: return
+                val onDestroyView =
+                    ktClass.declarations.filterIsInstance<org.jetbrains.kotlin.psi.KtNamedFunction>()
+                        .find { it.name == "onDestroyView" }
+
+                if (onDestroyView != null) {
+                    val body = onDestroyView.bodyBlockExpression ?: return
+                    val newExpr = factory.createExpression("$fieldName = null")
+                    body.addBefore(newExpr, body.rBrace)
+                } else {
+                    val newFunc =
+                        factory.createFunction("override fun onDestroyView() {\n    super.onDestroyView()\n    $fieldName = null\n}")
+                    ktClass.addDeclaration(newFunc)
+                }
             }
         }
     }

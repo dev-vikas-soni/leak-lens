@@ -1,0 +1,12 @@
+# Maintenance responsibility for LeakLens
+
+# Default owners for everything
+*       @dev-vikas-soni
+
+# Core technical components
+/src/main/kotlin/com/github/devvikassoni/leaklens/shark/  @dev-vikas-soni
+/src/main/kotlin/com/github/devvikassoni/leaklens/inspections/ @dev-vikas-soni
+
+# Governance and Docs
+/docs/ @dev-vikas-soni
+/LICENSE @dev-vikas-soni

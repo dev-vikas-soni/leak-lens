@@ -33,11 +33,11 @@ class LeakLensSettingsState : PersistentStateComponent<LeakLensSettingsState> {
     var persistHistory: Boolean =
         false // Changed default to false to prevent unexpected persistence
 
-    // Monitoring settings (Phase 6)
+    // Monitoring settings
     var autoHeapDumpThresholdMb: Int = 256  // 0 = disabled
     var monitorIntervalMs: Long = 5000
 
-    // Baseline settings (Phase 7)
+    // Baseline settings
     var useBaseline: Boolean = true
     var baselineFilePath: String = "leak-baseline.json"
 

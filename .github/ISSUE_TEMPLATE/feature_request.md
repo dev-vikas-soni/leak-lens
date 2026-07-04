@@ -1,8 +1,8 @@
 ---
-name: Feature request
-about: Suggest an idea for this project
-title: ''
-labels: ''
+name: "🚀 Feature Request"
+about: Suggest a new idea or improvement for LeakLens.
+title: "[FEATURE] "
+labels: enhancement
 assignees: ''
 
 ---

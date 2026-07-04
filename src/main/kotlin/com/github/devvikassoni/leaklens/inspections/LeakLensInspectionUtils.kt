@@ -1,93 +1,89 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.github.devvikassoni.leaklens.services.LeakLensProjectService
-import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.psi.PsiClass
+import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiType
+import com.intellij.psi.util.InheritanceUtil
 import org.jetbrains.uast.UClass
 
 /**
  * Shared utility functions for LeakLens inspections.
- * Provides robust type checking and unified live issue reporting.
+ *
+ * Key performance improvement over the original implementation:
+ * - [isActivity], [isFragment], [isActivityOrFragment] now use [InheritanceUtil.isInheritor]
+ *   which is backed by the platform's [com.intellij.psi.util.CachedValuesManager].
+ *   This replaces a manual `while (superClass != null)` walk that was O(N) per call
+ *   and caused O(N²) highlighting lag on large files.
+ * - [isViewOrBindingType] excludes ViewModel/ViewHolder to reduce false positives.
  */
 object LeakLensInspectionUtils {
 
-    /**
-     * Reports a live issue to the LeakLens tool window.
-     * Called by inspections after visiting a file to ensure the dashboard is in sync.
-     */
-    fun reportLiveIssue(
-        holder: ProblemsHolder,
-        inspectionName: String,
-        fileIssues: List<LeakInfo>
-    ) {
-        val virtualFile = holder.file.virtualFile ?: return
-        LeakLensProjectService.getInstance(holder.project)
-            .updateLiveIssues(virtualFile.path, inspectionName, fileIssues)
-    }
+    // Exact FQNs for Android lifecycle classes.
+    // Using exact names prevents false positives from classes like "MyContextHelper".
+    private val ACTIVITY_FQNS = setOf(
+        "android.app.Activity",
+        "androidx.activity.ComponentActivity",
+        "androidx.appcompat.app.AppCompatActivity",
+    )
+
+    private val FRAGMENT_FQNS = setOf(
+        "android.app.Fragment",
+        "androidx.fragment.app.Fragment",
+    )
 
     /**
      * Checks if a class is an Activity, Fragment, or similar Android component.
+     * Uses [InheritanceUtil.isInheritor] which is backed by CachedValuesManager — O(1) amortised.
      */
     fun isActivityOrFragment(uClass: UClass): Boolean {
         return isActivity(uClass) || isFragment(uClass)
     }
 
     fun isActivity(uClass: UClass): Boolean {
-        return checkSuperTypes(uClass.javaPsi, "Activity")
+        val psi = uClass.javaPsi
+        return ACTIVITY_FQNS.any { fqn -> InheritanceUtil.isInheritor(psi, fqn) }
     }
 
     fun isFragment(uClass: UClass): Boolean {
-        return checkSuperTypes(uClass.javaPsi, "Fragment")
+        val psi = uClass.javaPsi
+        return FRAGMENT_FQNS.any { fqn -> InheritanceUtil.isInheritor(psi, fqn) }
     }
 
     /**
-     * Checks if a type is an Activity, Fragment, View, or Context.
+     * Checks if a [PsiClass] inherits from any of the Android UI component base classes.
+     * Fallback used by inspections that work directly with PSI rather than UAST.
+     */
+    fun isAndroidUiClass(psiClass: PsiClass): Boolean {
+        return (ACTIVITY_FQNS + FRAGMENT_FQNS).any { fqn ->
+            InheritanceUtil.isInheritor(psiClass, fqn)
+        }
+    }
+
+    /**
+     * Checks if a type is an Activity, Fragment, or Context.
+     * Uses [InheritanceUtil.isInheritor] for accurate semantic resolution.
      */
     fun isActivityOrFragmentType(type: PsiType): Boolean {
-        val text = type.canonicalText
-        return text.contains("Activity") ||
-                text.contains("Fragment") ||
-                text.contains("Context") ||
-                text.contains("android.app.Activity") ||
-                text.contains("androidx.fragment.app.Fragment") ||
-                text.contains("android.content.Context") ||
-                text.contains("androidx.appcompat.app.AppCompatActivity")
+        val psiClass = com.intellij.psi.util.PsiTypesUtil.getPsiClass(type) ?: return false
+        return (ACTIVITY_FQNS + FRAGMENT_FQNS + "android.content.Context").any { fqn ->
+            InheritanceUtil.isInheritor(psiClass, fqn)
+        }
     }
 
     /**
      * Checks if a type is a View or ViewBinding.
      */
     fun isViewOrBindingType(type: PsiType): Boolean {
-        val name = type.canonicalText
-        return name.contains("View") || name.contains("Binding") ||
-                name.contains("android.widget.") || name.contains("android.view.")
+        val psiClass = com.intellij.psi.util.PsiTypesUtil.getPsiClass(type) ?: return false
+        return InheritanceUtil.isInheritor(psiClass, "android.view.View") ||
+                type.canonicalText.contains("Binding")
     }
 
     /**
-     * Resolves the line number for a PSI element.
+     * Resolves the 1-based line number for a PSI element.
      */
-    fun getLineNumber(element: com.intellij.psi.PsiElement): Int {
+    fun getLineNumber(element: PsiElement): Int {
         val document = element.containingFile.viewProvider.document ?: return 0
         return document.getLineNumber(element.textRange.startOffset) + 1
-    }
-
-    private fun checkSuperTypes(psiClass: PsiClass, target: String): Boolean {
-        // 1. Resolved superclass chain
-        var current = psiClass.superClass
-        while (current != null) {
-            val name = current.qualifiedName ?: ""
-            if (name.contains(target)) return true
-            current = current.superClass
-        }
-        
-        // 2. Fallback: Check raw extends/implements list (handles mocks/stub files)
-        psiClass.extendsList?.referenceElements?.forEach { ref ->
-            if (ref.text.contains(target)) return true
-        }
-        
-        return false
     }
 }

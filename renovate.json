@@ -1,0 +1,32 @@
+{
+    "${schema}": "https://docs.renovatebot.com/renovate-schema.json",
+    "extends": [
+        "config:recommended",
+        ":separateMajorReleases",
+        ":combinePatchMinorReleases",
+        ":rebaseStalePrs"
+    ],
+    "packageRules": [
+        {
+            "groupName": "kotlin and intellij",
+            "matchPackagePatterns": [
+                "^org.jetbrains.kotlin",
+                "^org.jetbrains.intellij",
+                "io.gitlab.arturbosch.detekt"
+            ]
+        },
+        {
+            "groupName": "shark engine",
+            "matchPackageNames": [
+                "com.squareup.leakcanary:shark",
+                "com.squareup.leakcanary:shark-android"
+            ]
+        }
+    ],
+    "automerge": true,
+    "automergeType": "branch",
+    "major": {
+        "automerge": false
+    },
+    "timezone": "UTC"
+}

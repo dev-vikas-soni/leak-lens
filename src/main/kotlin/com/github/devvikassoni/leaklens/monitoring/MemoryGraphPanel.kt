@@ -74,12 +74,23 @@ class MemoryGraphPanel(private val project: Project) : JBPanel<MemoryGraphPanel>
                     graphData.clear()
                     graphData.addAll(snapshots)
                 }
-                ApplicationManager.getApplication().invokeLater {
-                    if (!project.isDisposed) {
-                        updateTooltip()
-                        graphCanvas.repaint()
-                    }
-                }
+                refreshUI()
+            }
+        }
+
+        // Listen for status changes
+        scope.launch {
+            monitor.status.collectLatest {
+                refreshUI()
+            }
+        }
+    }
+
+    private fun refreshUI() {
+        ApplicationManager.getApplication().invokeLater {
+            if (!project.isDisposed) {
+                updateTooltip()
+                graphCanvas.repaint()
             }
         }
     }
@@ -115,34 +126,39 @@ class MemoryGraphPanel(private val project: Project) : JBPanel<MemoryGraphPanel>
         val paddingTop = 25
         val paddingBottom = 40
 
+        val graphW = w - paddingLeft - paddingRight
+        val graphH = h - paddingTop - paddingBottom
+
+        // Always draw Background Grid to look "connected"
+        g2.color = gridColor
+        for (i in 0..4) {
+            val y = paddingTop + (graphH * i / 4)
+            g2.drawLine(paddingLeft, y, w - paddingRight, y)
+        }
+
+        // Always draw axes
+        g2.color = JBColor.border()
+        g2.drawLine(paddingLeft, h - paddingBottom, w - paddingRight, h - paddingBottom) // X
+        g2.drawLine(paddingLeft, paddingTop, paddingLeft, h - paddingBottom) // Y
+
         synchronized(graphData) {
             if (graphData.isEmpty()) {
                 g2.color = JBColor.GRAY
                 g2.font = JBFont.regular()
-                g2.drawString(
-                    "No memory data. Connect device and start monitoring.",
-                    paddingLeft,
-                    h / 2
-                )
+
+                val status = monitor.status.value
+                val message = when (status) {
+                    DeviceMemoryMonitor.Status.ERROR -> "Error: ${monitor.lastError.value ?: "ADB connection failed"}"
+                    DeviceMemoryMonitor.Status.DISCONNECTED -> "Monitor stopped. Click 'Start' to begin."
+                    DeviceMemoryMonitor.Status.CONNECTED -> "Connecting to process..."
+                }
+
+                g2.drawString(message, paddingLeft + 10, h / 2)
                 return
             }
 
             val maxVal = graphData.maxOf { maxOf(it.totalPss, it.javaHeap + it.nativeHeap) }
                 .coerceAtLeast(1024L * 10)
-            val graphW = w - paddingLeft - paddingRight
-            val graphH = h - paddingTop - paddingBottom
-
-            // Draw Background Grid
-            g2.color = gridColor
-            for (i in 0..4) {
-                val y = paddingTop + (graphH * i / 4)
-                g2.drawLine(paddingLeft, y, w - paddingRight, y)
-            }
-
-            // Draw axes
-            g2.color = JBColor.border()
-            g2.drawLine(paddingLeft, h - paddingBottom, w - paddingRight, h - paddingBottom) // X
-            g2.drawLine(paddingLeft, paddingTop, paddingLeft, h - paddingBottom) // Y
 
             // Y-axis labels
             g2.font = JBFont.small()

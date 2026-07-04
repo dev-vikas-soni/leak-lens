@@ -85,11 +85,18 @@ class UseApplicationContextFixAction : PsiElementBaseIntentionAction() {
 
     override fun invoke(project: Project, editor: Editor, element: PsiElement) {
         val isKotlin = element.language.id.equals("kotlin", ignoreCase = true)
-        val suffix = if (isKotlin) ".applicationContext" else ".getApplicationContext()"
-        val newText = "${element.text}$suffix"
-        
-        val document = editor.document
-        document.replaceString(element.textRange.startOffset, element.textRange.endOffset, newText)
-        PsiDocumentManager.getInstance(project).commitDocument(document)
+
+        if (isKotlin) {
+            val factory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
+            element.replace(factory.createExpression("${element.text}.applicationContext"))
+        } else {
+            val factory = JavaPsiFacade.getElementFactory(project)
+            element.replace(
+                factory.createExpressionFromText(
+                    "${element.text}.getApplicationContext()",
+                    element
+                )
+            )
+        }
     }
 }

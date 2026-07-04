@@ -1,10 +1,17 @@
 package com.github.devvikassoni.leaklens.services
 
+import com.github.devvikassoni.leaklens.ai.AiAnalysisService
+import com.github.devvikassoni.leaklens.baseline.LeakBaselineManager
+import com.github.devvikassoni.leaklens.compat.CompatibilityLogger
+import com.github.devvikassoni.leaklens.compat.ProgressFacade
+import com.github.devvikassoni.leaklens.deobfuscation.DeobfuscationService
+import com.github.devvikassoni.leaklens.fix.FixSuggestionEngine
 import com.github.devvikassoni.leaklens.model.LeakInfo
+import com.github.devvikassoni.leaklens.model.LeakSeverity
+import com.github.devvikassoni.leaklens.settings.LeakLensSettingsState
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.components.Service
-import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
@@ -12,16 +19,15 @@ import com.intellij.openapi.project.Project
 import java.io.File
 
 /**
- * Coordinates the full heap dump analysis pipeline:
- * 1. Pull .hprof from device (or use local file)
- * 2. Run Shark analysis
- * 3. Update project service with results
- * 4. Notify user
+ * Orchestrates the full memory leak analysis lifecycle.
+ *
+ * This coordinator manages the sequence of capturing heap dumps from devices,
+ * performing the analysis using the Shark engine, and updating the project
+ * state with the results. It handles user notifications and ensures long-running
+ * tasks are executed on background threads with appropriate progress reporting.
  */
 @Service(Service.Level.PROJECT)
 class LeakAnalysisCoordinator(private val project: Project) {
-
-    private val logger = thisLogger()
 
     /**
      * Analyze a heap dump from a remote device path.
@@ -33,8 +39,8 @@ class LeakAnalysisCoordinator(private val project: Project) {
                 projectService.setAnalyzing(true)
 
                 try {
-                    indicator.text = "Pulling heap dump from device..."
-                    indicator.fraction = 0.1
+                    ProgressFacade.setText(indicator, "Pulling heap dump from device...")
+                    ProgressFacade.setFraction(indicator, 0.1)
 
                     val adbService = AdbHeapDumpService.getInstance(project)
                     val localFile = adbService.pullHeapDump(deviceSerial, remotePath)
@@ -80,8 +86,8 @@ class LeakAnalysisCoordinator(private val project: Project) {
                 projectService.setAnalyzing(true)
 
                 try {
-                    indicator.text = "Triggering heap dump on device..."
-                    indicator.fraction = 0.05
+                    ProgressFacade.setText(indicator, "Triggering heap dump on device...")
+                    ProgressFacade.setFraction(indicator, 0.05)
 
                     val adbService = AdbHeapDumpService.getInstance(project)
                     val remotePath = adbService.triggerHeapDump(deviceSerial, packageName)
@@ -91,8 +97,15 @@ class LeakAnalysisCoordinator(private val project: Project) {
                         return
                     }
 
-                    indicator.text = "Pulling heap dump from device..."
-                    indicator.fraction = 0.2
+                    // Wait for the dump to be flushed to disk on the device
+                    ProgressFacade.setText(indicator, "Waiting for heap dump to complete...")
+                    for (i in 1..30) {
+                        ProgressFacade.checkCanceled(indicator)
+                        Thread.sleep(100) // Total 3 seconds safe wait
+                    }
+
+                    ProgressFacade.setText(indicator, "Pulling heap dump from device...")
+                    ProgressFacade.setFraction(indicator, 0.2)
 
                     val localFile = adbService.pullHeapDump(deviceSerial, remotePath)
 
@@ -105,6 +118,11 @@ class LeakAnalysisCoordinator(private val project: Project) {
                     adbService.deleteRemoteFile(deviceSerial, remotePath)
 
                     analyzeLocalFile(localFile, indicator)
+
+                    // Cleanup local hprof after analysis to avoid disk bloat
+                    if (localFile.exists()) {
+                        localFile.delete()
+                    }
                 } finally {
                     projectService.setAnalyzing(false)
                 }
@@ -116,27 +134,30 @@ class LeakAnalysisCoordinator(private val project: Project) {
         val fileSize = hprofFile.length()
         val fileSizeMb = fileSize / (1024 * 1024)
         val maxMemory = Runtime.getRuntime().maxMemory()
-        
+
         if (fileSize > maxMemory * 0.8) {
             notify("Heap dump (${fileSizeMb}MB) is very large relative to IDE memory. Analysis might crash or be extremely slow.", NotificationType.WARNING)
         }
 
         if (fileSizeMb > 500) {
-            indicator.text = "Large heap dump detected (${fileSizeMb}MB). This may take a while..."
+            ProgressFacade.setText(
+                indicator,
+                "Large heap dump detected (${fileSizeMb}MB). This may take a while..."
+            )
         } else {
-            indicator.text = "Running Shark heap analysis..."
+            ProgressFacade.setText(indicator, "Running Shark heap analysis...")
         }
-        indicator.fraction = 0.2
+        ProgressFacade.setFraction(indicator, 0.2)
 
         val sharkService = SharkAnalysisService.getInstance(project)
-        val rawLeaks = sharkService.analyzeHprof(hprofFile)
+        val rawLeaks = sharkService.analyzeHprof(hprofFile, indicator)
 
-        // Deobfuscation (Phase 7 - if mapping loaded)
-        indicator.text = "Deobfuscating traces..."
-        indicator.fraction = 0.4
-        val deobService = com.github.devvikassoni.leaklens.deobfuscation.DeobfuscationService.getInstance(project)
+        // Deobfuscation
+        ProgressFacade.setText(indicator, "Deobfuscating traces...")
+        ProgressFacade.setFraction(indicator, 0.4)
+        val deobService = DeobfuscationService.getInstance(project)
         if (!deobService.hasMappings()) {
-            val settings = com.github.devvikassoni.leaklens.settings.LeakLensSettingsState.getInstance(project)
+            val settings = LeakLensSettingsState.getInstance(project)
             if (settings.autoDetectMapping) {
                 deobService.autoDetectMappingFile()?.let { deobService.loadMappingFile(it) }
             }
@@ -154,34 +175,34 @@ class LeakAnalysisCoordinator(private val project: Project) {
         } else rawLeaks
 
         // Fix suggestions from static rule engine
-        indicator.text = "Generating fix suggestions..."
-        indicator.fraction = 0.55
+        ProgressFacade.setText(indicator, "Generating fix suggestions...")
+        ProgressFacade.setFraction(indicator, 0.55)
 
-        val fixEngine = com.github.devvikassoni.leaklens.fix.FixSuggestionEngine()
+        val fixEngine = FixSuggestionEngine()
         leaks = fixEngine.enrichWithFixes(leaks)
 
-        // AI-assisted analysis for leaks not matched by static rules (opt-in)
-        indicator.text = "AI analysis (if enabled)..."
-        indicator.fraction = 0.7
+        // AI-assisted analysis for leaks not matched by static rules
+        ProgressFacade.setText(indicator, "AI analysis (if enabled)...")
+        ProgressFacade.setFraction(indicator, 0.7)
 
-        val aiService = com.github.devvikassoni.leaklens.ai.AiAnalysisService.getInstance(project)
+        val aiService = AiAnalysisService.getInstance(project)
         if (aiService.isEnabled()) {
             leaks = aiService.enrichWithAiSuggestions(leaks)
         }
 
-        // Apply baseline filtering (Phase 7)
-        indicator.text = "Applying baseline..."
-        indicator.fraction = 0.85
+        // Apply baseline filtering
+        ProgressFacade.setText(indicator, "Applying baseline...")
+        ProgressFacade.setFraction(indicator, 0.85)
 
-        val settings = com.github.devvikassoni.leaklens.settings.LeakLensSettingsState.getInstance(project)
-        val baselineManager = com.github.devvikassoni.leaklens.baseline.LeakBaselineManager.getInstance(project)
+        val settings = LeakLensSettingsState.getInstance(project)
+        val baselineManager = LeakBaselineManager.getInstance(project)
         val allLeaks = leaks
         if (settings.useBaseline) {
             leaks = baselineManager.filterNewLeaks(leaks)
         }
 
-        indicator.text = "Processing results..."
-        indicator.fraction = 0.9
+        ProgressFacade.setText(indicator, "Processing results...")
+        ProgressFacade.setFraction(indicator, 0.9)
 
         val projectService = LeakLensProjectService.getInstance(project)
         projectService.updateLeaks(leaks)
@@ -189,7 +210,7 @@ class LeakAnalysisCoordinator(private val project: Project) {
         // Store in history (both in-memory and persistent)
         projectService.addToHistory(allLeaks, hprofFile.name)
 
-        indicator.fraction = 1.0
+        ProgressFacade.setFraction(indicator, 1.0)
 
         val suppressed = allLeaks.size - leaks.size
         val message = if (leaks.isEmpty() && suppressed == 0) {
@@ -197,16 +218,16 @@ class LeakAnalysisCoordinator(private val project: Project) {
         } else if (leaks.isEmpty()) {
             "All ${suppressed} leak(s) are in baseline. No new leaks! ✅"
         } else {
-            val critical = leaks.count { it.severity == com.github.devvikassoni.leaklens.model.LeakSeverity.CRITICAL }
-            val warning = leaks.count { it.severity == com.github.devvikassoni.leaklens.model.LeakSeverity.WARNING }
-            val library = leaks.count { it.severity == com.github.devvikassoni.leaklens.model.LeakSeverity.LIBRARY_LEAK }
+            val critical = leaks.count { it.severity == LeakSeverity.CRITICAL }
+            val warning = leaks.count { it.severity == LeakSeverity.WARNING }
+            val library = leaks.count { it.severity == LeakSeverity.LIBRARY_LEAK }
             val baselineNote = if (suppressed > 0) " ($suppressed suppressed by baseline)" else ""
             "Found ${leaks.size} leak(s): 🔴 $critical critical, 🟡 $warning warning, 🟢 $library library$baselineNote"
         }
 
         notify(message, if (leaks.isEmpty()) NotificationType.INFORMATION else NotificationType.WARNING)
 
-        logger.info("LeakLens: Analysis complete - ${leaks.size} leaks found from ${hprofFile.name}")
+        CompatibilityLogger.info("LeakLens: Analysis complete - ${leaks.size} leaks found from ${hprofFile.name}")
     }
 
     private fun notify(content: String, type: NotificationType) {

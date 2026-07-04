@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import java.util.concurrent.ConcurrentHashMap
 
 @Service(Service.Level.PROJECT)
 class LeakLensProjectService(private val project: Project, val scope: CoroutineScope) {
@@ -42,13 +44,12 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
     @Volatile
     var retainedClassNames: Set<String> = emptySet()
         private set
-    
+
     @Volatile
     var referenceChainClassNames: Set<String> = emptySet()
         private set
 
-    @Volatile
-    private var liveLeakyLines: Map<String, Set<Int>> = emptyMap()
+    private val liveLeakyLines = ConcurrentHashMap<String, Set<Int>>()
 
     private val _isAnalyzing = MutableStateFlow(false)
     val isAnalyzing: StateFlow<Boolean> = _isAnalyzing.asStateFlow()
@@ -65,69 +66,64 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
 
     fun updateLeaks(newLeaks: List<LeakInfo>) {
         _leaks.value = newLeaks
-        
+
         // Update caches for line markers
         retainedClassNames = newLeaks.map { it.retainedObjectClassName }.toSet()
         referenceChainClassNames = newLeaks.flatMap { leak -> leak.referenceChain.map { it.owningClassName } }.toSet()
-        
+
         logger.info("LeakLens: Updated with ${newLeaks.size} leak(s)")
     }
 
     fun updateLiveIssues(filePath: String, inspectionName: String, issues: List<LeakInfo>) {
-        synchronized(this) {
-            val currentFileMap = _liveIssues.value.toMutableMap()
-            val currentInspectionMap = currentFileMap[filePath]?.toMutableMap() ?: mutableMapOf()
-            
+        var updatedFileIssues: List<LeakInfo> = emptyList()
+        _liveIssues.update { currentFileMap ->
+            val newFileMap = currentFileMap.toMutableMap()
+            val currentInspectionMap = newFileMap[filePath]?.toMutableMap() ?: mutableMapOf()
+
             if (issues.isEmpty()) {
                 currentInspectionMap.remove(inspectionName)
             } else {
                 currentInspectionMap[inspectionName] = issues
             }
-            
-            if (currentInspectionMap.isEmpty()) {
-                currentFileMap.remove(filePath)
-            } else {
-                currentFileMap[filePath] = currentInspectionMap
-            }
-            
-            _liveIssues.value = currentFileMap
 
-            // Update line cache for gutter markers
-            val newLiveLeakyLines = liveLeakyLines.toMutableMap()
-            val fileIssues = currentFileMap[filePath]?.values?.flatten() ?: emptyList()
-            if (fileIssues.isEmpty()) {
-                newLiveLeakyLines.remove(filePath)
+            if (currentInspectionMap.isEmpty()) {
+                newFileMap.remove(filePath)
             } else {
-                // Extract line numbers from signatures like "static_leak_myField_42"
-                val lines =
-                    fileIssues.mapNotNull { it.signature.substringAfterLast('_').toIntOrNull() }
-                        .toSet()
-                newLiveLeakyLines[filePath] = lines
+                newFileMap[filePath] = currentInspectionMap
             }
-            liveLeakyLines = newLiveLeakyLines
+
+            updatedFileIssues = newFileMap[filePath]?.values?.flatten() ?: emptyList()
+            newFileMap
+        }
+
+        // Update line cache for gutter markers
+        if (updatedFileIssues.isEmpty()) {
+            liveLeakyLines.remove(filePath)
+        } else {
+            // Extract line numbers from signatures like "static_leak_myField_42"
+            val lines =
+                updatedFileIssues.mapNotNull { it.signature.substringAfterLast('_').toIntOrNull() }
+                    .toSet()
+            liveLeakyLines[filePath] = lines
         }
     }
 
     fun isLineLeaky(filePath: String, line: Int): Boolean {
-        return liveLeakyLines[filePath]?.contains(line) ?: false
+        return liveLeakyLines[filePath]?.contains(line) == true
     }
 
     fun clearLiveIssuesForFile(filePath: String) {
-        synchronized(this) {
-            val currentMap = _liveIssues.value.toMutableMap()
-            if (currentMap.remove(filePath) != null) {
-                _liveIssues.value = currentMap
-
-                val newLiveLeakyLines = liveLeakyLines.toMutableMap()
-                newLiveLeakyLines.remove(filePath)
-                liveLeakyLines = newLiveLeakyLines
-            }
+        _liveIssues.update { currentMap ->
+            val newMap = currentMap.toMutableMap()
+            newMap.remove(filePath)
+            newMap
         }
+        liveLeakyLines.remove(filePath)
     }
 
     fun clearAllLiveIssues() {
         _liveIssues.value = emptyMap()
-        liveLeakyLines = emptyMap()
+        liveLeakyLines.clear()
     }
 
     fun setAnalyzing(analyzing: Boolean) {
@@ -151,7 +147,7 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             libraryLeakCount = leaks.count { it.severity == LeakSeverity.LIBRARY_LEAK },
             leaks = leaks
         )
-        _history.value = _history.value + entry
+        _history.update { current -> (current + entry).takeLast(50) }
         logger.info("LeakLens: Added analysis to history (total: ${_history.value.size} entries)")
 
         // Persist to project-level storage

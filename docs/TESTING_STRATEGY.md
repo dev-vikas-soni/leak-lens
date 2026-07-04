@@ -44,80 +44,75 @@ Create a simple Android app with intentional leaks (see Section 5).
 
 ---
 
-## 3. Manual Testing Checklist
+## 3. Verification Checklists
 
-### Phase 1: Plugin Installation & Startup
-| # | Test Case | Steps | Expected Result | Pass? |
-|---|-----------|-------|----------------|-------|
-| 1.1 | Plugin installs | Install zip from disk, restart | No errors, plugin appears in Plugins list | ☐ |
-| 1.2 | Tool window visible | View → Tool Windows → LeakLens | LeakLens panel appears at bottom | ☐ |
-| 1.3 | Startup log | Check idea.log for "LeakLens: Plugin initialized" | Log message present | ☐ |
-| 1.4 | Settings page | Settings → Tools → LeakLens | Settings panel renders correctly | ☐ |
-| 1.5 | Tools menu | Tools menu bar | LeakLens submenu with all actions visible | ☐ |
+### 1. Installation & Startup
 
-### Phase 2: Device Connection & Heap Dump
-| # | Test Case | Steps | Expected Result | Pass? |
-|---|-----------|-------|----------------|-------|
-| 2.1 | Device detection | Connect device, Tools → LeakLens → Dump Heap Now | Device serial shown in selection | ☐ |
-| 2.2 | Process listing | After device selection | Debuggable processes listed | ☐ |
-| 2.3 | Heap dump trigger | Select process, confirm | Progress bar, then results in tool window | ☐ |
-| 2.4 | Import hprof | Tools → LeakLens → Import .hprof | File chooser opens, analysis runs | ☐ |
-| 2.5 | No device error | Disconnect device, Dump Heap Now | "No connected devices" notification | ☐ |
-| 2.6 | Auto-detect | Start Auto-Detect, trigger leak in app | Plugin auto-captures and analyzes | ☐ |
+| ID  | Feature        | Test Case               | Expected Result                    | Pass? |
+|-----|----------------|-------------------------|------------------------------------|-------|
+| 1.1 | Plugin Loading | Install and restart IDE | ToolWindow "LeakLens" appears      | ☐     |
+| 1.2 | Initial UI     | Click "LeakLens" tab    | Empty state shown (Ready for dump) | ☐     |
+| 1.3 | Settings Panel | Go to Tools -> LeakLens | Configuration options appear       | ☐     |
 
-### Phase 3: UI & Navigation
-| #   | Test Case         | Steps                               | Expected Result                             | Pass? |
-|-----|-------------------|-------------------------------------|---------------------------------------------|-------|
-| 3.1 | Leak tree         | After analysis with leaks           | Tree grouped by Error/Warning/Info severity | ☐     |
-| 3.2 | Leak detail       | Click a leak in tree                | Right panel shows trace + fix               | ☐     |
-| 3.3 | Source navigation | Click blue class name in detail     | Editor opens at that class                  | ☐     |
-| 3.4 | Gutter icons      | Open a class that's in a leak trace | 🚫 or ⚠️ icon in gutter                     | ☐     |
-| 3.5 | History tab       | Switch to History tab               | Past analyses listed with timestamps        | ☐     |
-| 3.6 | Memory tab        | Start monitoring, view Memory tab   | Live graph updating                         | ☐     |
-| 3.7 | Empty state       | Clear all leaks                     | "No leaks detected" message shown           | ☐     |
+### 2. Device Connection & Heap Dump
 
-### Phase 4: Fix Suggestions
-| # | Test Case | Steps | Expected Result | Pass? |
-|---|-----------|-------|----------------|-------|
-| 4.1 | Static rule match | Leak with Activity in static field | Shows "Remove static reference" fix | ☐ |
-| 4.2 | Code snippet | View fix suggestion | Before/After code example shown | ☐ |
-| 4.3 | Quick fix (Alt+Enter) | Cursor on Handler field in Activity | "Add removeCallbacksAndMessages" appears | ☐ |
-| 4.4 | AI suggestion | Enable AI in settings, analyze novel leak | 🤖 badge on AI-generated suggestion | ☐ |
-| 4.5 | No fix available | Library/framework leak | "No fix suggestion available" shown | ☐ |
+| ID  | Feature           | Test Case                     | Expected Result                      | Pass? |
+|-----|-------------------|-------------------------------|--------------------------------------|-------|
+| 2.1 | Device Discovery  | Click "Dump Heap" with device | List of serials shown                | ☐     |
+| 2.2 | Process Discovery | Select device                 | List of debuggable pkgs shown        | ☐     |
+| 2.3 | Trigger Dump      | Select process                | "Triggering..." notification appears | ☐     |
+| 2.4 | Pull Hprof        | Wait for dump                 | File pulled to local temp folder     | ☐     |
 
-### Phase 5: Static Inspections
-| # | Test Case | Steps | Expected Result | Pass? |
-|---|-----------|-------|----------------|-------|
-| 5.1 | Static field warning | Write `static Activity activity;` | Yellow squiggly underline | ☐ |
-| 5.2 | GlobalScope warning | Write `GlobalScope.launch{}` in Activity | Warning highlight | ☐ |
-| 5.3 | Handler warning | Add Handler field without cleanup | Warning on field name | ☐ |
-| 5.4 | Inspection settings | Settings → Editor → Inspections → LeakLens | All 6 inspections listed | ☐ |
-| 5.5 | Disable inspection | Uncheck one inspection | No longer shows warning | ☐ |
+### 3. UI & Navigation
 
-### Phase 6: Memory Monitoring
-| # | Test Case | Steps | Expected Result | Pass? |
-|---|-----------|-------|----------------|-------|
-| 6.1 | Start monitor | Tools → LeakLens → Start Memory Monitor | "Monitoring..." notification | ☐ |
-| 6.2 | Graph updates | View Memory tab while app runs | Lines moving on graph | ☐ |
-| 6.3 | Stop monitor | Tools → LeakLens → Stop Memory Monitor | Graph freezes, "stopped" msg | ☐ |
-| 6.4 | Auto-trigger | Set threshold to 50MB, allocate memory in app | Auto heap dump notification | ☐ |
+| ID  | Feature           | Test Case                       | Expected Result                   | Pass? |
+|-----|-------------------|---------------------------------|-----------------------------------|-------|
+| 3.1 | Leak Tree         | Finish analysis                 | Critical/Warning nodes shown      | ☐     |
+| 3.2 | Leak detail       | Click a leak in tree            | Right panel shows trace + fix     | ☐     |
+| 3.3 | Source navigation | Click blue class name in detail | Editor opens at that class        | ☐     |
+| 3.4 | Gutter Icons      | Open leaking class              | 🚫/⚠️ icon in gutter at leak line | ☐     |
 
-### Phase 7: Reports & Baselines
-| # | Test Case | Steps | Expected Result | Pass? |
-|---|-----------|-------|----------------|-------|
-| 7.1 | Export HTML | Tools → LeakLens → Export Report → .html | HTML file with leak table + traces | ☐ |
-| 7.2 | Export JSON | Export as .json | Valid JSON with all leak data | ☐ |
-| 7.3 | Export SARIF | Export as .sarif | Valid SARIF 2.1.0 schema | ☐ |
-| 7.4 | Save baseline | Tools → LeakLens → Save as Baseline | leak-baseline.json created in project root | ☐ |
-| 7.5 | Baseline filtering | Re-analyze after baseline | Baseline leaks suppressed, notification shows "(X suppressed)" | ☐ |
+### 4. Fix Suggestions
 
-### Phase 8: Settings & Configuration
-| # | Test Case | Steps | Expected Result | Pass? |
-|---|-----------|-------|----------------|-------|
-| 8.1 | Change threshold | Set to 100MB, apply | Setting persisted across restart | ☐ |
-| 8.2 | Toggle AI | Enable AI, set provider + key | AI suggestions appear on next analysis | ☐ |
-| 8.3 | Disable gutter | Uncheck "Show gutter icons" | Gutter markers disappear | ☐ |
-| 8.4 | Deobfuscation | Import obfuscated hprof with mapping.txt | Class names shown deobfuscated | ☐ |
+| ID  | Feature           | Test Case                                 | Expected Result                     | Pass? |
+|-----|-------------------|-------------------------------------------|-------------------------------------|-------|
+| 4.1 | Static Rule Match | Analyze static Activity ref               | Suggested fix: "Use WeakReference"  | ☐     |
+| 4.2 | 1-Click QuickFix  | Alt+Enter on gutter warning               | Code transformed automatically      | ☐     |
+| 4.3 | Compose Rule      | Pass Context to ViewModel                 | ERROR: "Passing Context in Compose" | ☐     |
+| 4.4 | AI suggestion     | Enable AI in settings, analyze novel leak | 🤖 badge on suggestion              | ☐     |
+| 4.5 | No fix available  | Library/framework leak                    | "Fix details not found" shown       | ☐     |
+
+### 5. Static Inspections
+
+| ID  | Feature       | Test Case                            | Expected Result               | Pass? |
+|-----|---------------|--------------------------------------|-------------------------------|-------|
+| 5.1 | Activity Leak | Define static Activity field         | Highlighted as potential leak | ☐     |
+| 5.2 | Inner Class   | Non-static Handler in Activity       | Highlighted as potential leak | ☐     |
+| 5.3 | Hilt Scope    | @Singleton injecting @ActivityScoped | Highlighted as scope mismatch | ☐     |
+
+### 6. Memory Monitoring
+
+| ID  | Feature          | Test Case                   | Expected Result                    | Pass? |
+|-----|------------------|-----------------------------|------------------------------------|-------|
+| 6.1 | Start Monitoring | Click "Start Monitor" icon  | Graph begins emitting points       | ☐     |
+| 6.2 | Tooltips         | Hover over graph            | PSS/Heap values displayed          | ☐     |
+| 6.3 | Auto-Dump        | Leak memory until threshold | Notification: "Threshold exceeded" | ☐     |
+
+### 7. Reports & Baselines
+
+| ID  | Feature        | Test Case                | Expected Result                     | Pass? |
+|-----|----------------|--------------------------|-------------------------------------|-------|
+| 7.1 | Export SARIF   | Action: Export -> SARIF  | Valid SARIF file generated          | ☐     |
+| 7.2 | Save Baseline  | Action: Save as Baseline | `leak-baseline.json` created        | ☐     |
+| 7.3 | Apply Baseline | Re-analyze with baseline | Matching leaks suppressed from view | ☐     |
+
+### 8. Settings & Configuration
+
+| ID  | Feature      | Test Case                     | Expected Result                   | Pass? |
+|-----|--------------|-------------------------------|-----------------------------------|-------|
+| 8.1 | Mapping File | Set custom ProGuard mapping   | Leaks are deobfuscated in UI      | ☐     |
+| 8.2 | Toggle AI    | Enable AI, set provider + key | AI suggestions appear on analysis | ☐     |
+| 8.3 | Persistence  | Restart IDE                   | History and settings are retained | ☐     |
 
 ---
 

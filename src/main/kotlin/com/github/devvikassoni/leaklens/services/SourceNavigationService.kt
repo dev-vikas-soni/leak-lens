@@ -1,7 +1,6 @@
 package com.github.devvikassoni.leaklens.services
 
 import com.github.devvikassoni.leaklens.model.LeakTraceReference
-import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
@@ -10,8 +9,11 @@ import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.search.GlobalSearchScope
 
 /**
- * Navigates to source code from leak trace references.
- * Uses JavaPsiFacade to resolve class names to PSI elements.
+ * Service responsible for resolving and navigating to source code locations.
+ *
+ * It maps leak trace components (classes, fields, methods) to physical source positions
+ * using the project's PSI index. Operations are performed asynchronously to maintain
+ * IDE responsiveness.
  */
 @Service(Service.Level.PROJECT)
 class SourceNavigationService(private val project: Project) {
@@ -22,81 +24,60 @@ class SourceNavigationService(private val project: Project) {
      * Navigate to a class in the editor.
      */
     fun navigateToClass(className: String) {
-        ApplicationManager.getApplication().invokeLater {
-            val psiClass = ApplicationManager.getApplication().runReadAction<com.intellij.psi.PsiClass?> {
-                JavaPsiFacade.getInstance(project)
-                    .findClass(className, GlobalSearchScope.allScope(project))
-            }
+        com.intellij.openapi.application.ReadAction.nonBlocking<OpenFileDescriptor?> {
+            val psiClass = JavaPsiFacade.getInstance(project)
+                .findClass(className, GlobalSearchScope.allScope(project))
+                ?: return@nonBlocking null
 
-            if (psiClass != null) {
-                val virtualFile = psiClass.containingFile?.virtualFile
-                if (virtualFile != null) {
-                    val offset = psiClass.textOffset
-                    OpenFileDescriptor(project, virtualFile, offset).navigate(true)
-                    logger.info("LeakLens: Navigated to class $className")
-                }
-            } else {
-                logger.warn("LeakLens: Could not find class $className in project")
-            }
+            val virtualFile = psiClass.containingFile?.virtualFile ?: return@nonBlocking null
+            OpenFileDescriptor(project, virtualFile, psiClass.textOffset)
         }
+            .finishOnUiThread(com.intellij.openapi.application.ModalityState.defaultModalityState()) { descriptor ->
+                descriptor?.navigate(true)
+                if (descriptor != null) logger.info("LeakLens: Navigated to class $className")
+            }.submit(com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService())
     }
 
     /**
      * Navigate to a specific field/method within a class.
      */
     fun navigateToReference(reference: LeakTraceReference) {
-        ApplicationManager.getApplication().invokeLater {
-            val psiClass = ApplicationManager.getApplication().runReadAction<com.intellij.psi.PsiClass?> {
-                JavaPsiFacade.getInstance(project)
-                    .findClass(reference.owningClassName, GlobalSearchScope.allScope(project))
+        com.intellij.openapi.application.ReadAction.nonBlocking<OpenFileDescriptor?> {
+            val psiClass = JavaPsiFacade.getInstance(project)
+                .findClass(reference.owningClassName, GlobalSearchScope.allScope(project))
+                ?: return@nonBlocking null
+
+            // Try to find the field
+            val field = psiClass.findFieldByName(reference.referenceName, false)
+            if (field != null) {
+                return@nonBlocking field.containingFile?.virtualFile?.let {
+                    OpenFileDescriptor(project, it, field.textOffset)
+                }
             }
 
-            if (psiClass != null) {
-                ApplicationManager.getApplication().runReadAction {
-                    // Try to find the field
-                    val field = psiClass.findFieldByName(reference.referenceName, false)
-                    if (field != null) {
-                        val virtualFile = field.containingFile?.virtualFile
-                        if (virtualFile != null) {
-                            ApplicationManager.getApplication().invokeLater {
-                                OpenFileDescriptor(project, virtualFile, field.textOffset).navigate(true)
-                            }
-                            return@runReadAction
-                        }
-                    }
-
-                    // Try to find method
-                    val methods = psiClass.findMethodsByName(reference.referenceName, false)
-                    if (methods.isNotEmpty()) {
-                        val method = methods.first()
-                        val virtualFile = method.containingFile?.virtualFile
-                        if (virtualFile != null) {
-                            ApplicationManager.getApplication().invokeLater {
-                                OpenFileDescriptor(project, virtualFile, method.textOffset).navigate(true)
-                            }
-                            return@runReadAction
-                        }
-                    }
-
-                    // Fall back to class navigation
-                    val virtualFile = psiClass.containingFile?.virtualFile
-                    if (virtualFile != null) {
-                        ApplicationManager.getApplication().invokeLater {
-                            OpenFileDescriptor(project, virtualFile, psiClass.textOffset).navigate(true)
-                        }
-                    }
+            // Try to find method
+            val method = psiClass.findMethodsByName(reference.referenceName, false).firstOrNull()
+            if (method != null) {
+                return@nonBlocking method.containingFile?.virtualFile?.let {
+                    OpenFileDescriptor(project, it, method.textOffset)
                 }
-            } else {
-                logger.warn("LeakLens: Could not find class ${reference.owningClassName}")
+            }
+
+            // Fall back to class navigation
+            psiClass.containingFile?.virtualFile?.let {
+                OpenFileDescriptor(project, it, psiClass.textOffset)
             }
         }
+            .finishOnUiThread(com.intellij.openapi.application.ModalityState.defaultModalityState()) { descriptor ->
+                descriptor?.navigate(true)
+            }.submit(com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService())
     }
 
     /**
      * Check if a class exists in the project scope.
      */
     fun isClassInProject(className: String): Boolean {
-        return ApplicationManager.getApplication().runReadAction<Boolean> {
+        return com.intellij.openapi.application.ReadAction.compute<Boolean, Throwable> {
             JavaPsiFacade.getInstance(project)
                 .findClass(className, GlobalSearchScope.projectScope(project)) != null
         }

@@ -10,7 +10,6 @@ import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UField
-import org.jetbrains.uast.UFile
 import org.jetbrains.uast.UParameter
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
@@ -70,7 +69,7 @@ class WorkerContextLeakInspection : LocalInspectionTool() {
                                 elementToHighlight,
                                 description,
                                 ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                UseApplicationContextFix(field.name ?: "context"),
+                                UseApplicationContextFix(field.name),
                                 AskGeminiFix(
                                     description,
                                     node.name ?: "Worker",
@@ -86,32 +85,16 @@ class WorkerContextLeakInspection : LocalInspectionTool() {
 
                     return false
                 }
-
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(holder, "WorkerContextLeak", fileIssues)
-                }
             },
-            arrayOf(UClass::class.java, UFile::class.java)
+            arrayOf(UClass::class.java)
         )
     }
 
     private fun isWorkerSubclass(uClass: UClass): Boolean {
         val psiClass = uClass.javaPsi
-        // Walk the superclass chain
-        var current = psiClass.superClass
-        while (current != null) {
-            val fqn = current.qualifiedName ?: ""
-            if (workerBaseClasses.contains(fqn)) return true
-            current = current.superClass
+        return workerBaseClasses.any { fqn ->
+            com.intellij.psi.util.InheritanceUtil.isInheritor(psiClass, fqn)
         }
-        // Fallback: raw extends text (handles mocks in test data)
-        psiClass.extendsList?.referenceElements?.forEach { ref ->
-            val text = ref.text
-            if (text == "Worker" || text == "ListenableWorker" ||
-                text == "CoroutineWorker" || text == "RxWorker"
-            ) return true
-        }
-        return false
     }
 
     private fun isContextField(field: UField): Boolean {

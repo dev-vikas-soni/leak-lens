@@ -1,0 +1,25 @@
+labels: [ "question" ]
+title: "[Q&A] "
+body:
+    -   type: markdown
+        attributes:
+            value: |
+                Thanks for asking a question! Before posting, please ensure you've checked the [User Manual](docs/USER_MANUAL.md).
+    -   type: textarea
+        id: question
+        attributes:
+            label: What are you trying to achieve?
+            description: A clear and concise description of what you're trying to do.
+        validations:
+            required: true
+    -   type: textarea
+        id: context
+        attributes:
+            label: Context (Environment, Code Snippets)
+            description: |
+                Please provide details about your environment:
+                - IDE Version
+                - Physical Device or Emulator
+                - Relevant code snippets or leak traces
+        validations:
+            required: true

@@ -13,7 +13,6 @@ import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UField
-import org.jetbrains.uast.UFile
 import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.toUElementOfType
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
@@ -72,16 +71,8 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
                     }
                     return false
                 }
-
-                override fun afterVisitFile(node: UFile) {
-                    LeakLensInspectionUtils.reportLiveIssue(
-                        holder,
-                        "MissingRemoveCallbacks",
-                        fileIssues
-                    )
-                }
             },
-            arrayOf(UClass::class.java, UFile::class.java)
+            arrayOf(UClass::class.java)
         )
     }
 
@@ -108,26 +99,41 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
             val element = descriptor.psiElement
             val uField = element.toUElementOfType<UField>() ?: return
             val uClass = uField.getContainingUClass() ?: return
-            
+
             if (element.language.id == "JAVA") {
                 val factory = JavaPsiFacade.getElementFactory(project)
                 val psiClass = uClass.javaPsi
-                val onDestroy = psiClass.findMethodsByName("onDestroy", false).firstOrNull() 
+                val onDestroy = psiClass.findMethodsByName("onDestroy", false).firstOrNull()
                     ?: psiClass.findMethodsByName("onDestroyView", false).firstOrNull()
-                
+
                 if (onDestroy != null) {
                     val body = onDestroy.body ?: return
                     body.addBefore(factory.createStatementFromText("$handlerName.removeCallbacksAndMessages(null);", psiClass), body.rBrace)
                 } else {
                     val newMethod = factory.createMethodFromText(
-                        "@Override protected void onDestroy() { super.onDestroy(); $handlerName.removeCallbacksAndMessages(null); }", 
+                        "@Override protected void onDestroy() { super.onDestroy(); $handlerName.removeCallbacksAndMessages(null); }",
                         psiClass
                     )
                     psiClass.add(newMethod)
                 }
-            } else {
-                val factory = JavaPsiFacade.getElementFactory(project)
-                element.parent.addBefore(factory.createCommentFromText("// LeakLens: Call $handlerName.removeCallbacksAndMessages(null) in onDestroy()", element), element)
+            } else if (element.language.id == "kotlin") {
+                val factory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
+                val ktClass =
+                    uClass.sourcePsi as? org.jetbrains.kotlin.psi.KtClassOrObject ?: return
+                val onDestroy =
+                    ktClass.declarations.filterIsInstance<org.jetbrains.kotlin.psi.KtNamedFunction>()
+                        .find { it.name == "onDestroy" || it.name == "onDestroyView" }
+
+                if (onDestroy != null) {
+                    val body = onDestroy.bodyBlockExpression ?: return
+                    val newExpr =
+                        factory.createExpression("$handlerName.removeCallbacksAndMessages(null)")
+                    body.addBefore(newExpr, body.rBrace)
+                } else {
+                    val newFunc =
+                        factory.createFunction("override fun onDestroy() {\n    super.onDestroy()\n    $handlerName.removeCallbacksAndMessages(null)\n}")
+                    ktClass.addDeclaration(newFunc)
+                }
             }
         }
     }

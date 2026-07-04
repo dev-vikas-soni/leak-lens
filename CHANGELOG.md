@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-06
+
+### Fixed
+
+- **CI Fix**: Enabled Detekt SARIF reports to resolve workflow failures and properly surface code
+  quality issues.
+- **Test Hardening**: Fixed whitespace issues in `UastInspectionsTest` data markers for consistent
+  CI results.
+- **Compatibility**: Reverted to more compatible `ddmlib` APIs to prevent `NoSuchMethodError` on
+  older IDE versions.
+
+### Added
+
+- **Direct Feedback**: Integrated a "Rate LeakLens" action in the Tools menu.
+- **SEO Optimization**: Refined plugin name and Marketplace description for peak discoverability.
+
 ## [0.2.1] - 2026-07-04
 
 ### Added
@@ -184,7 +200,9 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.1...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.2...HEAD
+
+[0.2.2]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.1...0.2.2
 [0.2.1]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.0...0.2.1
 [0.2.0]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.9...0.2.0
 [0.1.9]: https://github.com/dev-vikas-soni/leak-lens/compare/0.1.8...0.1.9

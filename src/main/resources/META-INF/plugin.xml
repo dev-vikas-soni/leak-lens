@@ -33,7 +33,14 @@
     ]]></description>
 
     <change-notes><![CDATA[
-        <h4>0.2.0</h4>
+        <h4>0.2.2</h4>
+        <ul>
+            <li><b>CI Reliability</b>: Enabled Detekt SARIF reports to ensure consistent static analysis monitoring in automated pipelines.</li>
+            <li><b>SEO & Branding</b>: Optimized plugin metadata and name for better discoverability in the JetBrains Marketplace.</li>
+            <li><b>API Stability</b>: Resolved binary compatibility issues and updated Shark analysis to use the latest stable engine APIs.</li>
+            <li><b>User Feedback</b>: Added a direct "Rate LeakLens" action to make it easier for the community to share feedback.</li>
+        </ul>
+        <h4>0.2.1</h4>
         <ul>
             <li><b>Static analysis</b>: Potential leaks (Static Fields, Inner Classes, Context leaks) are now detected as you type with real-time highlighting and gutter markers.</li>
             <li><b>Status bar widget</b>: A new counter in the IDE status bar provides a persistent health check for your project.</li>

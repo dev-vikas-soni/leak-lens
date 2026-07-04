@@ -35,7 +35,7 @@
     <change-notes><![CDATA[
         <h4>0.2.3</h4>
         <ul>
-            <li><b>CI Stability</b>: Relaxed Detekt rules and fixed configuration to get CI green while maintaining code quality monitoring.</li>
+            <li><b>CI Stability</b>: Resolved UAST inspection test failures and relaxed Detekt rules to ensure a stable build pipeline.</li>
             <li><b>Growth Update</b>: Finalized SEO-optimized branding and direct Marketplace feedback actions.</li>
         </ul>
         <h4>0.2.2</h4>

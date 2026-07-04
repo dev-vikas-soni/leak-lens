@@ -8,6 +8,7 @@
 
 ### Fixed
 - **CI Build**: Fixed Detekt configuration and relaxed thresholds to resolve build failures in automated pipelines.
+- **Tests**: Resolved 6 failing UAST inspection tests by correcting test data highlighting markers.
 - **Dependencies**: Added `detekt-formatting` plugin to support code style rules.
 
 ## [0.2.2] - 2026-07-06

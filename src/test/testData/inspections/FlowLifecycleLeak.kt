@@ -47,17 +47,15 @@ class FlowLifecycleLeak : Activity() {
     fun observeFlows(myFlow: Flow<String>) {
         // Bad: Collecting directly in launch
         GlobalScope.launch {
-            myFlow.< error descr =
-                "LeakLens: Unsafe Flow collection. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks." > collect < / error > { value ->
-                    println(value)
-                }
+            myFlow.<error descr="LeakLens: Unsafe Flow collection. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks.">collect</error> { value ->
+                println(value)
+            }
         }
 
         // Bad: launchIn without lifecycle awareness
-        myFlow.< error descr =
-            "LeakLens: Unsafe Flow collection. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks." > launchIn < / error >(
-                GlobalScope
-            )
+        myFlow.<error descr="LeakLens: Unsafe Flow collection. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks.">launchIn</error>(
+            GlobalScope
+        )
 
         // Good: Using repeatOnLifecycle
         GlobalScope.launch {
@@ -72,10 +70,9 @@ class FlowLifecycleLeak : Activity() {
     @Composable
     fun MyComposable(myFlow: Flow<String>) {
         // Bad: collectAsState in Compose
-        myFlow.< error descr =
-            "LeakLens: Unsafe use of collectAsState(). Use collectAsStateWithLifecycle() for better memory management in Compose." > collectAsState < / error >(
-                ""
-            )
+        myFlow.<error descr="LeakLens: Unsafe use of collectAsState(). Use collectAsStateWithLifecycle() for better memory management in Compose.">collectAsState</error>(
+            ""
+        )
 
         // Good: collectAsStateWithLifecycle
         myFlow.collectAsStateWithLifecycle("")

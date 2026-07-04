@@ -12,13 +12,11 @@ class MyViewModel : ViewModel() {
 @Composable
 fun MyScreen(viewModel: MyViewModel, context: Context) {
     // Bad: Passing context to ViewModel inside Composable
-    viewModel.setContext(< error descr =
-        "LeakLens: Passing Context/Activity to a ViewModel in Compose causes leaks. Use LocalContext only for UI operations." > context < / error >)
+    viewModel.setContext(<error descr="LeakLens: Passing Context/Activity to a ViewModel in Compose causes leaks. Use LocalContext only for UI operations.">context</error>)
 
     // Bad: Capturing context in remember
     remember {
-        MyHelper(< error descr =
-            "LeakLens: Context captured in remember { } can outlive Activity. Use rememberUpdatedState or pass Context as a key." > context < / error >)
+        MyHelper(<error descr="LeakLens: Context captured in remember { } can outlive Activity. Use rememberUpdatedState or pass Context as a key.">context</error>)
     }
 }
 

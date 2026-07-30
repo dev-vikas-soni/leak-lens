@@ -10,23 +10,23 @@ object AiUtils {
     fun askGemini(project: Project, leak: LeakInfo): String {
         val prompt = """
             # Android Memory Leak Analysis Request
-            
+
             I have detected a memory leak using LeakCanary Shark. Please analyze the following details and provide a specific fix.
-            
+
             ## Leak Details
             * **Leaking Class**: `${leak.retainedObjectClassName}`
             * **Description**: ${leak.shortDescription}
             * **Retained Size**: ${leak.retainedByteSize / 1024} KB
-            
+
             ## Reference Chain
             ${leak.referenceChain.joinToString("\n") { "↓ ${it.owningClassName}.${it.referenceName} (${it.referenceType})" }}
-            
+
             ## Full Leak Trace
             ```
             ${leak.leakTrace}
             ```
-            
-            Please suggest the best way to fix this. 
+
+            Please suggest the best way to fix this.
             **Requirements:**
             1. Provide an idiomatic Kotlin solution (e.g., using `weakReference`, `Lifecycle` observers, `repeatOnLifecycle`, or `autoCleared` delegates).
             2. Explain the root cause of the leak in 2 sentences.

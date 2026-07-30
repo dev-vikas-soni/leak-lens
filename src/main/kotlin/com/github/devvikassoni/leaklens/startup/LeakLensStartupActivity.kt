@@ -25,5 +25,11 @@ class LeakLensStartupActivity : ProjectActivity {
         if (settings.autoDetectEnabled) {
             listener.startListening()
         }
+
+        // Run auto-cleanup if enabled
+        if (settings.autoCleanupOnStart) {
+            com.github.devvikassoni.leaklens.services.AdbHeapDumpService.getInstance(project)
+                .clearLocalSnapshots()
+        }
     }
 }

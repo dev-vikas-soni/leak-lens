@@ -5,7 +5,10 @@ import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.services.SourceNavigationService
 import com.intellij.icons.AllIcons
+import com.intellij.openapi.fileChooser.FileChooser
+import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.AlignX
@@ -62,6 +65,18 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         isVisible = false
     }
 
+    private val verifyFixButton = JButton("Verify Fix").apply {
+        icon = AllIcons.Actions.Execute
+        toolTipText = "Trigger a new heap dump to verify if the fix resolved the leak"
+        isVisible = false
+    }
+
+    private val linkMappingButton = JButton("Link mapping.txt").apply {
+        icon = AllIcons.Actions.ListFiles
+        toolTipText = "Trace appears obfuscated. Select a ProGuard/R8 mapping file to deobfuscate."
+        isVisible = false
+    }
+
     private val emptyStatePanel = panel {
         row {
             icon(AllIcons.General.Information).align(AlignX.CENTER)
@@ -107,10 +122,12 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
 
     init {
         border = JBUI.Borders.empty(8)
-        
+
         val header = panel {
             row {
                 cell(severityLabel)
+                cell(linkMappingButton).align(AlignX.RIGHT)
+                cell(verifyFixButton).align(AlignX.RIGHT)
                 cell(askGeminiButton).align(AlignX.RIGHT)
             }
             row {
@@ -197,6 +214,59 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             fixSuggestionArea.text = "PROMPT COPIED TO CLIPBOARD:\n\n$prompt"
         }
 
+        // Configure Verify Fix button
+        val coordinator =
+            com.github.devvikassoni.leaklens.services.LeakAnalysisCoordinator.getInstance(project)
+        verifyFixButton.isVisible = coordinator.lastDumpContext != null
+        for (al in verifyFixButton.actionListeners) verifyFixButton.removeActionListener(al)
+        verifyFixButton.addActionListener {
+            val context = coordinator.lastDumpContext
+            if (context != null) {
+                coordinator.triggerAndAnalyze(context.deviceSerial, context.packageName)
+            }
+        }
+
+        // Configure Mapping button
+        val deobService =
+            com.github.devvikassoni.leaklens.deobfuscation.DeobfuscationService.getInstance(project)
+        linkMappingButton.isVisible = !deobService.hasMappings()
+        for (al in linkMappingButton.actionListeners) linkMappingButton.removeActionListener(al)
+        linkMappingButton.addActionListener {
+            val descriptor = FileChooserDescriptor(true, false, false, false, false, false)
+                .withTitle("Select ProGuard/R8 Mapping File")
+                .withDescription("Choose the mapping.txt file for the current build to deobfuscate the leak trace.")
+
+            val file = FileChooser.chooseFile(descriptor, project, null)
+            if (file != null) {
+                if (deobService.loadMappingFile(java.io.File(file.path))) {
+                    // Update settings for persistence
+                    val settings =
+                        com.github.devvikassoni.leaklens.settings.LeakLensSettingsState.getInstance(
+                            project
+                        )
+                    settings.mappingFilePath = file.path
+
+                    // Refresh current view with deobfuscated data
+                    currentLeak?.let { leak ->
+                        val deobLeak = leak.copy(
+                            retainedObjectClassName = deobService.deobfuscateClassName(leak.retainedObjectClassName),
+                            leakTrace = deobService.deobfuscateTrace(leak.leakTrace),
+                            referenceChain = leak.referenceChain.map { ref ->
+                                ref.copy(owningClassName = deobService.deobfuscateClassName(ref.owningClassName))
+                            }
+                        )
+                        showLeakDetail(deobLeak)
+                    }
+                } else {
+                    Messages.showErrorDialog(
+                        project,
+                        "Failed to parse mapping file. Ensure it is a valid ProGuard/R8 format.",
+                        "Deobfuscation Error"
+                    )
+                }
+            }
+        }
+
         buildClickableTrace(leak)
 
         val fix = leak.suggestedFix
@@ -220,6 +290,8 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         tracePane.text = ""
         fixSuggestionArea.text = ""
         askGeminiButton.isVisible = false
+        verifyFixButton.isVisible = false
+        linkMappingButton.isVisible = false
 
         (mainContent.layout as CardLayout).show(mainContent, "EMPTY")
     }
@@ -247,7 +319,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             doc.insertString(doc.length, ".${ref.referenceName}", linkStyle)
             doc.insertString(doc.length, " (${ref.referenceType})\n", normalStyle)
         }
-        
+
         doc.insertString(doc.length, "\n═══ FULL TRACE ═══\n\n", normalStyle)
         doc.insertString(doc.length, leak.leakTrace, normalStyle)
     }

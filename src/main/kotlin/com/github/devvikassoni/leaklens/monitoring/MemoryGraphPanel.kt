@@ -8,14 +8,23 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
+import java.awt.BasicStroke
+import java.awt.BorderLayout
+import java.awt.Color
+import java.awt.Dimension
+import java.awt.Graphics
+import java.awt.Graphics2D
+import java.awt.Polygon
+import java.awt.RenderingHints
+import javax.swing.SwingConstants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.awt.*
-import javax.swing.SwingConstants
 
 /**
  * Real-time memory graph panel (lite profiler).
@@ -28,7 +37,7 @@ class MemoryGraphPanel(private val project: Project) : JBPanel<MemoryGraphPanel>
     Disposable {
 
     private val monitor = DeviceMemoryMonitor.getInstance(project)
-    private val graphData = mutableListOf<DeviceMemoryMonitor.MemorySnapshot>()
+    private val graphData = MutableStateFlow<List<DeviceMemoryMonitor.MemorySnapshot>>(emptyList())
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     // Theme-aware colors
@@ -55,13 +64,19 @@ class MemoryGraphPanel(private val project: Project) : JBPanel<MemoryGraphPanel>
 
         val header = JBPanel<JBPanel<*>>(BorderLayout()).apply {
             isOpaque = false
-            add(JBLabel("Real-time Memory (Lite Profiler)", SwingConstants.LEFT).apply {
-                font = JBFont.label().asBold()
-            }, BorderLayout.WEST)
-            add(JBLabel("Updating every 5s", SwingConstants.RIGHT).apply {
-                font = JBFont.small()
-                foreground = JBColor.GRAY
-            }, BorderLayout.EAST)
+            add(
+                JBLabel("Real-time Memory (Lite Profiler)", SwingConstants.LEFT).apply {
+                    font = JBFont.label().asBold()
+                },
+                BorderLayout.WEST
+            )
+            add(
+                JBLabel("Updating every 5s", SwingConstants.RIGHT).apply {
+                    font = JBFont.small()
+                    foreground = JBColor.GRAY
+                },
+                BorderLayout.EAST
+            )
         }
 
         add(header, BorderLayout.NORTH)
@@ -70,10 +85,7 @@ class MemoryGraphPanel(private val project: Project) : JBPanel<MemoryGraphPanel>
         // Poll snapshots reactively
         scope.launch {
             monitor.memorySnapshots.collectLatest { snapshots ->
-                synchronized(graphData) {
-                    graphData.clear()
-                    graphData.addAll(snapshots)
-                }
+                graphData.update { snapshots }
                 refreshUI()
             }
         }
@@ -96,7 +108,7 @@ class MemoryGraphPanel(private val project: Project) : JBPanel<MemoryGraphPanel>
     }
 
     private fun updateTooltip() {
-        val current = synchronized(graphData) { graphData.lastOrNull() }
+        val current = graphData.value.lastOrNull()
         if (current != null) {
             toolTipText = """
                 <html>
@@ -141,86 +153,90 @@ class MemoryGraphPanel(private val project: Project) : JBPanel<MemoryGraphPanel>
         g2.drawLine(paddingLeft, h - paddingBottom, w - paddingRight, h - paddingBottom) // X
         g2.drawLine(paddingLeft, paddingTop, paddingLeft, h - paddingBottom) // Y
 
-        synchronized(graphData) {
-            if (graphData.isEmpty()) {
-                g2.color = JBColor.GRAY
-                g2.font = JBFont.regular()
-
-                val status = monitor.status.value
-                val message = when (status) {
-                    DeviceMemoryMonitor.Status.ERROR -> "Error: ${monitor.lastError.value ?: "ADB connection failed"}"
-                    DeviceMemoryMonitor.Status.DISCONNECTED -> "Monitor stopped. Click 'Start' to begin."
-                    DeviceMemoryMonitor.Status.CONNECTED -> "Connecting to process..."
-                }
-
-                g2.drawString(message, paddingLeft + 10, h / 2)
-                return
-            }
-
-            val maxVal = graphData.maxOf { maxOf(it.totalPss, it.javaHeap + it.nativeHeap) }
-                .coerceAtLeast(1024L * 10)
-
-            // Y-axis labels
-            g2.font = JBFont.small()
+        val data = graphData.value
+        if (data.isEmpty()) {
             g2.color = JBColor.GRAY
-            g2.drawString("${maxVal / 1024}MB", 2, paddingTop + 5)
-            g2.drawString("${(maxVal / 2) / 1024}MB", 2, paddingTop + (graphH / 2) + 5)
-            g2.drawString("0", 2, h - paddingBottom)
+            g2.font = JBFont.regular()
 
-            // Draw lines with area fill
-            val stepX = graphW.toFloat() / (graphData.size - 1).coerceAtLeast(1)
+            val status = monitor.status.value
+            val message = when (status) {
+                DeviceMemoryMonitor.Status.ERROR ->
+                    "Error: ${monitor.lastError.value ?: "ADB connection failed"}"
 
-            drawMemoryLine(
-                g2,
-                graphData.map { it.totalPss },
-                maxVal,
-                stepX,
-                graphH,
-                paddingLeft,
-                paddingTop,
-                totalPssColor,
-                true
-            )
-            drawMemoryLine(
-                g2,
-                graphData.map { it.javaHeap },
-                maxVal,
-                stepX,
-                graphH,
-                paddingLeft,
-                paddingTop,
-                javaHeapColor,
-                false
-            )
-            drawMemoryLine(
-                g2,
-                graphData.map { it.nativeHeap },
-                maxVal,
-                stepX,
-                graphH,
-                paddingLeft,
-                paddingTop,
-                nativeHeapColor,
-                false
-            )
+                DeviceMemoryMonitor.Status.DISCONNECTED ->
+                    "Monitor stopped. Click 'Start' to begin."
 
-            // Modern Legend (Bottom)
-            val legendX = paddingLeft
-            val legendY = h - 15
-            renderLegendItem(g2, legendX, legendY, totalPssColor, "Total PSS")
-            renderLegendItem(g2, legendX + 90, legendY, javaHeapColor, "Java Heap")
-            renderLegendItem(g2, legendX + 185, legendY, nativeHeapColor, "Native")
-
-            // Current summary text
-            val current = graphData.lastOrNull()
-            if (current != null) {
-                g2.color = JBColor.foreground()
-                g2.font = JBFont.small().asBold()
-                val summary =
-                    "Total: ${current.totalPss / 1024}MB | Java: ${current.javaHeap / 1024}MB"
-                val metrics = g2.fontMetrics
-                g2.drawString(summary, w - metrics.stringWidth(summary) - paddingRight, legendY)
+                DeviceMemoryMonitor.Status.CONNECTED ->
+                    "Connecting to process..."
             }
+
+            g2.drawString(message, paddingLeft + 10, h / 2)
+            return
+        }
+
+        val maxVal = data.maxOf { maxOf(it.totalPss, it.javaHeap + it.nativeHeap) }
+            .coerceAtLeast(1024L * 10)
+
+        // Y-axis labels
+        g2.font = JBFont.small()
+        g2.color = JBColor.GRAY
+        g2.drawString("${maxVal / 1024}MB", 2, paddingTop + 5)
+        g2.drawString("${(maxVal / 2) / 1024}MB", 2, paddingTop + (graphH / 2) + 5)
+        g2.drawString("0", 2, h - paddingBottom)
+
+        // Draw lines with area fill
+        val stepX = graphW.toFloat() / (data.size - 1).coerceAtLeast(1)
+
+        drawMemoryLine(
+            g2,
+            data.map { it.totalPss },
+            maxVal,
+            stepX,
+            graphH,
+            paddingLeft,
+            paddingTop,
+            totalPssColor,
+            fill = true
+        )
+        drawMemoryLine(
+            g2,
+            data.map { it.javaHeap },
+            maxVal,
+            stepX,
+            graphH,
+            paddingLeft,
+            paddingTop,
+            javaHeapColor,
+            fill = false
+        )
+        drawMemoryLine(
+            g2,
+            data.map { it.nativeHeap },
+            maxVal,
+            stepX,
+            graphH,
+            paddingLeft,
+            paddingTop,
+            nativeHeapColor,
+            fill = false
+        )
+
+        // Modern Legend (Bottom)
+        val legendX = paddingLeft
+        val legendY = h - 15
+        renderLegendItem(g2, legendX, legendY, totalPssColor, "Total PSS")
+        renderLegendItem(g2, legendX + 90, legendY, javaHeapColor, "Java Heap")
+        renderLegendItem(g2, legendX + 185, legendY, nativeHeapColor, "Native")
+
+        // Current summary text
+        val current = data.lastOrNull()
+        if (current != null) {
+            g2.color = JBColor.foreground()
+            g2.font = JBFont.small().asBold()
+            val summary =
+                "Total: ${current.totalPss / 1024}MB | Java: ${current.javaHeap / 1024}MB"
+            val metrics = g2.fontMetrics
+            g2.drawString(summary, w - metrics.stringWidth(summary) - paddingRight, legendY)
         }
     }
 

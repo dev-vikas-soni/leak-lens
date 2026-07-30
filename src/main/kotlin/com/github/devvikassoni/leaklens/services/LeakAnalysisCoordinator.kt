@@ -6,7 +6,6 @@ import com.github.devvikassoni.leaklens.compat.CompatibilityLogger
 import com.github.devvikassoni.leaklens.compat.ProgressFacade
 import com.github.devvikassoni.leaklens.deobfuscation.DeobfuscationService
 import com.github.devvikassoni.leaklens.fix.FixSuggestionEngine
-import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.settings.LeakLensSettingsState
 import com.intellij.notification.NotificationGroupManager
@@ -28,6 +27,14 @@ import java.io.File
  */
 @Service(Service.Level.PROJECT)
 class LeakAnalysisCoordinator(private val project: Project) {
+
+    /**
+     * Context of the last triggered heap dump to allow quick verification.
+     */
+    data class DumpContext(val deviceSerial: String?, val packageName: String)
+
+    var lastDumpContext: DumpContext? = null
+        private set
 
     /**
      * Analyze a heap dump from a remote device path.
@@ -80,6 +87,7 @@ class LeakAnalysisCoordinator(private val project: Project) {
      * Trigger a heap dump on the device and analyze it.
      */
     fun triggerAndAnalyze(deviceSerial: String?, packageName: String) {
+        lastDumpContext = DumpContext(deviceSerial, packageName)
         ProgressManager.getInstance().run(object : Task.Backgroundable(project, "LeakLens: Capturing & Analyzing Heap Dump", true) {
             override fun run(indicator: ProgressIndicator) {
                 val projectService = LeakLensProjectService.getInstance(project)

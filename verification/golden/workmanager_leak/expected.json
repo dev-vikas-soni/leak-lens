@@ -1,0 +1,7 @@
+{
+    "className": "com.github.devvikassoni.leaklens.sample.scenarios.workmanager.LeakyWorker",
+    "severity": "CRITICAL",
+    "referenceChain": [
+        "LeakyWorker.leakyContext"
+    ]
+}

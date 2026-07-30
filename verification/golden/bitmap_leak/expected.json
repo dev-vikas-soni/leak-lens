@@ -1,0 +1,7 @@
+{
+    "className": "android.graphics.Bitmap",
+    "severity": "CRITICAL",
+    "referenceChain": [
+        "BitmapCache.bitmaps"
+    ]
+}

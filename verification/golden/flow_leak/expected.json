@@ -1,0 +1,7 @@
+{
+    "className": "com.github.devvikassoni.leaklens.sample.scenarios.flow.LeakyFlowFragment",
+    "severity": "CRITICAL",
+    "referenceChain": [
+        "StandaloneCoroutine.parentContext"
+    ]
+}

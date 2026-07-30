@@ -1,0 +1,7 @@
+{
+    "className": "com.github.devvikassoni.leaklens.sample.scenarios.fragment.LeakyFragment",
+    "severity": "CRITICAL",
+    "referenceChain": [
+        "LeakyFragment.leakyView"
+    ]
+}

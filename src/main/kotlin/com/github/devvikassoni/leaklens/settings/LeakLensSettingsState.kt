@@ -1,6 +1,9 @@
 package com.github.devvikassoni.leaklens.settings
 
-import com.intellij.openapi.components.*
+import com.intellij.openapi.components.PersistentStateComponent
+import com.intellij.openapi.components.Service
+import com.intellij.openapi.components.State
+import com.intellij.openapi.components.Storage
 import com.intellij.openapi.project.Project
 import com.intellij.util.xmlb.XmlSerializerUtil
 
@@ -32,6 +35,10 @@ class LeakLensSettingsState : PersistentStateComponent<LeakLensSettingsState> {
     var maxHistoryEntries: Int = 50
     var persistHistory: Boolean =
         false // Changed default to false to prevent unexpected persistence
+
+    // Storage settings
+    var maxLocalSnapshots: Int = 5
+    var autoCleanupOnStart: Boolean = true
 
     // Monitoring settings
     var autoHeapDumpThresholdMb: Int = 256  // 0 = disabled

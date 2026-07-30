@@ -4,6 +4,27 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-06
+
+### Added
+
+- **Closed-Loop Verification**: New "Verify Fix" action to instantly re-test a fix against a fresh
+  heap dump.
+- **Semantic Deobfuscation**: Direct UI support for linking R8/ProGuard mapping files to resolve
+  obfuscated traces.
+- **Verification Platform**: Standalone JVM regression engine for deterministic analysis validation
+  against Golden Fixtures.
+- **Living Test Suite**: Multi-module Android `:sample-app` with 7+ deterministic leak scenarios.
+
+### Changed
+
+- **UI Concurrency**: Migrated memory profiling and graph updates to a non-blocking `StateFlow`
+  architecture for smoother IDE performance.
+- **Disk Governance**: Implemented an automated snapshot retention policy (max 5 dumps) and manual
+  cleanup actions.
+- **Documentation Overhaul**: Comprehensive JetBrains-style audit resulting in concise, technical,
+  and data-driven technical documentation.
+
 ## [0.2.3] - 2026-07-06
 
 ### Fixed
@@ -207,7 +228,9 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.3...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/0.3.0...HEAD
+
+[0.3.0]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.3...0.3.0
 [0.2.3]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.2...0.2.3
 [0.2.2]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.1...0.2.2
 [0.2.1]: https://github.com/dev-vikas-soni/leak-lens/compare/0.2.0...0.2.1

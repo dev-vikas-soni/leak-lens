@@ -1,0 +1,33 @@
+name: Analysis Regression Verification
+
+on:
+    push:
+        branches: [ main ]
+    pull_request:
+
+jobs:
+    verify-goldens:
+        name: Verify Shark Analysis Goldens
+        runs-on: ubuntu-latest
+        steps:
+            -   uses: actions/checkout@v4
+
+            -   name: Set up JDK 21
+                uses: actions/setup-java@v4
+                with:
+                    java-version: '21'
+                    distribution: 'zulu'
+                    cache: 'gradle'
+
+            -   name: Build Verification Engine
+                run: ./gradlew :verification:assemble
+
+            -   name: Run Verification Suite
+                run: ./gradlew :verification:verify
+
+            -   name: Upload Actual Results on Failure
+                if: failure()
+                uses: actions/upload-artifact@v4
+                with:
+                    name: verification-actuals
+                    path: verification/build/actual/

@@ -13,7 +13,7 @@ detekt {
     buildUponDefaultConfig = true
     allRules = false
     config.setFrom(file("config/detekt/detekt.yml"))
-    ignoreFailures = true
+    ignoreFailures = false
 }
 
 tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
@@ -22,7 +22,6 @@ tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
         xml.required.set(true)
         txt.required.set(true)
         sarif.required.set(true)
-        sarif.outputLocation.set(file("build/reports/detekt/detekt.sarif"))
     }
 }
 

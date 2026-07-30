@@ -11,7 +11,7 @@ If you're unsure how to use a feature or have a general question about memory le
   **: [Start a discussion](https://github.com/dev-vikas-soni/leak-lens/discussions) on our
   repository. This is the best place for community Q&A.
 * **Documentation**: Check the [User Manual](docs/USER_MANUAL.md)
-  or [Architectural Overview](docs/ARCHITECTURAL_OVERVIEW.md).
+  or [Architectural Deep-Dive](docs/ARCHITECTURE.md).
 
 ## 🐞 Found a Bug?
 

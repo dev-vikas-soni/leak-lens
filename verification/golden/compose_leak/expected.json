@@ -1,0 +1,7 @@
+{
+    "className": "android.app.Activity",
+    "severity": "CRITICAL",
+    "referenceChain": [
+        "ComposeScenario.leak"
+    ]
+}

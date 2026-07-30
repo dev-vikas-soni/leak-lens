@@ -35,8 +35,7 @@ If you are adding a new inspection, please include a test case in
 
 ## 🏗️ Architecture for Contributors
 
-Before diving into the code, please review
-the [Architectural Overview](docs/ARCHITECTURAL_OVERVIEW.md).
+Before diving into the code, please review the [Architectural Deep-Dive](docs/ARCHITECTURE.md).
 
 ### Key Components:
 

@@ -8,14 +8,17 @@ import com.intellij.execution.configurations.GeneralCommandLine
 import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.Disposable
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
-import com.intellij.openapi.Disposable
 import com.intellij.openapi.project.Project
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 /**
  * Service responsible for real-time device memory monitoring.
@@ -47,9 +50,9 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
 
     data class MemorySnapshot(
         val timestamp: Long = System.currentTimeMillis(),
-        val totalPss: Long = 0,           // KB
-        val javaHeap: Long = 0,           // KB
-        val nativeHeap: Long = 0,         // KB
+        val totalPss: Long = 0, // KB
+        val javaHeap: Long = 0, // KB
+        val nativeHeap: Long = 0, // KB
         val objects: Int = 0,
         val activities: Int = 0,
         val viewCount: Int = 0,
@@ -76,7 +79,8 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
                         consecutiveFailures = 0
                         _status.value = Status.CONNECTED
                         _currentMemory.value = snapshot
-                        _memorySnapshots.value = (_memorySnapshots.value + snapshot).takeLast(360) // ~30 min at 5s
+                        _memorySnapshots.value = (_memorySnapshots.value + snapshot).takeLast(360)
+                        // ~30 min at 5s
 
                         // Auto-trigger heap dump if threshold exceeded
                         checkThresholds(snapshot, deviceSerial, packageName)
@@ -84,8 +88,10 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
                         consecutiveFailures++
                         if (consecutiveFailures >= 3) {
                             _status.value = Status.ERROR
-                            _lastError.value =
-                                "Failed to query memory info repeatedly for '$packageName'. Ensure the app is running and debuggable."
+                            val message =
+                                "Failed to query memory info repeatedly for '$packageName'. " +
+                                        "Ensure the app is running and debuggable."
+                            _lastError.value = message
                         }
                     }
                 } catch (e: Exception) {
@@ -188,7 +194,8 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
             if (totalPss == 0L) {
                 val totalLine = output.lines().find { it.trim().startsWith("TOTAL") }
                 if (totalLine != null) {
-                    totalPss = Regex("""\d+""").findAll(totalLine).firstOrNull()?.value?.toLongOrNull() ?: 0L
+                    totalPss = Regex("""\d+""").findAll(totalLine)
+                        .firstOrNull()?.value?.toLongOrNull() ?: 0L
                 }
             }
 
@@ -210,7 +217,11 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
         return Regex("""\d+""").find(line)?.value?.toLongOrNull() ?: 0L
     }
 
-    private fun checkThresholds(snapshot: MemorySnapshot, deviceSerial: String?, packageName: String) {
+    private fun checkThresholds(
+        snapshot: MemorySnapshot,
+        deviceSerial: String?,
+        packageName: String
+    ) {
         val settings = LeakLensSettingsState.getInstance(project)
         val threshold = settings.autoHeapDumpThresholdMb
 
@@ -218,13 +229,18 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
 
         val javaHeapMb = snapshot.javaHeap / 1024
         if (javaHeapMb > threshold) {
-            logger.warn("LeakLens: Java heap ($javaHeapMb MB) exceeds threshold ($threshold MB). Auto-triggering heap dump.")
+            val logMsg = "Java heap ($javaHeapMb MB) exceeds threshold ($threshold MB). " +
+                    "Auto-triggering heap dump."
+            logger.warn("LeakLens: $logMsg")
+
+            val message = "Java heap ($javaHeapMb MB) exceeds threshold ($threshold MB). " +
+                    "Auto-capturing heap dump..."
 
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("LeakLens Notifications")
                 .createNotification(
                     "LeakLens",
-                    "Java heap ($javaHeapMb MB) exceeds threshold ($threshold MB). Auto-capturing heap dump...",
+                    message,
                     NotificationType.WARNING
                 )
                 .notify(project)

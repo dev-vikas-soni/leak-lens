@@ -13,9 +13,8 @@ public class LeakLensToolWindowFactory implements ToolWindowFactory, DumbAware {
 
     @Override
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
-        LeakListPanel leakListPanel = new LeakListPanel(project);
         LeakDetailPanel leakDetailPanel = new LeakDetailPanel(project);
-        LeakLensMainPanel mainPanel = new LeakLensMainPanel(project, leakListPanel, leakDetailPanel);
+        LeakLensMainPanel mainPanel = new LeakLensMainPanel(project, leakDetailPanel);
 
         // Tab 1: Leak Analysis
         Content leakContent = ContentFactory.getInstance().createContent(mainPanel, "Leaks", false);

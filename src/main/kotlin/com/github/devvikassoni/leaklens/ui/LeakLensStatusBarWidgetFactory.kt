@@ -10,12 +10,12 @@ import com.intellij.openapi.wm.StatusBarWidget
 import com.intellij.openapi.wm.StatusBarWidgetFactory
 import com.intellij.ui.components.JBLabel
 import com.intellij.util.ui.JBUI
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.onEach
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JComponent
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 
 class LeakLensStatusBarWidgetFactory : StatusBarWidgetFactory {
     override fun getId() = "LeakLensStatusBarWidget"
@@ -65,6 +65,10 @@ class LeakLensStatusBarWidgetFactory : StatusBarWidgetFactory {
         }
 
         override fun ID() = "LeakLensStatusBarWidget"
+
+        @Deprecated("Deprecated in Java", ReplaceWith("getComponent()"))
+        override fun getPresentation(): StatusBarWidget.WidgetPresentation? = null
+
         override fun getComponent(): JComponent = component
         override fun install(statusBar: StatusBar) {}
         override fun dispose() {}

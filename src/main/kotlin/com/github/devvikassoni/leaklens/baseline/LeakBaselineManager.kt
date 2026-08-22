@@ -5,9 +5,9 @@ import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
+import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.io.File
 
 /**
  * Manages the leak baseline, allowing known issues to be suppressed from future analysis.
@@ -29,12 +29,12 @@ class LeakBaselineManager(private val project: Project) {
     }
 
     fun loadBaseline() {
+        baselineSignatures.clear()
         try {
             if (baselineFile.exists()) {
                 val content = baselineFile.readText()
                 val signatures = Regex("\"signature\":\\s*\"([^\"]+)\"").findAll(content)
                     .map { it.groupValues[1] }.toSet()
-                baselineSignatures.clear()
                 baselineSignatures.addAll(signatures)
                 logger.info("LeakLens: Loaded ${baselineSignatures.size} baseline entries from ${baselineFile.name}")
             }

@@ -33,19 +33,20 @@
     ]]></description>
 
     <change-notes><![CDATA[
-        <h4>0.3.1</h4>
+        <h4>0.3.2</h4>
         <ul>
-            <li><b>Universal Support</b>: Expanded compatibility to support all active Android Studio versions from Koala (241) to Rabbit (262).</li>
-            <li><b>Marketplace Verification</b>: Fixed `org.jetbrains.android` resolution errors by targeting Android Studio for multi-version verification.</li>
-            <li><b>Build Infrastructure</b>: Centralized and optimized version management for better stability across the Android Studio ecosystem.</li>
+            <li><b>Platform Stability</b>: Fixed JetBrains Marketplace resolution errors for <code>org.jetbrains.android</code>.</li>
+            <li><b>API Modernization</b>: Resolved 9+ deprecated API usages to ensure future compatibility.</li>
+            <li><b>Universal IDE Support</b>: Validated compatibility across all active Android Studio branches (Koala through Rabbit).</li>
+            <li><b>Clean Architecture</b>: Pruned legacy UI components and dead code for a more performant and maintainable plugin.</li>
         </ul>
         <h4>0.3.0</h4>
         <ul>
-            <li><b>Closed-Loop Verification</b>: New "Verify Fix" action to instantly re-test a fix against a fresh heap dump.</li>
-            <li><b>Semantic Deobfuscation</b>: Direct UI support for linking R8/ProGuard mapping files.</li>
-            <li><b>UI Concurrency</b>: Migrated memory profiling to a non-blocking StateFlow architecture for zero-lag UI.</li>
-            <li><b>Disk Governance</b>: Automated snapshot retention policy to prevent host-side disk bloat.</li>
-            <li><b>Verification Platform</b>: Introduced a standalone regression engine and sample-app for deterministic analysis accuracy.</li>
+            <li><b>Closed-Loop Verification</b>: New "Verify Fix" action to re-test applied fixes against fresh heap dumps.</li>
+            <li><b>Semantic Deobfuscation</b>: Integrated support for R8/ProGuard mapping files in the trace view.</li>
+            <li><b>Verification Platform</b>: Introduced a JVM regression engine and deterministic <code>:sample-app</code> fixtures.</li>
+            <li><b>UI Performance</b>: Migrated to a non-blocking <code>StateFlow</code> architecture for zero-lag profiling.</li>
+            <li><b>Disk Governance</b>: Automated snapshot retention policy to manage local host-side storage.</li>
         </ul>
         <h4>0.2.3</h4>
         <ul>

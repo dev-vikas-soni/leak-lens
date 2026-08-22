@@ -80,7 +80,7 @@ class AnalyzeCurrentFileAction : AnAction(
                 val projectService = LeakLensProjectService.getInstance(project)
 
                 // Use read action to access PSI
-                com.intellij.openapi.application.runReadAction {
+                ApplicationManager.getApplication().runReadAction {
                     projectService.clearLiveIssuesForFile(virtualFile.path)
 
                     for (inspection in inspections) {
@@ -160,7 +160,7 @@ class AnalyzeProjectAction : AnAction(
                     )
 
                     // Use read action to access PSI
-                    com.intellij.openapi.application.runReadAction {
+                    ApplicationManager.getApplication().runReadAction {
                         val psiFile = PsiManager.getInstance(project).findFile(virtualFile)
                             ?: return@runReadAction
 
@@ -259,7 +259,7 @@ class AnalyzeSelectedFilesAction : AnAction(
                             index.toDouble() / filesToScan.size.coerceAtLeast(1)
                         )
 
-                        com.intellij.openapi.application.runReadAction {
+                        ApplicationManager.getApplication().runReadAction {
                             val psiFile = PsiManager.getInstance(project).findFile(virtualFile)
                                 ?: return@runReadAction
                             projectService.clearLiveIssuesForFile(virtualFile.path)

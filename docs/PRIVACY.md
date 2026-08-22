@@ -1,26 +1,26 @@
 # Data Handling & Privacy
 
-LeakLens follows a local-first architecture to ensure the security of your source code and heap
-dumps.
+LeakLens is designed with a local-first architecture to protect source code and sensitive
+application data.
 
 ## 1. Local Heap Analysis
 
-* **Offline Analysis**: All heap analysis (Shark engine) is performed locally within the IDE
-  process. No `.hprof` files are ever uploaded or transmitted.
-* **Ephemeral Storage**: Temporary heap dumps are stored in the system's temporary directory and are
-  managed by the configured retention policy (default: 5 snapshots).
+* **Offline Traversal**: Heap analysis (via the Shark engine) is performed locally on your machine.
+  **No HPROF files are ever uploaded or transmitted.**
+* **Storage**: Temporary heap dumps are stored in the system's `/tmp` directory. LeakLens enforces a
+  retention policy (default: 5 snapshots) to prevent disk bloat.
 
 ## 2. AI Fix Assistant
 
-LeakLens uses a clipboard-based interaction model for AI assistance:
+AI interactions are strictly user-initiated and governed by transparency controls:
 
-* **Manual Trigger**: No data is sent to AI providers automatically. Communication is only initiated
-  when you manually click "Ask Gemini."
-* **Anonymization**: Before copying the leak trace to the clipboard, LeakLens strips package names (
-  e.g., `com.mycompany.app` → `app.pkg`) to protect intellectual property.
-* **Zero Background Uploads**: The plugin does not make direct network calls to LLM APIs. You
-  maintain full control over the prompt before pasting it into your AI tool.
+* **Manual Activation**: No data is sent to AI models automatically. Communication only occurs when
+  you manually click "Ask Gemini" or "Ask AI."
+* **Anonymization**: Before a leak trace is processed, it is passed through a regex-based engine
+  that strips internal package names (e.g., `com.company.project` → `app.pkg`).
+* **Data Control**: LeakLens does not have background upload capabilities. You maintain full
+  visibility into the information being processed.
 
 ## 3. Telemetry
 
-LeakLens collects **zero** telemetry, project metadata, or usage analytics.
+The plugin collects **zero telemetry**, usage analytics, or project metadata.

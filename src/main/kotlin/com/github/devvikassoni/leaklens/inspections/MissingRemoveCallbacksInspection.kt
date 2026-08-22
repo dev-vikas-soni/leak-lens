@@ -140,7 +140,7 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
                         factory.createFunction(
                             "override fun onDestroy() {\n    super.onDestroy()\n    $handlerName.removeCallbacksAndMessages(null)\n}"
                         )
-                    ktClass.addDeclaration(newFunc)
+                    ktClass.add(newFunc)
                 }
             }
         }

@@ -2,44 +2,43 @@
 
 # LeakLens Changelog
 
-## [0.3.1] - 2026-08-22
+## [Unreleased]
+
+## [0.3.2] - 2026-08-22
 
 ### Added
 
-- **Universal Platform Support**: Official compatibility for all active Android Studio branches (
-  Koala, Ladybug, Meerkat, and Rabbit).
-- **Proactive Verification**: Automated Marketplace verification suite now covers stable, previous,
-  and preview versions of Android Studio.
-- **Future-Proofing**: Updated internal versioning logic to recognize next-generation IDE releases (
-  Nightjar, Owl, Penguin).
+- **Universal Platform Support**: Compatibility validated for all Android Studio branches from
+  Koala (241) to Rabbit (262).
+- **Multi-Version Verification**: Automated pipeline now targets multiple IDE versions to prevent
+  regressions.
 
 ### Fixed
 
-- **Marketplace Verification**: Resolved `org.jetbrains.android` resolution errors by targeting
-  Android Studio for plugin verification.
-- **Build Infrastructure**: Optimized `pluginVerification` configuration and centralized version
-  management in `gradle.properties` for better stability in automated pipelines.
+- **Marketplace Resolution**: Fixed `org.jetbrains.android` resolution errors on JetBrains
+  Marketplace.
+- **API Modernization**: Fixed 9+ deprecated API usages to ensure future platform compatibility.
+- **Architectural Cleanup**: Pruned dead code and legacy UI components (LeakListPanel, superseding
+  actions) for a more streamlined developer experience.
+
+## [0.3.1] - 2026-08-22 (Internal)
+
+- Performance and stability improvements.
 
 ## [0.3.0] - 2026-07-06
 
 ### Added
 
-- **Closed-Loop Verification**: New "Verify Fix" action to instantly re-test a fix against a fresh
-  heap dump.
-- **Semantic Deobfuscation**: Direct UI support for linking R8/ProGuard mapping files to resolve
-  obfuscated traces.
-- **Verification Platform**: Standalone JVM regression engine for deterministic analysis validation
-  against Golden Fixtures.
-- **Living Test Suite**: Multi-module Android `:sample-app` with 7+ deterministic leak scenarios.
+- **Closed-Loop Verification**: New "Verify Fix" action to re-test applied fixes against fresh heap
+  dumps.
+- **Semantic Deobfuscation**: Direct UI support for R8/ProGuard mapping files.
+- **Verification Platform**: Standalone JVM regression engine for deterministic analysis validation.
+- **Living Test Suite**: Multi-module `:sample-app` with deterministic leak scenarios.
 
 ### Changed
 
-- **UI Concurrency**: Migrated memory profiling and graph updates to a non-blocking `StateFlow`
-  architecture for smoother IDE performance.
-- **Disk Governance**: Implemented an automated snapshot retention policy (max 5 dumps) and manual
-  cleanup actions.
-- **Documentation Overhaul**: Comprehensive JetBrains-style audit resulting in concise, technical,
-  and data-driven technical documentation.
+- **UI Performance**: Migrated memory profiling to a non-blocking `StateFlow` architecture.
+- **Disk Governance**: Implemented automated snapshot retention policy.
 
 ## [0.2.3] - 2026-07-06
 
@@ -245,36 +244,21 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.2...HEAD
 
-[0.3.1]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.0...v0.3.1
-
+[0.3.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.0...v0.3.2
 [0.3.0]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.2.3...v0.3.0
-
 [0.2.3]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.2.2...v0.2.3
-
 [0.2.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.2.1...v0.2.2
-
 [0.2.1]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.2.0...v0.2.1
-
 [0.2.0]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.1.9...v0.2.0
-
 [0.1.9]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.1.8...v0.1.9
-
 [0.1.8]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.1.7...v0.1.8
-
 [0.1.7]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.1.6...v0.1.7
-
 [0.1.6]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.1.5...v0.1.6
-
 [0.1.5]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.1.4...v0.1.5
-
 [0.1.4]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.1.3...v0.1.4
-
 [0.1.3]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.1.2...v0.1.3
-
 [0.1.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.1.1...v0.1.2
-
 [0.1.1]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.1.0...v0.1.1
-
 [0.1.0]: https://github.com/dev-vikas-soni/leak-lens/commits/v0.1.0

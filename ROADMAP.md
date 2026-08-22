@@ -4,12 +4,8 @@
 
 - [x] **Hardened PSI Fixes**: Migration to semantic `KtPsiFactory` transformations.
 - [x] **Performance Benchmarks**: Baseline results for 1M LOC projects.
-- [ ] **Direct AI API**: Integration with Gemini/OpenAI for in-IDE fix previews.
-
-## 🚀 Mid-Term
-
-- [ ] **Compose Multiplatform (Desktop)**: Heap analysis for JVM desktop targets.
-- [ ] **KMP Common Module Inspections**: Rules for state management in shared Kotlin code.
+- [x] **Direct AI API**: Integration with Gemini/OpenAI for in-IDE fix previews.
+- [x] **Closed-Loop Verification**: 1-click re-testing of applied fixes against fresh heap dumps.
 - [ ] **Data-Flow Analysis**: UAST tracking of escaping references across class boundaries.
 
 ## 🌟 Long-Term

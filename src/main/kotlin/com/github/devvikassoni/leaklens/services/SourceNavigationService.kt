@@ -77,7 +77,8 @@ class SourceNavigationService(private val project: Project) {
      * Check if a class exists in the project scope.
      */
     fun isClassInProject(className: String): Boolean {
-        return com.intellij.openapi.application.ReadAction.compute<Boolean, Throwable> {
+        return com.intellij.openapi.application.ApplicationManager.getApplication()
+            .runReadAction<Boolean> {
             JavaPsiFacade.getInstance(project)
                 .findClass(className, GlobalSearchScope.projectScope(project)) != null
         }

@@ -8,6 +8,8 @@ import com.intellij.openapi.project.Project
 import com.intellij.ui.OnePixelSplitter
 import com.intellij.ui.components.JBPanel
 import com.intellij.ui.components.JBTabbedPane
+import java.awt.BorderLayout
+import javax.swing.SwingConstants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,8 +17,6 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import java.awt.BorderLayout
-import javax.swing.SwingConstants
 
 /**
  * Main panel for the LeakLens tool window.
@@ -26,7 +26,6 @@ import javax.swing.SwingConstants
  */
 class LeakLensMainPanel(
     private val project: Project,
-    private val leakListPanel: LeakListPanel,
     private val leakDetailPanel: LeakDetailPanel
 ) : JBPanel<LeakLensMainPanel>(BorderLayout()), Disposable {
 
@@ -71,11 +70,6 @@ class LeakLensMainPanel(
             }
         }
 
-        // Also keep old list panel wired (for backwards compat)
-        leakListPanel.onLeakSelected = { leak ->
-            leakDetailPanel.showLeakDetail(leak)
-        }
-
         // Tab change listener to refresh history
         tabbedPane.addChangeListener {
             // History is the 3rd tab (index 2)
@@ -103,7 +97,6 @@ class LeakLensMainPanel(
     fun refreshLeaks(leaks: List<LeakInfo>) {
         if (project.isDisposed) return
         leakTreePanel.updateLeaks(leaks)
-        leakListPanel.updateLeaks(leaks)
     }
 
     override fun dispose() {

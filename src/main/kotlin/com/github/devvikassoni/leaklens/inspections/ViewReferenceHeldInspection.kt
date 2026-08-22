@@ -135,7 +135,7 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
                         factory.createFunction(
                             "override fun onDestroyView() {\n    super.onDestroyView()\n    $fieldName = null\n}"
                         )
-                    ktClass.addDeclaration(newFunc)
+                    ktClass.add(newFunc)
                 }
             }
         }

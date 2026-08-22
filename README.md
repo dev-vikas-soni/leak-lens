@@ -3,75 +3,74 @@
 [![JetBrains Marketplace](https://img.shields.io/badge/JetBrains%20Marketplace-LeakLens-blue)](https://plugins.jetbrains.com/plugin/32079-leaklens)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 
-**LeakLens** is an IntelliJ Platform plugin for Android memory leak detection. It integrates the *
-*Shark (LeakCanary)** heap analysis engine into the IDE and provides real-time static analysis via *
-*UAST**.
+**LeakLens** is an Android memory leak detector for the IntelliJ Platform. It runs the **Shark (
+LeakCanary)** engine host-side to analyze heap dumps via ADB and provides real-time static analysis
+using **UAST**.
 
-### ⚡ Project at a Glance
+### Technical Stack
 
-* **Languages**: Kotlin, Java
-* **Frameworks**: Jetpack Compose, Hilt, Coroutines, Flow, WorkManager
-* **Analysis**: Static (UAST) + Runtime (Shark)
-* **Integration**: Zero-SDK (captured via ADB)
-
----
-
-## 🚀 Features
-
-### 1. Kotlin-Specific Intelligence
-
-Detects memory-unsafe patterns unique to Kotlin syntax:
-
-* **Coroutines & Flows**: Identifies unsafe `StateFlow` collection outside lifecycle-aware scopes.
-* **Jetpack Compose**: Flags `Context` capture in `@Composable` and `remember` blocks.
-* **Property Delegates**: Analyzes `by viewModels()` and lazy delegates for escaping references.
-
-### 2. UAST Static Inspections
-
-Real-time IDE highlighting for common leak patterns:
-
-* Static Activity/Fragment references.
-* Anonymous inner classes in long-lived scopes.
-* Missing callback removal in `onDestroy`.
-* View reference retained in Fragment after `onDestroyView`.
-* Activity context passed to Singletons or Worker fields.
-* Hilt scope mismatches.
-
-### 3. Host-Side Runtime Analysis
-
-Analyzes heap dumps without app modifications:
-
-* **Zero-SDK**: No dependencies added to the production APK.
-* **Host-Side Processing**: Graph traversal is performed by the IDE, avoiding device-side resource
-  exhaustion.
-* **AI Fix Assistant**: Generates idiomatic Kotlin refactoring suggestions from leak traces.
-
-## 📊 Comparison: Why LeakLens?
-
-| Feature             | LeakLens           | Android Profiler | LeakCanary |
-|:--------------------|:-------------------|:-----------------|:-----------|
-| **Primary Goal**    | Prevention/Fixing  | Deep Debugging   | Alerting   |
-| **Feedback Loop**   | Real-time (Typing) | Manual           | Runtime    |
-| **IDE Integration** | Native             | Partial          | None       |
-| **Zero-SDK**        | Yes                | Yes              | No         |
+* **Runtime**: Shark 2.14 (LeakCanary engine)
+* **Static Analysis**: UAST (Universal Abstract Syntax Tree)
+* **Target**: Kotlin, Java
+* **Integrations**: Compose, Hilt, Coroutines, WorkManager
+* **Connectivity**: ADB (Zero-SDK / No app modifications)
 
 ---
 
-## 🧪 Verification & Testing
+## Features
 
-LeakLens includes a **Deterministic Verification Platform** to ensure analysis precision:
+### 1. Static Leak Detection (Author-time)
 
-* [Sample App & Scenarios](sample-app/README.md): 7+ deterministic leak implementations.
-* [Verification Engine](verification/README.md): Standalone JVM tool for semantic Golden HPROF
-  comparison.
-* **Golden Fixtures**: Pre-captured heap dumps and normalized JSON expectations in
-  `verification/golden/`.
+Catch leaks while writing code, before you even hit "Run". LeakLens uses UAST inspections to
+highlight problematic signatures:
 
-## 🛠️ Usage
+* **Jetpack Compose**: `Context` capture in `@Composable` or `remember` blocks.
+* **Coroutines**: Unsafe `Flow` collection outside of `repeatOnLifecycle` or `flowWithLifecycle`.
+* **DI**: Hilt scope mismatches (e.g., Singleton injecting Activity-scoped components).
+* **Classic Patterns**: Static Activity refs, anonymous inner classes, and missing `onDestroy`
+  cleanup.
 
-1. Search for **LeakLens** in **Settings → Plugins → Marketplace**.
-2. Open the **LeakLens** tool window.
-3. Connect a device and click **Dump Heap Now**.
+### 2. Host-Side Heap Analysis (Zero-SDK)
+
+Analyze your app's memory without adding any dependencies to your production APK.
+
+* **ADB Offloading**: Triggers `am dumpheap` and pulls the HPROF to your machine.
+* **Desktop Performance**: Graph traversal and reachability analysis are performed using your
+  computer's resources, avoiding device OOMs during analysis.
+* **AI Fix Assistant**: Maps complex reference chains to idiomatic Kotlin remediation steps using
+  LLMs (Gemini/OpenAI).
+
+### 3. Closed-Loop Verification
+
+Once a fix is applied, re-verify it instantly.
+
+* **1-Click Verify**: Triggers a fresh heap dump to confirm the leak is resolved.
+* **Baseline Manager**: Track known issues and focus only on new regressions.
+
+## Comparison
+
+| Feature             | LeakLens            | Android Profiler | LeakCanary |
+|:--------------------|:--------------------|:-----------------|:-----------|
+| **Feedback Loop**   | Authoring/Real-time | Manual/Debugging | Runtime    |
+| **IDE Integration** | Native Tool Window  | Partial          | None       |
+| **APK Impact**      | Zero                | Zero             | ~300KB+    |
+| **Remediation**     | AI-Powered Fixes    | Manual           | Trace only |
+
+---
+
+## Verification & Precision
+
+LeakLens uses a **Deterministic Verification Platform** to ensure analysis accuracy:
+
+* **Golden Fixtures**: Pre-captured heaps and JSON expectations in `verification/golden/`.
+* **Regression Engine**: Standalone tool that validates Shark output against historical "ground
+  truth" data.
+
+## Usage
+
+1. Install **LeakLens** from the **JetBrains Marketplace**.
+2. Open the **LeakLens** tool window (Bottom Tab).
+3. Connect a debuggable device and click **Dump Heap Now**.
 
 ## 📚 Documentation
 

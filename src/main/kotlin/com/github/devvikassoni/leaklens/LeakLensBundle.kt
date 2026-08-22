@@ -21,4 +21,3 @@ object LeakLensBundle : DynamicBundle(BUNDLE) {
     fun messagePointer(@PropertyKey(resourceBundle = BUNDLE) key: String, vararg params: Any) =
         getLazyMessage(key, *params)
 }
-

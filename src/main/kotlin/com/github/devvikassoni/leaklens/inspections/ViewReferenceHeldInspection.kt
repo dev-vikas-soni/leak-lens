@@ -48,7 +48,7 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
                         // Look for name = null or _name = null (common for backing fields) or name?.let { it = null } etc.
                         // We use a simple but broader string check for UAST source string.
                         val isNulled = bodyText.contains("$name = null") ||
-                                       bodyText.contains("$name=null") ||
+                                bodyText.contains("$name=null") ||
                                 bodyText.contains("_$name = null") ||
                                 bodyText.contains("$name?.let") ||
                                 bodyText.contains("$name.clear") // For some custom binding types
@@ -132,7 +132,9 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
                     body.addBefore(newExpr, body.rBrace)
                 } else {
                     val newFunc =
-                        factory.createFunction("override fun onDestroyView() {\n    super.onDestroyView()\n    $fieldName = null\n}")
+                        factory.createFunction(
+                            "override fun onDestroyView() {\n    super.onDestroyView()\n    $fieldName = null\n}"
+                        )
                     ktClass.addDeclaration(newFunc)
                 }
             }

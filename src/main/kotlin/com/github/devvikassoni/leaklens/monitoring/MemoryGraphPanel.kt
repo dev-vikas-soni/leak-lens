@@ -8,6 +8,14 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBPanel
 import com.intellij.util.ui.JBFont
 import com.intellij.util.ui.JBUI
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.awt.BasicStroke
 import java.awt.BorderLayout
 import java.awt.Color
@@ -17,14 +25,6 @@ import java.awt.Graphics2D
 import java.awt.Polygon
 import java.awt.RenderingHints
 import javax.swing.SwingConstants
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 /**
  * Real-time memory graph panel (lite profiler).
@@ -33,7 +33,8 @@ import kotlinx.coroutines.launch
  * Modernized to use JBPanel and direct reactive Flow repaint triggers,
  * and enhanced with tooltips and clearer visual cues.
  */
-class MemoryGraphPanel(private val project: Project) : JBPanel<MemoryGraphPanel>(BorderLayout()),
+class MemoryGraphPanel(private val project: Project) :
+    JBPanel<MemoryGraphPanel>(BorderLayout()),
     Disposable {
 
     private val monitor = DeviceMemoryMonitor.getInstance(project)

@@ -27,7 +27,7 @@ class LeakLensProjectServiceTest : BasePlatformTestCase() {
         )
 
         service.updateLeaks(listOf(leak))
-        
+
         assertEquals(1, service.leaks.value.size)
         assertEquals("com.example.MainActivity", service.leaks.value[0].retainedObjectClassName)
     }
@@ -35,7 +35,7 @@ class LeakLensProjectServiceTest : BasePlatformTestCase() {
     fun testSetAnalyzing() {
         service.setAnalyzing(true)
         assertTrue(service.isAnalyzing.value)
-        
+
         service.setAnalyzing(false)
         assertFalse(service.isAnalyzing.value)
     }

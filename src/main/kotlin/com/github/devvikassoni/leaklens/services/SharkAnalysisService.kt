@@ -43,10 +43,14 @@ class SharkAnalysisService {
         val fileSize = hprofFile.length()
         val isLargeFile = fileSize > LARGE_HEAP_THRESHOLD_BYTES
 
-        CompatibilityLogger.info("LeakLens: Starting Shark analysis of ${hprofFile.name} (${fileSize / 1024 / 1024} MB)")
+        CompatibilityLogger.info(
+            "LeakLens: Starting Shark analysis of ${hprofFile.name} (${fileSize / 1024 / 1024} MB)"
+        )
 
         if (isLargeFile) {
-            CompatibilityLogger.warn("LeakLens: ${hprofFile.name} is large ($fileSize bytes). Analysis may be slow and memory-intensive.")
+            CompatibilityLogger.warn(
+                "LeakLens: ${hprofFile.name} is large ($fileSize bytes). Analysis may be slow and memory-intensive."
+            )
         }
 
         val heapAnalyzer = HeapAnalyzer { step ->

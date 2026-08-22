@@ -27,11 +27,10 @@ class ImportHprofAction : AnAction() {
         }
     }
 
-    override fun getActionUpdateThread(): com.intellij.openapi.actionSystem.ActionUpdateThread = 
+    override fun getActionUpdateThread(): com.intellij.openapi.actionSystem.ActionUpdateThread =
         com.intellij.openapi.actionSystem.ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
         e.presentation.isEnabledAndVisible = e.project != null
     }
 }
-

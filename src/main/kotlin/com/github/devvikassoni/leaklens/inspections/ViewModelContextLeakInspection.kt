@@ -45,7 +45,6 @@ class ViewModelContextLeakInspection : LocalInspectionTool() {
                                 fieldType.contains("android.view.View") ||
                                 fieldType.contains("android.graphics.drawable.Drawable")
                             ) {
-
                                 val elementToHighlight =
                                     uField.uastAnchor?.sourcePsi ?: uField.sourcePsi
                                     ?: node.sourcePsi ?: continue

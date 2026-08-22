@@ -100,7 +100,9 @@ class StaticActivityReferenceInspection : LocalInspectionTool() {
                 val ktFactory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
                 val ktProperty = uField.sourcePsi as? org.jetbrains.kotlin.psi.KtProperty ?: return
                 val newProp =
-                    ktFactory.createProperty("private val ${fieldName}Ref = java.lang.ref.WeakReference<$fieldType>($fieldName)")
+                    ktFactory.createProperty(
+                        "private val ${fieldName}Ref = java.lang.ref.WeakReference<$fieldType>($fieldName)"
+                    )
                 ktProperty.parent.addAfter(newProp, ktProperty)
             }
         }

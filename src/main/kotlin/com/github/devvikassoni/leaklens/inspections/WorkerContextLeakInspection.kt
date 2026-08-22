@@ -81,8 +81,6 @@ class WorkerContextLeakInspection : LocalInspectionTool() {
                         }
                     }
 
-
-
                     return false
                 }
             },
@@ -112,8 +110,10 @@ class WorkerContextLeakInspection : LocalInspectionTool() {
         val sourcePsi = param.sourcePsi ?: return false
         // In Kotlin PSI, KtParameter has isValOrVar() when the param is a property
         return sourcePsi.javaClass.simpleName == "KtParameter" &&
-                (sourcePsi.text.trimStart().startsWith("val ") ||
-                        sourcePsi.text.trimStart().startsWith("var "))
+                (
+                        sourcePsi.text.trimStart().startsWith("val ") ||
+                                sourcePsi.text.trimStart().startsWith("var ")
+                        )
     }
 
     private fun createLeakInfo(uClass: UClass, field: UField): LeakInfo {

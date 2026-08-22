@@ -6,7 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
-import java.io.File
 
 class ReportExporterTest {
 
@@ -63,7 +62,13 @@ class ReportExporterTest {
         val content = file.readText()
         assertTrue("SARIF should contain schema", content.contains("\"\$schema\""))
         assertTrue("SARIF should contain ruleId for critical", content.contains("\"ruleId\": \"leak/critical\""))
-        assertTrue("SARIF should contain escaped message", content.contains("Test Leak <with> HTML characters & generic types"))
-        assertTrue("SARIF should have proper artifact location", content.contains("\"uri\": \"com/example/GenericClass<Type>.java\""))
+        assertTrue(
+            "SARIF should contain escaped message",
+            content.contains("Test Leak <with> HTML characters & generic types")
+        )
+        assertTrue(
+            "SARIF should have proper artifact location",
+            content.contains("\"uri\": \"com/example/GenericClass<Type>.java\"")
+        )
     }
 }

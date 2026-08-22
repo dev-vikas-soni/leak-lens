@@ -54,7 +54,9 @@ class HistoryPanel(private val project: Project) : JPanel(BorderLayout()) {
 
             val timeStr = dateFormat.format(Date(value.timestamp))
             val summary = "🔴${value.criticalCount} 🟡${value.warningCount} 🟢${value.libraryLeakCount}"
-            val label = JLabel("<html><b>$timeStr</b> — ${value.leakCount} leaks ($summary)<br/><small>${value.sourceName}</small></html>")
+            val label = JLabel(
+                "<html><b>$timeStr</b> — ${value.leakCount} leaks ($summary)<br/><small>${value.sourceName}</small></html>"
+            )
 
             panel.add(label, BorderLayout.CENTER)
             panel.border = BorderFactory.createEmptyBorder(4, 8, 4, 8)
@@ -68,4 +70,3 @@ class HistoryPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
     }
 }
-

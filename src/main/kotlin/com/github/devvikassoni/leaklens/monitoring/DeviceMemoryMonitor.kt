@@ -185,8 +185,9 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
                         viewCount = extractFirstNumber(trimmed).toInt()
                     }
 
-                    lower.contains("activities:") -> activities =
-                        extractFirstNumber(trimmed).toInt()
+                    lower.contains("activities:") ->
+                        activities =
+                            extractFirstNumber(trimmed).toInt()
                 }
             }
 

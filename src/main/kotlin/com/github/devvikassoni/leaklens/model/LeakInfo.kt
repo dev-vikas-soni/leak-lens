@@ -22,4 +22,3 @@ data class LeakTraceReference(
     val sourceFile: String? = null,
     val lineNumber: Int? = null
 )
-

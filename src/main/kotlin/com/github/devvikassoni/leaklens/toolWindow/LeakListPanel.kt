@@ -68,4 +68,3 @@ class LeakListPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
     }
 }
-

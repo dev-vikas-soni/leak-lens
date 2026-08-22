@@ -278,7 +278,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
 
         (mainContent.layout as CardLayout).show(mainContent, "CONTENT")
-        fadeIn()   // ✨ Animate in the new content
+        fadeIn() // ✨ Animate in the new content
     }
 
     fun showEmptyState() {
@@ -330,7 +330,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         val text = doc.getText(0, doc.length)
 
         // Find if we clicked a word
-        var start = offset;
+        var start = offset
         var end = offset
         while (start > 0 && (text[start - 1].isLetterOrDigit() || text[start - 1] == '.' || text[start - 1] == '$' || text[start - 1] == '_')) start--
         while (end < text.length && (text[end].isLetterOrDigit() || text[end] == '.' || text[end] == '$' || text[end] == '_')) end++

@@ -1,10 +1,10 @@
 package com.github.devvikassoni.leaklens.baseline
 
 import com.github.devvikassoni.leaklens.model.LeakInfo
+import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
-import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
@@ -21,7 +21,7 @@ class LeakBaselineManager(private val project: Project) {
     private val logger = thisLogger()
     private val baselineSignatures = mutableSetOf<String>()
 
-    private val baselineFile: File
+    internal val baselineFile: File
         get() = File(project.basePath ?: System.getProperty("java.io.tmpdir"), "leak-baseline.json")
 
     init {
@@ -50,7 +50,14 @@ class LeakBaselineManager(private val project: Project) {
             appendLine("  \"generatedAt\": \"${java.time.Instant.now()}\",")
             appendLine("  \"leaks\": [")
             leaks.forEachIndexed { i, leak ->
-                append("    {\"signature\": \"${leak.signature}\", \"class\": \"${leak.retainedObjectClassName}\", \"description\": \"${leak.shortDescription.replace("\"", "\\\"")}\"}")
+                append(
+                    "    {\"signature\": \"${leak.signature}\", \"class\": \"${leak.retainedObjectClassName}\", \"description\": \"${
+                        leak.shortDescription.replace(
+                            "\"",
+                            "\\\""
+                        )
+                    }\"}"
+                )
                 if (i < leaks.size - 1) appendLine(",") else appendLine()
             }
             appendLine("  ]")
@@ -121,4 +128,3 @@ class LeakBaselineManager(private val project: Project) {
             project.getService(LeakBaselineManager::class.java)
     }
 }
-

@@ -68,7 +68,8 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
 
                                     fileIssues.add(
                                         createLeakInfo(
-                                            containingClass.name ?: "Singleton", arg
+                                            containingClass.name ?: "Singleton",
+                                            arg
                                         )
                                     )
                                 }
@@ -106,7 +107,7 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
     private fun isSingleton(psiClass: PsiClass): Boolean {
         val hasInstance = psiClass.fields.any { field ->
             field.hasModifierProperty(com.intellij.psi.PsiModifier.STATIC) &&
-            (field.name == "INSTANCE" || field.name == "instance" || field.name == "sInstance")
+                    (field.name == "INSTANCE" || field.name == "instance" || field.name == "sInstance")
         }
         val hasSingletonAnnotation = psiClass.annotations.any { it.qualifiedName?.contains("Singleton") == true }
         return hasInstance || hasSingletonAnnotation

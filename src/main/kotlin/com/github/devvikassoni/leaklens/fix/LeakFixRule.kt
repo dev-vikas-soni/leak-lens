@@ -26,4 +26,3 @@ interface LeakFixRule {
      */
     fun match(leak: LeakInfo): FixSuggestion?
 }
-

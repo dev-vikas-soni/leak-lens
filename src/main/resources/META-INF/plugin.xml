@@ -33,6 +33,12 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h4>0.3.1</h4>
+        <ul>
+            <li><b>Universal Support</b>: Expanded compatibility to support all active Android Studio versions from Koala (241) to Rabbit (262).</li>
+            <li><b>Marketplace Verification</b>: Fixed `org.jetbrains.android` resolution errors by targeting Android Studio for multi-version verification.</li>
+            <li><b>Build Infrastructure</b>: Centralized and optimized version management for better stability across the Android Studio ecosystem.</li>
+        </ul>
         <h4>0.3.0</h4>
         <ul>
             <li><b>Closed-Loop Verification</b>: New "Verify Fix" action to instantly re-test a fix against a fresh heap dump.</li>
@@ -116,6 +122,7 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.java</depends>
     <depends>org.jetbrains.android</depends>
+    <depends>com.intellij.modules.androidstudio</depends>
 
     <resource-bundle>messages.LeakLensBundle</resource-bundle>
 

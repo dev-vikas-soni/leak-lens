@@ -85,10 +85,12 @@ class AnonymousInnerClassLeakInspection : LocalInspectionTool() {
         // Check for specific long-lived method names
         val methodName = call.methodName
         if (methodName != null && methodName in listOf(
-            "postDelayed", "post", "execute", "submit", "registerListener",
+                "postDelayed", "post", "execute", "submit", "registerListener",
                 "addCallback", "setOnClickListener", "registerReceiver", "subscribe"
             )
-        ) return true
+        ) {
+            return true
+        }
 
         // Check for constructors of long-lived types (e.g., new Thread(runnable))
         if (call.kind == UastCallKind.CONSTRUCTOR_CALL) {

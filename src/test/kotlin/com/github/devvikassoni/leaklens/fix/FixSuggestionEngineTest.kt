@@ -34,7 +34,11 @@ class FixSuggestionEngineTest {
         val leak = createLeakInfo(
             retainedClassName = "com.example.MainActivity",
             referenceChain = listOf(
-                LeakTraceReference(owningClassName = "com.example.SomeClass", referenceName = "activity", referenceType = "STATIC_FIELD")
+                LeakTraceReference(
+                    owningClassName = "com.example.SomeClass",
+                    referenceName = "activity",
+                    referenceType = "STATIC_FIELD"
+                )
             )
         )
         val suggestion = engine.suggest(leak)
@@ -47,7 +51,11 @@ class FixSuggestionEngineTest {
         val leak = createLeakInfo(
             retainedClassName = "com.example.MyFragment",
             referenceChain = listOf(
-                LeakTraceReference(owningClassName = "com.example.MyFragment$1", referenceName = "this$0", referenceType = "INSTANCE_FIELD")
+                LeakTraceReference(
+                    owningClassName = "com.example.MyFragment$1",
+                    referenceName = "this$0",
+                    referenceType = "INSTANCE_FIELD"
+                )
             )
         )
         val suggestion = engine.suggest(leak)
@@ -60,7 +68,11 @@ class FixSuggestionEngineTest {
         val leak = createLeakInfo(
             retainedClassName = "android.content.Context",
             referenceChain = listOf(
-                LeakTraceReference(owningClassName = "com.example.MyViewModel", referenceName = "context", referenceType = "INSTANCE_FIELD")
+                LeakTraceReference(
+                    owningClassName = "com.example.MyViewModel",
+                    referenceName = "context",
+                    referenceType = "INSTANCE_FIELD"
+                )
             )
         )
         val suggestion = engine.suggest(leak)
@@ -73,7 +85,11 @@ class FixSuggestionEngineTest {
         val leak = createLeakInfo(
             retainedClassName = "java.lang.String",
             referenceChain = listOf(
-                LeakTraceReference(owningClassName = "java.lang.Thread", referenceName = "someVar", referenceType = "LOCAL")
+                LeakTraceReference(
+                    owningClassName = "java.lang.Thread",
+                    referenceName = "someVar",
+                    referenceType = "LOCAL"
+                )
             )
         )
         val suggestion = engine.suggest(leak)

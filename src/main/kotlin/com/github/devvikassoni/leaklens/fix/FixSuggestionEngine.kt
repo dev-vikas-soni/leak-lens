@@ -74,7 +74,7 @@ class StaticFieldActivityRule : LeakFixRule {
                 explanation = """
                     ❌ Problem: A static/companion object field holds a reference to an Activity or Fragment.
                     Since static fields live for the entire app lifecycle, the Activity/Fragment cannot be garbage collected after being destroyed.
-                    
+
                     ✅ Fix Options:
                     1. Remove the static reference entirely
                     2. Use WeakReference<Activity> if you must keep a reference
@@ -86,12 +86,12 @@ class StaticFieldActivityRule : LeakFixRule {
                     companion object {
                         var activity: MainActivity? = null  // LEAK!
                     }
-                    
+
                     // ✅ GOOD - WeakReference allows GC
                     companion object {
                         var activityRef: WeakReference<MainActivity>? = null
                     }
-                    
+
                     // ✅ BETTER - no static reference at all
                     // Pass Activity as parameter where needed, use Application context for singletons
                 """.trimIndent()
@@ -123,7 +123,7 @@ class AnonymousInnerClassRule : LeakFixRule {
                     ❌ Problem: An anonymous inner class (lambda, Runnable, Listener) implicitly holds a reference
                     to the outer Activity/Fragment via 'this${'$'}0'. If this object outlives the Activity (e.g., posted
                     to a Handler, registered as a callback), the Activity leaks.
-                    
+
                     ✅ Fix Options:
                     1. Convert to a static inner class with a WeakReference to the Activity
                     2. Use viewLifecycleOwner-scoped callbacks in Fragments
@@ -135,7 +135,7 @@ class AnonymousInnerClassRule : LeakFixRule {
                         // 'this' refers to Activity implicitly
                         updateUI()
                     }, 5000)
-                    
+
                     // ✅ GOOD - static inner class with WeakReference
                     private class UpdateTask(activity: MainActivity) : Runnable {
                         private val activityRef = WeakReference(activity)
@@ -143,7 +143,7 @@ class AnonymousInnerClassRule : LeakFixRule {
                             activityRef.get()?.updateUI()
                         }
                     }
-                    
+
                     // ✅ ALSO GOOD - remove callbacks in onDestroy
                     override fun onDestroy() {
                         handler.removeCallbacksAndMessages(null)
@@ -175,7 +175,7 @@ class HandlerActivityRule : LeakFixRule {
                 explanation = """
                     ❌ Problem: A Handler (often a non-static inner class) holds a reference to the Activity.
                     Messages in the Handler's queue keep the Handler (and thus the Activity) alive.
-                    
+
                     ✅ Fix Options:
                     1. Use a static Handler with WeakReference<Activity>
                     2. Call handler.removeCallbacksAndMessages(null) in onDestroy()
@@ -188,7 +188,7 @@ class HandlerActivityRule : LeakFixRule {
                             updateUI() // implicit Activity reference
                         }
                     }
-                    
+
                     // ✅ GOOD - static Handler with WeakReference
                     private class SafeHandler(activity: MainActivity) : Handler(Looper.getMainLooper()) {
                         private val activityRef = WeakReference(activity)
@@ -196,13 +196,13 @@ class HandlerActivityRule : LeakFixRule {
                             activityRef.get()?.updateUI()
                         }
                     }
-                    
+
                     // ✅ BETTER - use coroutines
                     lifecycleScope.launch {
                         delay(5000)
                         updateUI()
                     }
-                    
+
                     // ✅ Always clean up in onDestroy
                     override fun onDestroy() {
                         handler.removeCallbacksAndMessages(null)
@@ -230,7 +230,7 @@ class ViewModelContextRule : LeakFixRule {
             it.contains("Activity") || it.contains("View") || it.contains("Context")
         } || leak.referenceChain.any { ref ->
             ref.referenceName.contains("context", ignoreCase = true) ||
-            ref.referenceName.contains("view", ignoreCase = true)
+                    ref.referenceName.contains("view", ignoreCase = true)
         }
 
         if (hasViewModel && leaksViewOrContext) {
@@ -239,7 +239,7 @@ class ViewModelContextRule : LeakFixRule {
                 explanation = """
                     ❌ Problem: A ViewModel holds a reference to a View, Activity, or Activity Context.
                     ViewModels survive configuration changes, so they outlive Activities/Views.
-                    
+
                     ✅ Fix Options:
                     1. Never store View or Activity Context in ViewModel
                     2. Use Application context via AndroidViewModel if context is needed
@@ -249,12 +249,12 @@ class ViewModelContextRule : LeakFixRule {
                 codeSnippet = """
                     // ❌ BAD - ViewModel holds Activity context
                     class MyViewModel(private val context: Context) : ViewModel() { }
-                    
+
                     // ✅ GOOD - use AndroidViewModel for Application context
                     class MyViewModel(application: Application) : AndroidViewModel(application) {
                         private val appContext = application.applicationContext
                     }
-                    
+
                     // ✅ BETTER - expose data via StateFlow, let View observe
                     class MyViewModel : ViewModel() {
                         private val _uiState = MutableStateFlow(UiState())
@@ -277,9 +277,9 @@ class CoroutineScopeNotCancelledRule : LeakFixRule {
     override fun match(leak: LeakInfo): FixSuggestion? {
         val hasCoroutine = leak.referenceChain.any { ref ->
             ref.owningClassName.contains("Coroutine") ||
-            ref.owningClassName.contains("Job") ||
-            ref.owningClassName.contains("Continuation") ||
-            ref.referenceName.contains("scope", ignoreCase = true)
+                    ref.owningClassName.contains("Job") ||
+                    ref.owningClassName.contains("Continuation") ||
+                    ref.referenceName.contains("scope", ignoreCase = true)
         }
 
         if (hasCoroutine) {
@@ -288,7 +288,7 @@ class CoroutineScopeNotCancelledRule : LeakFixRule {
                 explanation = """
                     ❌ Problem: A coroutine or scope holds a reference to a destroyed component.
                     The coroutine was not cancelled when the Activity/Fragment was destroyed.
-                    
+
                     ✅ Fix Options:
                     1. Use viewModelScope (auto-cancelled in onCleared)
                     2. Use lifecycleScope (auto-cancelled on DESTROYED)
@@ -302,19 +302,19 @@ class CoroutineScopeNotCancelledRule : LeakFixRule {
                         val data = fetchData()
                         updateUI(data) // Activity may be destroyed!
                     }
-                    
+
                     // ✅ GOOD - lifecycleScope auto-cancels
                     lifecycleScope.launch {
                         val data = fetchData()
                         updateUI(data)
                     }
-                    
+
                     // ✅ GOOD - viewModelScope auto-cancels in onCleared
                     viewModelScope.launch {
                         val data = repository.fetchData()
                         _state.value = data
                     }
-                    
+
                     // ✅ If using custom scope, cancel it
                     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
                     override fun onDestroy() {
@@ -338,12 +338,12 @@ class SingletonActivityContextRule : LeakFixRule {
     override fun match(leak: LeakInfo): FixSuggestion? {
         val hasSingleton = leak.referenceChain.any { ref ->
             ref.referenceType == "STATIC_FIELD" || ref.referenceName.contains("instance", ignoreCase = true) ||
-            ref.referenceName.contains("INSTANCE", ignoreCase = true)
+                    ref.referenceName.contains("INSTANCE", ignoreCase = true)
         }
         val leaksActivity = leak.retainedObjectClassName.contains("Activity")
         val hasContextRef = leak.referenceChain.any { ref ->
             ref.referenceName.contains("context", ignoreCase = true) ||
-            ref.referenceName.contains("mContext", ignoreCase = true)
+                    ref.referenceName.contains("mContext", ignoreCase = true)
         }
 
         if (hasSingleton && (leaksActivity || hasContextRef)) {
@@ -352,7 +352,7 @@ class SingletonActivityContextRule : LeakFixRule {
                 explanation = """
                     ❌ Problem: A Singleton (object with static lifecycle) holds an Activity Context.
                     The Singleton lives for the entire app lifecycle, preventing the Activity from being GC'd.
-                    
+
                     ✅ Fix: Use Application Context instead of Activity Context in singletons.
                 """.trimIndent(),
                 codeSnippet = """
@@ -361,15 +361,15 @@ class SingletonActivityContextRule : LeakFixRule {
                         lateinit var context: Context  // Activity context passed here = LEAK
                         fun init(ctx: Context) { context = ctx }
                     }
-                    
+
                     // ✅ GOOD - Use Application context
                     object MySingleton {
                         lateinit var context: Context
-                        fun init(ctx: Context) { 
+                        fun init(ctx: Context) {
                             context = ctx.applicationContext  // Safe!
                         }
                     }
-                    
+
                     // ✅ BETTER - Use dependency injection with proper scoping
                     @Singleton
                     class MySingleton @Inject constructor(
@@ -402,7 +402,7 @@ class LiveDataObserverRule : LeakFixRule {
                     ❌ Problem: LiveData is observed using the Fragment itself ('this') as the lifecycle owner.
                     In Fragments, the view can be destroyed while the Fragment instance is still alive (e.g., on back stack).
                     This causes observers to accumulate and the old view to be retained.
-                    
+
                     ✅ Fix: Use viewLifecycleOwner instead of 'this' when observing LiveData in Fragments.
                 """.trimIndent(),
                 codeSnippet = """
@@ -412,7 +412,7 @@ class LiveDataObserverRule : LeakFixRule {
                             updateUI(data)
                         }
                     }
-                    
+
                     // ✅ GOOD - use viewLifecycleOwner
                     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
                         viewModel.data.observe(viewLifecycleOwner) { data ->
@@ -436,9 +436,9 @@ class UnregisteredReceiverRule : LeakFixRule {
     override fun match(leak: LeakInfo): FixSuggestion? {
         val hasReceiver = leak.referenceChain.any { ref ->
             ref.owningClassName.contains("Receiver") || ref.owningClassName.contains("Listener") ||
-            ref.owningClassName.contains("CallbackRecord") || ref.owningClassName.contains("Observer") ||
-            ref.referenceName.contains("receiver", ignoreCase = true) ||
-            ref.referenceName.contains("listener", ignoreCase = true)
+                    ref.owningClassName.contains("CallbackRecord") || ref.owningClassName.contains("Observer") ||
+                    ref.referenceName.contains("receiver", ignoreCase = true) ||
+                    ref.referenceName.contains("listener", ignoreCase = true)
         }
 
         if (hasReceiver) {
@@ -447,7 +447,7 @@ class UnregisteredReceiverRule : LeakFixRule {
                 explanation = """
                     ❌ Problem: A BroadcastReceiver, Listener, or Callback was registered but never unregistered.
                     The system holds a reference to the receiver/listener, which in turn holds the Activity/Fragment.
-                    
+
                     ✅ Fix: Always unregister in the corresponding lifecycle method.
                 """.trimIndent(),
                 codeSnippet = """
@@ -457,7 +457,7 @@ class UnregisteredReceiverRule : LeakFixRule {
                         registerReceiver(myReceiver, intentFilter)
                     }
                     // Missing: unregisterReceiver in onPause!
-                    
+
                     // ✅ GOOD - symmetric register/unregister
                     override fun onResume() {
                         super.onResume()
@@ -467,7 +467,7 @@ class UnregisteredReceiverRule : LeakFixRule {
                         unregisterReceiver(myReceiver)
                         super.onPause()
                     }
-                    
+
                     // ✅ For listeners:
                     override fun onStart() {
                         super.onStart()
@@ -505,7 +505,7 @@ class ViewReferenceRule : LeakFixRule {
                 explanation = """
                     ❌ Problem: A Fragment holds a reference to a View or ViewBinding after onDestroyView().
                     When a Fragment goes on the back stack, its view is destroyed but the Fragment instance remains.
-                    
+
                     ✅ Fix: Null out view references in onDestroyView().
                 """.trimIndent(),
                 codeSnippet = """
@@ -513,18 +513,18 @@ class ViewReferenceRule : LeakFixRule {
                     class MyFragment : Fragment() {
                         private var _binding: FragmentMyBinding? = null
                         private val binding get() = _binding!!
-                        
+
                         override fun onDestroyView() {
                             super.onDestroyView()
                             // Missing: _binding = null
                         }
                     }
-                    
+
                     // ✅ GOOD - null out binding in onDestroyView
                     class MyFragment : Fragment() {
                         private var _binding: FragmentMyBinding? = null
                         private val binding get() = _binding!!
-                        
+
                         override fun onDestroyView() {
                             super.onDestroyView()
                             _binding = null  // Allow GC!
@@ -555,7 +555,7 @@ class InputMethodManagerRule : LeakFixRule {
                 explanation = """
                     ℹ️ Known Android Framework Leak: InputMethodManager holds a reference to a View/Activity.
                     This is a known issue in the Android framework that LeakCanary's Plumber auto-patches at runtime.
-                    
+
                     ✅ This leak is NOT caused by your code. It's handled automatically by LeakCanary's Plumber library.
                     No action required from the developer.
                 """.trimIndent(),
@@ -587,8 +587,8 @@ class AnimatorLeakRule : LeakFixRule {
     override fun match(leak: LeakInfo): FixSuggestion? {
         val hasAnimator = leak.referenceChain.any { ref ->
             ref.owningClassName.contains("Animator") || ref.owningClassName.contains("Animation") ||
-            ref.referenceName.contains("animator", ignoreCase = true) ||
-            ref.referenceName.contains("animation", ignoreCase = true)
+                    ref.referenceName.contains("animator", ignoreCase = true) ||
+                    ref.referenceName.contains("animation", ignoreCase = true)
         }
 
         if (hasAnimator) {
@@ -597,7 +597,7 @@ class AnimatorLeakRule : LeakFixRule {
                 explanation = """
                     ❌ Problem: An Animator or Animation was not cancelled when the Activity/Fragment was destroyed.
                     Running animations hold references to their target Views and listeners.
-                    
+
                     ✅ Fix: Cancel all animators in onDestroy()/onDestroyView().
                 """.trimIndent(),
                 codeSnippet = """
@@ -606,7 +606,7 @@ class AnimatorLeakRule : LeakFixRule {
                         duration = 5000
                         start()
                     }
-                    
+
                     // ✅ GOOD - cancel in lifecycle
                     override fun onDestroyView() {
                         animator.cancel()
@@ -620,4 +620,3 @@ class AnimatorLeakRule : LeakFixRule {
         return null
     }
 }
-

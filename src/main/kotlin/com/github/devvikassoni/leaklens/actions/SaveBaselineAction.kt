@@ -28,7 +28,11 @@ class SaveBaselineAction : AnAction() {
 
         NotificationGroupManager.getInstance()
             .getNotificationGroup("LeakLens Notifications")
-            .createNotification("LeakLens", "Saved ${leaks.size} leak(s) to leak-baseline.json. These will be suppressed in future analyses.", NotificationType.INFORMATION)
+            .createNotification(
+                "LeakLens",
+                "Saved ${leaks.size} leak(s) to leak-baseline.json. These will be suppressed in future analyses.",
+                NotificationType.INFORMATION
+            )
             .notify(project)
     }
 
@@ -36,4 +40,3 @@ class SaveBaselineAction : AnAction() {
         e.presentation.isEnabledAndVisible = e.project != null
     }
 }
-

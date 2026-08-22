@@ -88,4 +88,3 @@ class SourceNavigationService(private val project: Project) {
             project.getService(SourceNavigationService::class.java)
     }
 }
-

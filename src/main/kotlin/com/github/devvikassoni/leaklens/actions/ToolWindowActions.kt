@@ -35,7 +35,9 @@ class RatePluginAction : AnAction(
     AllIcons.Actions.IntentionBulb
 ) {
     override fun actionPerformed(e: AnActionEvent) {
-        BrowserUtil.browse("https://plugins.jetbrains.com/plugin/32079-leaklens--memory-leak-detector--ai-assistant/edit/reviews")
+        BrowserUtil.browse(
+            "https://plugins.jetbrains.com/plugin/32079-leaklens--memory-leak-detector--ai-assistant/edit/reviews"
+        )
     }
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT

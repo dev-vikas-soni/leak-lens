@@ -8,6 +8,10 @@ enum class AndroidStudioVersion(val buildPrefix: Int) {
     LADYBUG(242),
     MEERKAT(243),
     NARWHAL(251),
+    NIGHTJAR(252),
+    OWL(253),
+    PENGUIN(261),
+    RABBIT(262),
     UNKNOWN(0);
 
     companion object {

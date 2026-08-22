@@ -88,7 +88,11 @@ class LeakAnalysisCoordinator(private val project: Project) {
      */
     fun triggerAndAnalyze(deviceSerial: String?, packageName: String) {
         lastDumpContext = DumpContext(deviceSerial, packageName)
-        ProgressManager.getInstance().run(object : Task.Backgroundable(project, "LeakLens: Capturing & Analyzing Heap Dump", true) {
+        ProgressManager.getInstance().run(object : Task.Backgroundable(
+            project,
+            "LeakLens: Capturing & Analyzing Heap Dump",
+            true
+        ) {
             override fun run(indicator: ProgressIndicator) {
                 val projectService = LeakLensProjectService.getInstance(project)
                 projectService.setAnalyzing(true)
@@ -144,7 +148,10 @@ class LeakAnalysisCoordinator(private val project: Project) {
         val maxMemory = Runtime.getRuntime().maxMemory()
 
         if (fileSize > maxMemory * 0.8) {
-            notify("Heap dump (${fileSizeMb}MB) is very large relative to IDE memory. Analysis might crash or be extremely slow.", NotificationType.WARNING)
+            notify(
+                "Heap dump (${fileSizeMb}MB) is very large relative to IDE memory. Analysis might crash or be extremely slow.",
+                NotificationType.WARNING
+            )
         }
 
         if (fileSizeMb > 500) {
@@ -180,7 +187,9 @@ class LeakAnalysisCoordinator(private val project: Project) {
                     }
                 )
             }
-        } else rawLeaks
+        } else {
+            rawLeaks
+        }
 
         // Fix suggestions from static rule engine
         ProgressFacade.setText(indicator, "Generating fix suggestions...")
@@ -224,7 +233,7 @@ class LeakAnalysisCoordinator(private val project: Project) {
         val message = if (leaks.isEmpty() && suppressed == 0) {
             "No memory leaks detected! ✅"
         } else if (leaks.isEmpty()) {
-            "All ${suppressed} leak(s) are in baseline. No new leaks! ✅"
+            "All $suppressed leak(s) are in baseline. No new leaks! ✅"
         } else {
             val critical = leaks.count { it.severity == LeakSeverity.CRITICAL }
             val warning = leaks.count { it.severity == LeakSeverity.WARNING }
@@ -250,4 +259,3 @@ class LeakAnalysisCoordinator(private val project: Project) {
             project.getService(LeakAnalysisCoordinator::class.java)
     }
 }
-

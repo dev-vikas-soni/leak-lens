@@ -8,7 +8,6 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.ui.Messages
-import com.intellij.openapi.ui.popup.JBPopupFactory
 
 /**
  * Manual "Dump Heap Now" action.
@@ -25,7 +24,11 @@ class DumpHeapAction : AnAction() {
             val devices = adbService.listDevices()
             com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                 if (devices.isEmpty()) {
-                    notify(project, "No connected devices found. Please connect a device or start an emulator.", NotificationType.WARNING)
+                    notify(
+                        project,
+                        "No connected devices found. Please connect a device or start an emulator.",
+                        NotificationType.WARNING
+                    )
                     return@invokeLater
                 }
 
@@ -48,7 +51,11 @@ class DumpHeapAction : AnAction() {
                     val processes = adbService.listDebuggableProcesses(deviceSerial)
                     com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater {
                         if (processes.isEmpty()) {
-                            notify(project, "No debuggable processes found on $deviceSerial. Make sure your app is running in debug mode.", NotificationType.WARNING)
+                            notify(
+                                project,
+                                "No debuggable processes found on $deviceSerial. Make sure your app is running in debug mode.",
+                                NotificationType.WARNING
+                            )
                             return@invokeLater
                         }
 
@@ -81,7 +88,7 @@ class DumpHeapAction : AnAction() {
             .notify(project)
     }
 
-    override fun getActionUpdateThread(): com.intellij.openapi.actionSystem.ActionUpdateThread = 
+    override fun getActionUpdateThread(): com.intellij.openapi.actionSystem.ActionUpdateThread =
         com.intellij.openapi.actionSystem.ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {

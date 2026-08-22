@@ -108,7 +108,13 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
 
                 if (onDestroy != null) {
                     val body = onDestroy.body ?: return
-                    body.addBefore(factory.createStatementFromText("$handlerName.removeCallbacksAndMessages(null);", psiClass), body.rBrace)
+                    body.addBefore(
+                        factory.createStatementFromText(
+                            "$handlerName.removeCallbacksAndMessages(null);",
+                            psiClass
+                        ),
+                        body.rBrace
+                    )
                 } else {
                     val newMethod = factory.createMethodFromText(
                         "@Override protected void onDestroy() { super.onDestroy(); $handlerName.removeCallbacksAndMessages(null); }",
@@ -131,7 +137,9 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
                     body.addBefore(newExpr, body.rBrace)
                 } else {
                     val newFunc =
-                        factory.createFunction("override fun onDestroy() {\n    super.onDestroy()\n    $handlerName.removeCallbacksAndMessages(null)\n}")
+                        factory.createFunction(
+                            "override fun onDestroy() {\n    super.onDestroy()\n    $handlerName.removeCallbacksAndMessages(null)\n}"
+                        )
                     ktClass.addDeclaration(newFunc)
                 }
             }

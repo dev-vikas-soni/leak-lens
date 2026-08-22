@@ -45,7 +45,9 @@ class LeakLensConfigurable(private val project: Project) : BoundConfigurable("Le
 
         group("AI Fix Suggestions") {
             row {
-                text("Discuss leaks for free using the 'Ask Gemini' button in the tool window, or enable background automation below.")
+                text(
+                    "Discuss leaks for free using the 'Ask Gemini' button in the tool window, or enable background automation below."
+                )
             }
             row {
                 checkBox("Enable automatic background analysis")

@@ -155,7 +155,9 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
                     return devices.mapNotNull { device ->
                         if (device != null && DeviceFacade.isOnline(device)) {
                             DeviceFacade.getSerialNumber(device)
-                        } else null
+                        } else {
+                            null
+                        }
                     }
                 }
             }
@@ -209,7 +211,8 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
         return try {
             val command = mutableListOf(getAdbExecutable()).apply {
                 if (deviceSerial != null) {
-                    add("-s"); add(deviceSerial)
+                    add("-s")
+                    add(deviceSerial)
                 }
                 add("jdwp")
             }
@@ -237,7 +240,8 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
                 try {
                     val resolveCommand = mutableListOf(getAdbExecutable()).apply {
                         if (deviceSerial != null) {
-                            add("-s"); add(deviceSerial)
+                            add("-s")
+                            add(deviceSerial)
                         }
                         addAll(listOf("shell", "cat", "/proc/$pid/cmdline"))
                     }
@@ -259,7 +263,8 @@ class AdbHeapDumpService(private val project: Project) : Disposable {
         try {
             val command = mutableListOf(getAdbExecutable()).apply {
                 if (deviceSerial != null) {
-                    add("-s"); add(deviceSerial)
+                    add("-s")
+                    add(deviceSerial)
                 }
                 addAll(listOf("shell", "rm", "-f", remotePath))
             }

@@ -19,7 +19,9 @@ object ReportExporter {
         val html = buildString {
             appendLine("<!DOCTYPE html><html><head><meta charset='utf-8'>")
             appendLine("<title>LeakLens Report - $dateStr</title>")
-            appendLine("<style>body{font-family:sans-serif;margin:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f4f4f4}.critical{color:#d32f2f}.warning{color:#f57c00}.library{color:#388e3c}pre{background:#f5f5f5;padding:10px;overflow-x:auto}</style>")
+            appendLine(
+                "<style>body{font-family:sans-serif;margin:20px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;text-align:left}th{background:#f4f4f4}.critical{color:#d32f2f}.warning{color:#f57c00}.library{color:#388e3c}pre{background:#f5f5f5;padding:10px;overflow-x:auto}</style>"
+            )
             appendLine("</head><body>")
             appendLine("<h1>🔍 LeakLens Memory Leak Report</h1>")
             appendLine("<p>Generated: $dateStr | Total leaks: ${leaks.size}</p>")
@@ -30,7 +32,17 @@ object ReportExporter {
                     LeakSeverity.WARNING -> "warning"
                     LeakSeverity.LIBRARY_LEAK -> "library"
                 }
-                appendLine("<tr class='$cls'><td>${leak.severity.displayName}</td><td>${escapeHtml(leak.retainedObjectClassName)}</td><td>${escapeHtml(leak.shortDescription)}</td><td>${leak.retainedByteSize / 1024} KB</td></tr>")
+                appendLine(
+                    "<tr class='$cls'><td>${leak.severity.displayName}</td><td>${
+                        escapeHtml(
+                            leak.retainedObjectClassName
+                        )
+                    }</td><td>${
+                        escapeHtml(
+                            leak.shortDescription
+                        )
+                    }</td><td>${leak.retainedByteSize / 1024} KB</td></tr>"
+                )
             }
             appendLine("</table>")
             for (leak in leaks) {
@@ -60,7 +72,15 @@ object ReportExporter {
                 appendLine("      \"retainedBytes\": ${leak.retainedByteSize},")
                 appendLine("      \"isLibraryLeak\": ${leak.isLibraryLeak},")
                 appendLine("      \"trace\": \"${escapeJson(leak.leakTrace)}\",")
-                appendLine("      \"suggestedFix\": ${if (leak.suggestedFix != null) "\"${escapeJson(leak.suggestedFix)}\"" else "null"}")
+                appendLine(
+                    "      \"suggestedFix\": ${
+                        if (leak.suggestedFix != null) "\"${
+                            escapeJson(
+                                leak.suggestedFix
+                            )
+                        }\"" else "null"
+                    }"
+                )
                 append("    }")
                 if (i < leaks.size - 1) appendLine(",") else appendLine()
             }
@@ -76,7 +96,8 @@ object ReportExporter {
      */
     fun exportSarif(leaks: List<LeakInfo>, outputFile: File) {
         val sarif = buildString {
-            appendLine("""{
+            appendLine(
+                """{
   "${"$"}schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json",
   "version": "2.1.0",
   "runs": [{
@@ -92,7 +113,8 @@ object ReportExporter {
         ]
       }
     },
-    "results": [""")
+    "results": ["""
+            )
             leaks.forEachIndexed { i, leak ->
                 val ruleId = when (leak.severity) {
                     LeakSeverity.CRITICAL -> "leak/critical"
@@ -105,17 +127,21 @@ object ReportExporter {
                     LeakSeverity.LIBRARY_LEAK -> "note"
                 }
                 val className = leak.retainedObjectClassName.replace('.', '/')
-                append("""      {
+                append(
+                    """      {
         "ruleId": "$ruleId",
         "level": "$level",
         "message": {"text": "${escapeJson(leak.shortDescription)}"},
         "locations": [{"physicalLocation": {"artifactLocation": {"uri": "$className.java"}}}]
-      }""")
+      }"""
+                )
                 if (i < leaks.size - 1) appendLine(",") else appendLine()
             }
-            appendLine("""    ]
+            appendLine(
+                """    ]
   }]
-}""")
+}"""
+            )
         }
         outputFile.writeText(sarif)
     }
@@ -123,4 +149,3 @@ object ReportExporter {
     private fun escapeJson(s: String): String =
         s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
 }
-

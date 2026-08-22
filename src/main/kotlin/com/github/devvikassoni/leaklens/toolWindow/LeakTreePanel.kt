@@ -192,7 +192,7 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
         val totalRetained = leaks.sumOf { it.retainedByteSize }
         statusLabel.text = "${leaks.size} issues found"
         countLabel.text = "Retained: ${formatBytes(totalRetained)}"
-        pulseStatus()   // ✨ Animate the status badge
+        pulseStatus() // ✨ Animate the status badge
     }
 
     /**
@@ -214,9 +214,11 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
         pulseTimer.isRepeats = true
         pulseTimer.start()
         // Auto-stop after 8 pulses (1.2s)
-        Timer(1250) { pulseTimer.stop() }.apply { isRepeats = false; start() }
+        Timer(1250) { pulseTimer.stop() }.apply {
+            isRepeats = false
+            start()
+        }
     }
-
 
     private fun createStatusBar() = panel {
         separator()
@@ -264,7 +266,7 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
                     val simpleClassName = userObj.retainedObjectClassName.substringAfterLast('.')
                     append(simpleClassName, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
                     append(" - ${userObj.shortDescription}", SimpleTextAttributes.GRAYED_ATTRIBUTES)
-                    
+
                     if (userObj.retainedByteSize > 0) {
                         append(
                             " [${formatBytes(userObj.retainedByteSize)}]",

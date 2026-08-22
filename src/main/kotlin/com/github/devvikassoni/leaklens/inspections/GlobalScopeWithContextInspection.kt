@@ -43,7 +43,7 @@ class GlobalScopeWithContextInspection : LocalInspectionTool() {
                             val elementToHighlight =
                                 node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return false
                             val description =
-                                "LeakLens: GlobalScope.${methodName} may cause a memory leak. Use lifecycleScope."
+                                "LeakLens: GlobalScope.$methodName may cause a memory leak. Use lifecycleScope."
                             holder.registerProblem(
                                 elementToHighlight,
                                 description,

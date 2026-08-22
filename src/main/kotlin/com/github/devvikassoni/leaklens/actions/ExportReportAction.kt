@@ -28,12 +28,23 @@ class ExportReportAction : AnAction() {
         if (leaks.isEmpty()) {
             NotificationGroupManager.getInstance()
                 .getNotificationGroup("LeakLens Notifications")
-                .createNotification("LeakLens", "No leaks to export. Run an analysis first.", NotificationType.INFORMATION)
+                .createNotification(
+                    "LeakLens",
+                    "No leaks to export. Run an analysis first.",
+                    NotificationType.INFORMATION
+                )
                 .notify(project)
             return
         }
 
-        val descriptor = FileSaverDescriptor("Export LeakLens Report", "Choose location and format", "html", "json", "sarif")
+        val descriptor =
+            FileSaverDescriptor(
+                "Export LeakLens Report",
+                "Choose location and format",
+                "html",
+                "json",
+                "sarif"
+            )
         val saveDialog = FileChooserFactory.getInstance().createSaveFileDialog(descriptor, project)
         val wrapper = saveDialog.save(null as com.intellij.openapi.vfs.VirtualFile?, "leaklens-report") ?: return
 
@@ -57,26 +68,30 @@ class ExportReportAction : AnAction() {
             )
 
         // "Show in Files" CTA — opens the folder in the system file manager
-        notification.addAction(NotificationAction.createSimple("Show in Files") {
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop()
-                    .isSupported(Desktop.Action.BROWSE_FILE_DIR)
-            ) {
-                Desktop.getDesktop().browseFileDirectory(file)
-            } else if (Desktop.isDesktopSupported() && Desktop.getDesktop()
-                    .isSupported(Desktop.Action.OPEN)
-            ) {
-                Desktop.getDesktop().open(file.parentFile)
+        notification.addAction(
+            NotificationAction.createSimple("Show in Files") {
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop()
+                        .isSupported(Desktop.Action.BROWSE_FILE_DIR)
+                ) {
+                    Desktop.getDesktop().browseFileDirectory(file)
+                } else if (Desktop.isDesktopSupported() && Desktop.getDesktop()
+                        .isSupported(Desktop.Action.OPEN)
+                ) {
+                    Desktop.getDesktop().open(file.parentFile)
+                }
             }
-        })
+        )
 
         // "Open File" CTA — open the report directly
-        notification.addAction(NotificationAction.createSimple("Open Report") {
-            if (Desktop.isDesktopSupported() && Desktop.getDesktop()
-                    .isSupported(Desktop.Action.OPEN)
-            ) {
-                Desktop.getDesktop().open(file)
+        notification.addAction(
+            NotificationAction.createSimple("Open Report") {
+                if (Desktop.isDesktopSupported() && Desktop.getDesktop()
+                        .isSupported(Desktop.Action.OPEN)
+                ) {
+                    Desktop.getDesktop().open(file)
+                }
             }
-        })
+        )
 
         notification.notify(project)
     }

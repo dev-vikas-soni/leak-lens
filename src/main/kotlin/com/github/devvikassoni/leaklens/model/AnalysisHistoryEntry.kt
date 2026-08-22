@@ -9,4 +9,3 @@ data class AnalysisHistoryEntry(
     val libraryLeakCount: Int,
     val leaks: List<LeakInfo>
 )
-

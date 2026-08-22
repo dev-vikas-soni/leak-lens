@@ -13,12 +13,12 @@ class LeakBaselineManagerTest : BasePlatformTestCase() {
 
     override fun setUp() {
         super.setUp()
-        // Delete existing baseline file for isolation
-        baselineFile = File(project.basePath ?: System.getProperty("java.io.tmpdir"), "leak-baseline.json")
+        baselineManager = LeakBaselineManager.getInstance(project)
+        baselineFile = baselineManager.baselineFile
         if (baselineFile.exists()) {
             baselineFile.delete()
         }
-        baselineManager = LeakBaselineManager(project)
+        baselineManager.loadBaseline() // Ensure it's fresh
     }
 
     override fun tearDown() {
@@ -54,9 +54,9 @@ class LeakBaselineManagerTest : BasePlatformTestCase() {
         assertEquals(1, baselineManager.getBaselineCount())
 
         // Wait for async IO to complete
-        var retries = 50
+        var retries = 100
         while (!baselineFile.exists() && retries > 0) {
-            Thread.sleep(10)
+            Thread.sleep(20)
             retries--
         }
 
@@ -117,9 +117,9 @@ class LeakBaselineManagerTest : BasePlatformTestCase() {
         )
         baselineManager.saveBaseline(listOf(leak))
 
-        var retries = 50
+        var retries = 100
         while (!baselineFile.exists() && retries > 0) {
-            Thread.sleep(10)
+            Thread.sleep(20)
             retries--
         }
 

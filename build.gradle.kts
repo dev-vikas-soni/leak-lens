@@ -1,4 +1,5 @@
 import org.jetbrains.intellij.platform.gradle.TestFrameworkType
+import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
 import java.util.Properties
 
 plugins {
@@ -38,7 +39,8 @@ dependencies {
     testImplementation("org.opentest4j:opentest4j:1.3.0")
 
     intellijPlatform {
-        androidStudio("2024.2.2.13")
+        val asVersion = providers.gradleProperty("androidStudioVersion").get()
+        androidStudio(asVersion)
         testFramework(TestFrameworkType.Platform)
         bundledPlugins("org.jetbrains.android", "org.jetbrains.kotlin")
     }
@@ -47,9 +49,30 @@ dependencies {
 intellijPlatform {
     buildSearchableOptions.set(false)
 
+    pluginConfiguration {
+        val since = providers.gradleProperty("pluginSinceBuild").get()
+        val until = providers.gradleProperty("pluginUntilBuild").get()
+        ideaVersion {
+            sinceBuild.set(since)
+            untilBuild.set(until)
+        }
+    }
+
     pluginVerification {
         ides {
-            recommended()
+            // Restrict verification to Android Studio to ensure bundled dependencies
+            // like 'org.jetbrains.android' are correctly resolved.
+            val asVersion = providers.gradleProperty("androidStudioVersion").get()
+            create(IntelliJPlatformType.AndroidStudio, asVersion)
+
+            // Add Koala for backward compatibility check
+            create(IntelliJPlatformType.AndroidStudio, "2024.1.2.12")
+
+            // Add Meerkat (Preview) for forward compatibility check
+            create(IntelliJPlatformType.AndroidStudio, "2024.3.1.1")
+
+            // Add Rabbit (Latest) for future-proofing
+            create(IntelliJPlatformType.AndroidStudio, "2026.2.1.1")
         }
     }
 

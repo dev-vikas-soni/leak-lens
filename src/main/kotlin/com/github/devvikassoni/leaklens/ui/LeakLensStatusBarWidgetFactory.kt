@@ -25,7 +25,8 @@ class LeakLensStatusBarWidgetFactory : StatusBarWidgetFactory {
     override fun disposeWidget(widget: StatusBarWidget) {}
     override fun canBeEnabledOn(statusBar: StatusBar) = true
 
-    private class LeakLensStatusBarWidget(private val project: Project) : StatusBarWidget,
+    private class LeakLensStatusBarWidget(private val project: Project) :
+        StatusBarWidget,
         CustomStatusBarWidget {
         private val component = JBLabel().apply {
             font = JBUI.Fonts.smallFont()

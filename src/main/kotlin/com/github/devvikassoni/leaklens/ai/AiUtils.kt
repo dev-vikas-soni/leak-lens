@@ -19,7 +19,11 @@ object AiUtils {
             * **Retained Size**: ${leak.retainedByteSize / 1024} KB
 
             ## Reference Chain
-            ${leak.referenceChain.joinToString("\n") { "↓ ${it.owningClassName}.${it.referenceName} (${it.referenceType})" }}
+            ${
+            leak.referenceChain.joinToString(
+                "\n"
+            ) { "↓ ${it.owningClassName}.${it.referenceName} (${it.referenceType})" }
+        }
 
             ## Full Leak Trace
             ```

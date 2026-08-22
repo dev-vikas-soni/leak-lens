@@ -39,4 +39,3 @@ class ToggleAutoDetectAction : AnAction() {
             .notify(project)
     }
 }
-

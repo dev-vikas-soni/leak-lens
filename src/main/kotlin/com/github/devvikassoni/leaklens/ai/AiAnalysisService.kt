@@ -7,7 +7,6 @@ import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
 import java.net.HttpURLConnection
 import java.net.URI
-import java.net.URL
 
 /**
  * AI-assisted leak analysis service.
@@ -59,7 +58,9 @@ class AiAnalysisService(private val project: Project) {
 
             return if (response != null) {
                 "$AI_BADGE\n\n$response"
-            } else null
+            } else {
+                null
+            }
         } catch (e: Exception) {
             logger.warn("LeakLens AI: Failed to generate suggestion", e)
             return null
@@ -77,38 +78,50 @@ class AiAnalysisService(private val project: Project) {
                 val aiSuggestion = generateFixSuggestion(leak)
                 if (aiSuggestion != null) {
                     leak.copy(suggestedFix = aiSuggestion)
-                } else leak
-            } else leak
+                } else {
+                    leak
+                }
+            } else {
+                leak
+            }
         }
     }
 
     private fun buildPrompt(leak: LeakInfo, anonymize: Boolean): String {
         val trace = if (anonymize) anonymizeTrace(leak.leakTrace) else leak.leakTrace
-        val className = if (anonymize) anonymizeClassName(leak.retainedObjectClassName) else leak.retainedObjectClassName
+        val className = if (anonymize) {
+            anonymizeClassName(
+                leak.retainedObjectClassName
+            )
+        } else {
+            leak.retainedObjectClassName
+        }
 
         return """
             You are an expert Android developer specializing in memory leak detection and fixing.
-            
+
             Analyze this Android memory leak and provide:
             1. Root cause explanation (2-3 sentences)
             2. Specific fix with code snippet
             3. Prevention tip
-            
+
             Leak Details:
             - Leaking class: $className
             - Severity: ${leak.severity.displayName}
             - Retained size: ${leak.retainedByteSize / 1024} KB
             - Is library leak: ${leak.isLibraryLeak}
-            
+
             Reference chain:
             ${leak.referenceChain.joinToString("\n") { ref ->
-                val ownerName = if (anonymize) anonymizeClassName(ref.owningClassName) else ref.owningClassName
-                "  → $ownerName.${ref.referenceName} (${ref.referenceType})"
-            }}
-            
+            val ownerName =
+                if (anonymize) anonymizeClassName(ref.owningClassName) else ref.owningClassName
+            "  → $ownerName.${ref.referenceName} (${ref.referenceType})"
+        }
+        }
+
             Full trace:
             $trace
-            
+
             Provide a concise, actionable fix. Include Kotlin code snippets.
         """.trimIndent()
     }
@@ -240,4 +253,3 @@ class AiAnalysisService(private val project: Project) {
             .replace("\t", "\\t") + "\""
     }
 }
-

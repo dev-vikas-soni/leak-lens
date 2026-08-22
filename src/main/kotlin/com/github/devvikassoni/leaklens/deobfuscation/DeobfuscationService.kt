@@ -111,4 +111,3 @@ class DeobfuscationService(private val project: Project) {
             project.getService(DeobfuscationService::class.java)
     }
 }
-

@@ -11,20 +11,35 @@ class UastInspectionsTest : BasePlatformTestCase() {
 
     override fun setUp() {
         super.setUp()
-        myFixture.addFileToProject("android/app/Activity.java", "package android.app; public class Activity extends android.content.Context { protected void onDestroy() {} }")
-        myFixture.addFileToProject("android/app/Fragment.java", "package android.app; public class Fragment { public void onDestroyView() {} protected void onDestroy() {} }")
+        myFixture.addFileToProject(
+            "android/app/Activity.java",
+            "package android.app; public class Activity extends android.content.Context { protected void onDestroy() {} }"
+        )
+        myFixture.addFileToProject(
+            "android/app/Fragment.java",
+            "package android.app; public class Fragment { public void onDestroyView() {} protected void onDestroy() {} }"
+        )
         myFixture.addFileToProject("android/content/Context.java", "package android.content; public class Context {}")
-        myFixture.addFileToProject("android/os/Handler.java", "package android.os; public class Handler { public void postDelayed(Runnable r, long d) {} public void removeCallbacksAndMessages(Object o) {} }")
+        myFixture.addFileToProject(
+            "android/os/Handler.java",
+            "package android.os; public class Handler { public void postDelayed(Runnable r, long d) {} public void removeCallbacksAndMessages(Object o) {} }"
+        )
         myFixture.addFileToProject("android/view/View.java", "package android.view; public class View {}")
-        myFixture.addFileToProject("java/lang/Runnable.java", "package java.lang; public interface Runnable { void run(); }")
-        myFixture.addFileToProject("java/lang/Thread.java", "package java.lang; public class Thread { public Thread(Runnable r) {} public void start() {} }")
+        myFixture.addFileToProject(
+            "java/lang/Runnable.java",
+            "package java.lang; public interface Runnable { void run(); }"
+        )
+        myFixture.addFileToProject(
+            "java/lang/Thread.java",
+            "package java.lang; public class Thread { public Thread(Runnable r) {} public void start() {} }"
+        )
         myFixture.addFileToProject("java/lang/Object.java", "package java.lang; public class Object {}")
         myFixture.addFileToProject("java/lang/String.java", "package java.lang; public class String {}")
         myFixture.addFileToProject(
             "androidx/lifecycle/ViewModel.java",
             "package androidx.lifecycle; public abstract class ViewModel {}"
         )
-        
+
         // Mock Kotlin coroutines for GlobalScopeWithContextInspection
         myFixture.addFileToProject(
             "kotlinx/coroutines/GlobalScope.kt",

@@ -41,7 +41,7 @@ class LeakLensSettingsState : PersistentStateComponent<LeakLensSettingsState> {
     var autoCleanupOnStart: Boolean = true
 
     // Monitoring settings
-    var autoHeapDumpThresholdMb: Int = 256  // 0 = disabled
+    var autoHeapDumpThresholdMb: Int = 256 // 0 = disabled
     var monitorIntervalMs: Long = 5000
 
     // Baseline settings
@@ -78,4 +78,3 @@ data class PersistedHistoryEntry(
     var warningCount: Int = 0,
     var libraryLeakCount: Int = 0
 )
-

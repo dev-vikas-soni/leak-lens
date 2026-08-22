@@ -34,7 +34,8 @@ object LeakLensObjectInspectors {
                         val refClassName = fieldRef.asObject?.asInstance?.instanceClassName ?: ""
                         if (refClassName.contains("Activity") ||
                             refClassName.endsWith("Context") ||
-                            refClassName.contains("View")) {
+                            refClassName.contains("View")
+                        ) {
                             reporter.leakingReasons +=
                                 "ViewModel ${instance.instanceClassName} holds a reference to " +
                                 "$refClassName via field '${field.name}'. " +
@@ -168,4 +169,3 @@ object LeakLensObjectInspectors {
         }
     }
 }
-

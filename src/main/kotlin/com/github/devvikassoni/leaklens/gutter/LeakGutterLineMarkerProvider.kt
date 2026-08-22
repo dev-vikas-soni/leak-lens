@@ -31,7 +31,7 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
         } else if (parent is org.jetbrains.kotlin.psi.KtClassOrObject) {
             qualifiedName = parent.fqName?.asString()
         }
-        
+
         if (qualifiedName == null) return null
 
         val project = element.project
@@ -69,8 +69,9 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
 
         // 2. Check for heap analysis leaks (existing logic)
         // Fast O(1) check
-        if (!service.retainedClassNames.contains(qualifiedName) && 
-            !service.referenceChainClassNames.contains(qualifiedName)) {
+        if (!service.retainedClassNames.contains(qualifiedName) &&
+            !service.referenceChainClassNames.contains(qualifiedName)
+        ) {
             return null
         }
 
@@ -135,4 +136,3 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
         }
     }
 }
-

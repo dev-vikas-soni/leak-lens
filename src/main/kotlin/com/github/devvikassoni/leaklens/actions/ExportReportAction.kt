@@ -37,12 +37,13 @@ class ExportReportAction : AnAction() {
             return
         }
 
-        val descriptor =
-            FileSaverDescriptor(
-                "Export LeakLens Report",
-                "Choose location and format",
-                "html", "json", "sarif"
-            )
+        val descriptor = FileSaverDescriptor(
+            "Export LeakLens Report",
+            "Choose location and format",
+            "html",
+            "json",
+            "sarif"
+        )
         val saveDialog = FileChooserFactory.getInstance().createSaveFileDialog(descriptor, project)
         val wrapper = saveDialog.save(null as com.intellij.openapi.vfs.VirtualFile?, "leaklens-report") ?: return
 

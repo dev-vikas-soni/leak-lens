@@ -66,9 +66,6 @@ class LeakLensStatusBarWidgetFactory : StatusBarWidgetFactory {
 
         override fun ID() = "LeakLensStatusBarWidget"
 
-        @Deprecated("Deprecated in Java", ReplaceWith("getComponent()"))
-        override fun getPresentation(): StatusBarWidget.WidgetPresentation? = null
-
         override fun getComponent(): JComponent = component
         override fun install(statusBar: StatusBar) {}
         override fun dispose() {}

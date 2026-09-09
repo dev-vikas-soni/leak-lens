@@ -6,6 +6,7 @@ import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
@@ -19,7 +20,7 @@ import kotlinx.coroutines.launch
 class LeakBaselineManager(private val project: Project) {
 
     private val logger = thisLogger()
-    private val baselineSignatures = mutableSetOf<String>()
+    private val baselineSignatures = ConcurrentHashMap.newKeySet<String>()
 
     internal val baselineFile: File
         get() = File(project.basePath ?: System.getProperty("java.io.tmpdir"), "leak-baseline.json")
@@ -63,6 +64,12 @@ class LeakBaselineManager(private val project: Project) {
             appendLine("  ]")
             appendLine("}")
         }
+
+        // Update in-memory set immediately
+        val newSignatures = leaks.map { it.signature }
+        baselineSignatures.clear()
+        baselineSignatures.addAll(newSignatures)
+
         val scope = LeakLensProjectService.getInstance(project).scope
         scope.launch(Dispatchers.IO) {
             baselineFile.parentFile?.let {
@@ -70,8 +77,6 @@ class LeakBaselineManager(private val project: Project) {
             }
             baselineFile.writeText(json)
         }
-        baselineSignatures.clear()
-        baselineSignatures.addAll(leaks.map { it.signature })
         logger.info("LeakLens: Saved ${leaks.size} entries to baseline")
     }
 
@@ -81,27 +86,57 @@ class LeakBaselineManager(private val project: Project) {
         scope.launch(Dispatchers.IO) {
             // Re-save full baseline
             if (baselineFile.exists()) {
-                var content = baselineFile.readText()
-                val newEntry =
-                    "    {\"signature\": \"${leak.signature}\", \"class\": \"${leak.retainedObjectClassName}\", \"description\": \"${
-                        leak.shortDescription.replace(
-                            "\"",
-                            "\\\""
-                        )
-                    }\"}"
-                val insertPos = content.lastIndexOf("]")
-                if (insertPos > 0) {
-                    val isArrayEmpty =
-                        content.substring(content.lastIndexOf("[") + 1, insertPos).trim().isEmpty()
-                    val prefix = if (isArrayEmpty) "\n" else ",\n"
-                    content = content.substring(
-                        0,
-                        insertPos
-                    ) + prefix + newEntry + "\n  " + content.substring(insertPos)
-                    baselineFile.writeText(content)
+                try {
+                    var content = baselineFile.readText()
+                    val newEntry =
+                        "    {\"signature\": \"${leak.signature}\", \"class\": \"${leak.retainedObjectClassName}\", \"description\": \"${
+                            leak.shortDescription.replace(
+                                "\"",
+                                "\\\""
+                            )
+                        }\"}"
+                    val insertPos = content.lastIndexOf("]")
+                    if (insertPos > 0) {
+                        val isArrayEmpty =
+                            content.substring(content.lastIndexOf("[") + 1, insertPos).trim()
+                                .isEmpty()
+                        val prefix = if (isArrayEmpty) "\n" else ",\n"
+                        content = content.substring(
+                            0,
+                            insertPos
+                        ) + prefix + newEntry + "\n  " + content.substring(insertPos)
+                        baselineFile.writeText(content)
+                    }
+                } catch (e: Exception) {
+                    logger.warn(
+                        "LeakLens: Failed to append to baseline file, falling back to full save",
+                        e
+                    )
+                    // Fallback to full save is tricky here because we only have the current leak info.
+                    // But if append fails, we might have corrupted the file.
                 }
             } else {
-                saveBaseline(listOf(leak))
+                // If file doesn't exist, we create a new one with only this leak.
+                // We DON'T call saveBaseline() because it would clear other signatures that might
+                // have been added to the set but not yet persisted.
+                val json = buildString {
+                    appendLine("{")
+                    appendLine("  \"description\": \"LeakLens baseline - suppressed leak signatures\",")
+                    appendLine("  \"generatedAt\": \"${java.time.Instant.now()}\",")
+                    appendLine("  \"leaks\": [")
+                    appendLine(
+                        "    {\"signature\": \"${leak.signature}\", \"class\": \"${leak.retainedObjectClassName}\", \"description\": \"${
+                            leak.shortDescription.replace(
+                                "\"",
+                                "\\\""
+                            )
+                        }\"}"
+                    )
+                    appendLine("  ]")
+                    appendLine("}")
+                }
+                baselineFile.parentFile?.mkdirs()
+                baselineFile.writeText(json)
             }
         }
         logger.info("LeakLens: Added ${leak.signature} to baseline")

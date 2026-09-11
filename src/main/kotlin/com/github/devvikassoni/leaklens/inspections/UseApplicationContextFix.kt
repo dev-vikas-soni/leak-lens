@@ -8,56 +8,71 @@ import org.jetbrains.kotlin.psi.KtProperty
 import org.jetbrains.kotlin.psi.KtPsiFactory
 
 /**
- * Quick-fix that replaces a stored Context field with applicationContext.
- *
- * For Kotlin:
- *   private val ctx: Context  →  private val ctx: Context get() = applicationContext
- *
- * For Java (adds a comment):
- *   // LeakLens: Replace ctx with getApplicationContext() — Context field removed
+ * Quick-fix that replaces a Context reference with its applicationContext.
+ * Handles both fields (Workers) and method arguments (Singletons).
  */
-class UseApplicationContextFix(private val fieldName: String) : LocalQuickFix {
+class UseApplicationContextFix(private val fieldName: String? = null) : LocalQuickFix {
 
-    override fun getName(): String = "LeakLens: Replace '$fieldName' with applicationContext"
-    override fun getFamilyName(): String = "LeakLens Worker Fixes"
+    override fun getName(): String =
+        if (fieldName != null) "LeakLens: Use applicationContext instead of '$fieldName'" else "LeakLens: Use applicationContext"
+
+    override fun getFamilyName(): String = "LeakLens Context Fixes"
 
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-        val element = descriptor.psiElement
+        val element = descriptor.psiElement ?: return
 
         when {
-            // Kotlin: find the KtProperty and convert to a computed property
             element.language.id == "kotlin" -> applyKotlinFix(project, element)
             else -> applyJavaFix(project, element)
         }
     }
 
     private fun applyKotlinFix(project: Project, element: com.intellij.psi.PsiElement) {
-        // Walk up to the KtProperty
+        val factory = KtPsiFactory(project)
+
+        // Check if it's a property/field (Worker case)
         var current: com.intellij.psi.PsiElement? = element
-        while (current != null && current !is KtProperty) {
+        while (current != null && current !is KtProperty && current !is org.jetbrains.kotlin.psi.KtClass) {
             current = current.parent
         }
-        val property = current as KtProperty
 
-        val factory = KtPsiFactory(project)
-        // Replace the stored field with a computed property backed by applicationContext
-        val newPropText =
-            "${property.modifierList?.text?.let { "$it " } ?: ""}val $fieldName: android.content.Context get() = applicationContext"
-        val newProperty = factory.createProperty(newPropText)
+        if (current is KtProperty && fieldName != null) {
+            val property = current
+            val newPropText =
+                "${property.modifierList?.text?.let { "$it " } ?: ""}val $fieldName: android.content.Context get() = applicationContext"
+            val newProperty = factory.createProperty(newPropText)
 
-        WriteCommandAction.runWriteCommandAction(project, "Use applicationContext", null, {
-            property.replace(newProperty)
-        })
+            WriteCommandAction.runWriteCommandAction(project, "Use applicationContext", null, {
+                property.replace(newProperty)
+            })
+        } else {
+            // Expression case (Singleton argument)
+            val newExpr = factory.createExpression("${element.text}.applicationContext")
+            WriteCommandAction.runWriteCommandAction(project, "Use applicationContext", null, {
+                element.replace(newExpr)
+            })
+        }
     }
 
     private fun applyJavaFix(project: Project, element: com.intellij.psi.PsiElement) {
         val factory = com.intellij.psi.JavaPsiFacade.getElementFactory(project)
-        val comment = factory.createCommentFromText(
-            "// LeakLens: Use getApplicationContext() instead of storing '$fieldName'",
-            element
-        )
-        WriteCommandAction.runWriteCommandAction(project, "Use applicationContext", null, {
-            element.parent?.addBefore(comment, element)
-        })
+
+        if (fieldName != null && element is com.intellij.psi.PsiField) {
+            val comment = factory.createCommentFromText(
+                "// LeakLens: Use getApplicationContext() instead of storing '$fieldName'",
+                element
+            )
+            WriteCommandAction.runWriteCommandAction(project, "Use applicationContext", null, {
+                element.parent?.addBefore(comment, element)
+            })
+        } else {
+            val newExpr = factory.createExpressionFromText(
+                element.text + ".getApplicationContext()",
+                element.parent
+            )
+            WriteCommandAction.runWriteCommandAction(project, "Use applicationContext", null, {
+                element.replace(newExpr)
+            })
+        }
     }
 }

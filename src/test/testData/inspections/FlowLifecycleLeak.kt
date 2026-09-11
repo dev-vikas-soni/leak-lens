@@ -1,80 +1,62 @@
-package testData.inspections
-
 import android.app.Activity
+import android.content.Context
 
-// Mock classes
-object Lifecycle {
-    enum class State { STARTED }
+interface LifecycleOwner
+interface Lifecycle
+enum class State { STARTED, RESUMED }
+
+fun LifecycleOwner.repeatOnLifecycle(state: State, block: suspend () -> Unit) {
+    println(state)
+    println(block)
 }
 
-interface CoroutineScope
-object GlobalScope : CoroutineScope
-
-@Suppress("UNUSED_PARAMETER")
-fun CoroutineScope.launch(block: suspend CoroutineScope.() -> Unit) {
+interface Flow<T> {
+    suspend fun collect(collector: (T) -> Unit)
 }
 
-interface Flow<out T> {
-    suspend fun collect(action: suspend (value: T) -> Unit)
-}
+fun <T> Flow<T>.flowWithLifecycle(
+    @Suppress("UNUSED_PARAMETER") lifecycle: Lifecycle,
+    @Suppress("UNUSED_PARAMETER") state: State
+): Flow<T> = this
 
-val lifecycleScope = GlobalScope
+fun <T> Flow<T>.collectAsState(@Suppress("UNUSED_PARAMETER") initial: T): T = initial
+fun <T> Flow<T>.collectAsStateWithLifecycle(@Suppress("UNUSED_PARAMETER") initial: T): T = initial
 
-@Suppress("UNUSED_PARAMETER")
-fun <T> Flow<T>.flowWithLifecycle(lifecycle: Any?, minActiveState: Any = ""): Flow<T> = this
+class FlowLifecycleLeak : Activity(), LifecycleOwner {
+    val myFlow: Flow<String> = object : Flow<String> {
+        override suspend fun collect(collector: (String) -> Unit) {}
+    }
+    val lifecycle: Lifecycle = object : Lifecycle {}
 
-@Suppress("UNUSED_PARAMETER")
-fun Activity.repeatOnLifecycle(state: Any, block: suspend () -> Unit) {
-}
+    suspend fun setup() {
+        // Bad: unsafe collect
+        myFlow.< error descr =
+            "LeakLens: Unsafe Flow collection. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks. (ACTIVITY -> LOCAL)" > collect < / error > { }
 
-@Suppress("UNUSED_PARAMETER")
-fun println(message: Any?) {
+        // Good: repeatOnLifecycle
+        repeatOnLifecycle(State.STARTED) {
+            myFlow.collect { }
+        }
+
+        // Good: flowWithLifecycle
+        myFlow.flowWithLifecycle(lifecycle, State.STARTED).collect { }
+    }
 }
 
 annotation class Composable
 
-@Suppress("UNUSED_PARAMETER")
-fun <T> Flow<T>.collectAsState(initial: T): Any = this
-
-@Suppress("UNUSED_PARAMETER")
-fun <T> Flow<T>.collectAsStateWithLifecycle(initial: T): Any = this
-
-@Suppress("UNUSED_PARAMETER")
-fun <T> Flow<T>.launchIn(scope: CoroutineScope): Any = this
-
-class FlowLifecycleLeak : Activity() {
-
-    fun observeFlows(myFlow: Flow<String>) {
-        // Bad: Collecting directly in launch
-        GlobalScope.launch {
-            myFlow.<error descr="LeakLens: Unsafe Flow collection. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks.">collect</error> { value ->
-                println(value)
-            }
-        }
-
-        // Bad: launchIn without lifecycle awareness
-        myFlow.<error descr="LeakLens: Unsafe Flow collection. Use repeatOnLifecycle or flowWithLifecycle to prevent background leaks.">launchIn</error>(
-            GlobalScope
-        )
-
-        // Good: Using repeatOnLifecycle
-        GlobalScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                myFlow.collect { value ->
-                    println(value)
-                }
-            }
-        }
-    }
-
-    @Composable
-    fun MyComposable(myFlow: Flow<String>) {
-        // Bad: collectAsState in Compose
-        myFlow.<error descr="LeakLens: Unsafe use of collectAsState(). Use collectAsStateWithLifecycle() for better memory management in Compose.">collectAsState</error>(
+@Composable
+fun MyComposable(myFlow: Flow<String>) {
+    // Bad: unsafe collectAsState
+    val state = myFlow.< error descr =
+        "LeakLens: Unsafe use of collectAsState(). Use collectAsStateWithLifecycle() for better memory management in Compose. (COMPOSITION -> LOCAL)" > collectAsState < / error >(
             ""
         )
+    println(state)
 
-        // Good: collectAsStateWithLifecycle
-        myFlow.collectAsStateWithLifecycle("")
-    }
+    // Good: collectAsStateWithLifecycle
+    val safeState = myFlow.collectAsStateWithLifecycle("")
+    println(safeState)
 }
+
+fun println(@Suppress("UNUSED_PARAMETER") any: Any) {}

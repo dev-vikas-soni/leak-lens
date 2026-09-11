@@ -1,35 +1,29 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.LocalQuickFix
-import com.intellij.codeInspection.ProblemDescriptor
-import com.intellij.codeInspection.ProblemHighlightType
+import com.github.devvikassoni.leaklens.inspections.engine.LifetimeEngine
+import com.github.devvikassoni.leaklens.inspections.registry.RuleRegistry
+import com.github.devvikassoni.leaklens.model.Lifetime
+import com.intellij.codeInspection.LocalInspectionToolSession
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.openapi.project.Project
-import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.PsiModifier
+import com.intellij.psi.PsiField
+import com.intellij.psi.PsiMethod
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.UExpression
-import org.jetbrains.uast.USimpleNameReferenceExpression
-import org.jetbrains.uast.UThisExpression
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
  * Detects Activity Context passed to a Singleton, which lives for the app's duration.
  */
-class ContextPassedToSingletonInspection : LocalInspectionTool() {
+class ContextPassedToSingletonInspection :
+    BaseLeakLensInspection(RuleRegistry.CONTEXT_PASSED_TO_SINGLETON) {
 
-    override fun getGroupDisplayName() = "LeakLens"
-    override fun getDisplayName() = "Activity Context passed to Singleton"
-    override fun getShortName() = "LeakLensContextPassedToSingleton"
-
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
+    override fun buildVisitor(
+        holder: ProblemsHolder,
+        isOnTheFly: Boolean,
+        session: LocalInspectionToolSession
+    ): PsiElementVisitor {
         return UastHintedVisitorAdapter.create(
             holder.file.language,
             object : AbstractUastNonRecursiveVisitor() {
@@ -37,40 +31,87 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
                     val args = node.valueArguments
                     for (arg in args) {
                         if (isActivityContext(arg)) {
+                            val argPsi = arg.sourcePsi
+                            if (argPsi != null && LeakLensInspectionUtils.isApplicationContext(
+                                    argPsi
+                                )
+                            ) continue
+
                             val method = node.resolve() ?: continue
                             val containingClass = method.containingClass ?: continue
+                            val relationship = LifetimeEngine.analyzeRelationship(
+                                owner = containingClass,
+                                referencedType = arg.getExpressionType() ?: continue,
+                                evidenceSource = "Argument passed to ${method.name}"
+                            )
 
-                            if (isSingleton(containingClass)) {
-                                val paramIndex = args.indexOf(arg)
-                                val paramType =
-                                    method.parameterList.parameters.getOrNull(paramIndex)?.type
-                                        ?: continue
+                            if (relationship.isRisky) {
+                                val elementToHighlight =
+                                    arg.sourcePsi ?: node.sourcePsi ?: continue
 
-                                if (LeakLensInspectionUtils.isActivityOrFragmentType(paramType) || paramType.canonicalText.contains(
-                                        "Context"
-                                    )
-                                ) {
+                                registerLeak(
+                                    holder = holder,
+                                    element = elementToHighlight,
+                                    description = rule.description,
+                                    className = containingClass.qualifiedName,
+                                    symbolName = "singleton_arg",
+                                    suggestedFix = "Use 'context.applicationContext' instead of an Activity context.",
+                                    ownerLifetime = relationship.ownerLifetime,
+                                    referencedLifetime = relationship.referencedLifetime,
+                                    evidence = relationship.evidence,
+                                    riskExplanation = relationship.riskExplanation,
+                                    confidence = relationship.confidence
+                                )
+                            }
+                        }
+                    }
+                    return false
+                }
+
+                override fun visitBinaryExpression(node: org.jetbrains.uast.UBinaryExpression): Boolean {
+                    if (node.operator == org.jetbrains.uast.UastBinaryOperator.ASSIGN) {
+                        val right = node.rightOperand
+                        if (isActivityContext(right)) {
+                            val rightPsi = right.sourcePsi
+                            if (rightPsi != null && LeakLensInspectionUtils.isApplicationContext(
+                                    rightPsi
+                                )
+                            ) return false
+
+                            val left = node.leftOperand
+                            if (left is org.jetbrains.uast.UReferenceExpression) {
+                                val resolved = left.resolve()
+                                val containingClass = when (resolved) {
+                                    is PsiField -> resolved.containingClass
+                                    is PsiMethod -> resolved.containingClass
+                                    else -> null
+                                } ?: return false
+
+                                val relationship = LifetimeEngine.analyzeRelationship(
+                                    owner = containingClass,
+                                    referencedType = right.getExpressionType() ?: return false,
+                                    evidenceSource = "Assignment to field ${(resolved as? com.intellij.psi.PsiNamedElement)?.name}"
+                                )
+
+                                if (relationship.isRisky) {
                                     val elementToHighlight =
-                                        arg.sourcePsi ?: node.sourcePsi ?: continue
-                                    val description =
-                                        "LeakLens: Passing Activity Context to a Singleton will cause a memory leak."
-                                    holder.registerProblem(
-                                        elementToHighlight,
-                                        description,
-                                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                        UseApplicationContextQuickFix(),
-                                        AskGeminiFix(
-                                            description,
-                                            containingClass.name ?: "Singleton",
-                                            LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                                        )
-                                    )
+                                        right.sourcePsi ?: node.sourcePsi ?: return false
 
-                                    fileIssues.add(
-                                        createLeakInfo(
-                                            containingClass.name ?: "Singleton",
-                                            arg
-                                        )
+                                    val memberName =
+                                        (resolved as? com.intellij.psi.PsiNamedElement)?.name
+                                            ?: "unknown"
+                                    registerLeak(
+                                        holder = holder,
+                                        element = elementToHighlight,
+                                        description = rule.description,
+                                        className = containingClass.qualifiedName,
+                                        symbolName = memberName,
+                                        suggestedFix = "Use 'context.applicationContext' instead of an Activity context.",
+                                        ownerLifetime = relationship.ownerLifetime,
+                                        referencedLifetime = relationship.referencedLifetime,
+                                        evidence = relationship.evidence,
+                                        riskExplanation = relationship.riskExplanation,
+                                        confidence = relationship.confidence
                                     )
                                 }
                             }
@@ -79,60 +120,17 @@ class ContextPassedToSingletonInspection : LocalInspectionTool() {
                     return false
                 }
             },
-            arrayOf(UCallExpression::class.java)
+            arrayOf(UCallExpression::class.java, org.jetbrains.uast.UBinaryExpression::class.java)
         )
     }
 
-    private fun createLeakInfo(singletonName: String, arg: UExpression): LeakInfo {
-        val line = arg.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "singleton_context_leak_${singletonName}_$line",
-            shortDescription = "Activity Context passed to $singletonName",
-            leakTrace = "Passed to: $singletonName (line $line)",
-            retainedObjectClassName = "android.content.Context",
-            retainedByteSize = 0,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.WARNING,
-            referenceChain = emptyList(),
-            suggestedFix = "Use 'context.applicationContext' instead of an Activity context."
-        )
+    override fun getQuickFixes(element: com.intellij.psi.PsiElement): Array<com.intellij.codeInspection.LocalQuickFix> {
+        return arrayOf(UseApplicationContextFix())
     }
 
     private fun isActivityContext(arg: UExpression): Boolean {
-        if (arg is UThisExpression) return true
-        if (arg is USimpleNameReferenceExpression && (arg.identifier == "context" || arg.identifier == "activity")) return true
-        return false
-    }
-
-    private fun isSingleton(psiClass: PsiClass): Boolean {
-        val hasInstance = psiClass.fields.any { field ->
-            field.hasModifierProperty(com.intellij.psi.PsiModifier.STATIC) &&
-                    (field.name == "INSTANCE" || field.name == "instance" || field.name == "sInstance")
-        }
-        val hasSingletonAnnotation = psiClass.annotations.any { it.qualifiedName?.contains("Singleton") == true }
-        return hasInstance || hasSingletonAnnotation
-    }
-
-    private class UseApplicationContextQuickFix : LocalQuickFix {
-        override fun getName() = "Use applicationContext"
-        override fun getFamilyName() = "LeakLens singleton fix"
-
-        override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-            val element = descriptor.psiElement
-            val isKotlin = element.language.id.equals("kotlin", ignoreCase = true)
-
-            if (isKotlin) {
-                val factory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
-                element.replace(factory.createExpression("${element.text}.applicationContext"))
-            } else {
-                val factory = com.intellij.psi.JavaPsiFacade.getElementFactory(project)
-                element.replace(
-                    factory.createExpressionFromText(
-                        "${element.text}.getApplicationContext()",
-                        element
-                    )
-                )
-            }
-        }
+        val type = arg.getExpressionType() ?: return false
+        val lifetime = LifetimeEngine.getLifetime(type)
+        return lifetime == Lifetime.ACTIVITY || lifetime == Lifetime.FRAGMENT
     }
 }

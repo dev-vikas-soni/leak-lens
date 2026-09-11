@@ -1,9 +1,9 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.ProblemHighlightType
+import com.github.devvikassoni.leaklens.inspections.engine.LifetimeEngine
+import com.github.devvikassoni.leaklens.inspections.registry.RuleRegistry
+import com.github.devvikassoni.leaklens.model.Lifetime
+import com.intellij.codeInspection.LocalInspectionToolSession
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
@@ -11,19 +11,14 @@ import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
-/**
- * Detects usage of deprecated lifecycle coroutine builders like launchWhenStarted,
- * which are known to cause resource leaks when the app is in the background.
- */
-class DeprecatedLifecycleScopeInspection : LocalInspectionTool() {
+class DeprecatedLifecycleScopeInspection :
+    BaseLeakLensInspection(RuleRegistry.DEPRECATED_LIFECYCLE_SCOPE) {
 
-    override fun getGroupDisplayName() = "LeakLens"
-    override fun getDisplayName() = "Deprecated lifecycleScope.launchWhenX causes leaks"
-    override fun getShortName() = "LeakLensDeprecatedLifecycleScope"
-
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
+    override fun buildVisitor(
+        holder: ProblemsHolder,
+        isOnTheFly: Boolean,
+        session: LocalInspectionToolSession
+    ): PsiElementVisitor {
         return UastHintedVisitorAdapter.create(
             holder.file.language,
             object : AbstractUastNonRecursiveVisitor() {
@@ -36,45 +31,29 @@ class DeprecatedLifecycleScopeInspection : LocalInspectionTool() {
                             "launchWhenCreated"
                         )
                     ) {
-                        val containingClass = node.getContainingUClass() ?: return false
-
                         val elementToHighlight =
                             node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return false
-                        val description =
-                            "LeakLens: $methodName is deprecated and can cause memory/resource leaks in the background. Use repeatOnLifecycle instead."
+                        val containingClass = node.getContainingUClass()
+                        val ownerLifetime = containingClass?.let { LifetimeEngine.getLifetime(it) }
+                            ?: Lifetime.UNKNOWN
 
-                        holder.registerProblem(
-                            elementToHighlight,
-                            description,
-                            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                            AskGeminiFix(
-                                description,
-                                containingClass.name ?: "Unknown",
-                                LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                            )
+                        registerLeak(
+                            holder = holder,
+                            element = elementToHighlight,
+                            description = rule.description,
+                            className = containingClass?.javaPsi?.qualifiedName,
+                            functionName = methodName,
+                            symbolName = "deprecated_builder",
+                            suggestedFix = "Use repeatOnLifecycle instead of launchWhenStarted/Resumed.",
+                            ownerLifetime = ownerLifetime,
+                            referencedLifetime = Lifetime.ACTIVITY,
+                            evidence = "Use of deprecated $methodName in $ownerLifetime"
                         )
-
-                        fileIssues.add(createLeakInfo(methodName ?: "launchWhenStarted", node))
                     }
                     return false
                 }
             },
             arrayOf(UCallExpression::class.java)
-        )
-    }
-
-    private fun createLeakInfo(methodName: String, node: UCallExpression): LeakInfo {
-        val line = node.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "lifecycle_scope_leak_${methodName}_$line",
-            shortDescription = "Deprecated $methodName used",
-            leakTrace = "Launched with $methodName (line $line)",
-            retainedObjectClassName = "androidx.lifecycle.LifecycleCoroutineScope",
-            retainedByteSize = 0,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.WARNING,
-            referenceChain = emptyList(),
-            suggestedFix = "Use lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { ... } } to safely collect flows."
         )
     }
 }

@@ -1,8 +1,17 @@
 package com.github.devvikassoni.leaklens.verification
 
+import com.github.devvikassoni.leaklens.shark.LeakLensObjectInspectors
 import com.google.gson.GsonBuilder
 import java.io.File
+import kotlin.system.exitProcess
+import shark.AndroidObjectInspectors
+import shark.AndroidReferenceMatchers
+import shark.FileSourceProvider
+import shark.FilteringLeakingObjectFinder
+import shark.HeapAnalysisSuccess
 import shark.HeapAnalyzer
+import shark.HprofHeapGraph.Companion.openHeapGraph
+import shark.MetadataExtractor
 import shark.OnAnalysisProgressListener
 
 fun main(args: Array<String>) {
@@ -13,14 +22,21 @@ fun main(args: Array<String>) {
     val success = runner.runVerification(targetScenario)
 
     if (!success) {
-        System.exit(1)
+        exitProcess(1)
     }
 }
 
 class VerificationRunner {
     private val gson = GsonBuilder().setPrettyPrinting().create()
-    private val goldenDir = File("verification/golden")
-    private val buildDir = File("verification/build")
+
+    private val baseDir = if (File("verification/golden").exists()) {
+        File("verification")
+    } else {
+        File(".")
+    }
+
+    private val goldenDir = File(baseDir, "golden")
+    private val buildDir = File(baseDir, "build")
     private val actualDir = File(buildDir, "actual")
 
     fun runVerification(targetScenario: String?): Boolean {
@@ -38,40 +54,44 @@ class VerificationRunner {
 
             val hprofFile = File(scenarioFolder, "input.hprof")
             if (!hprofFile.exists()) {
-                println("  [SKIP] No input.hprof found at ${hprofFile.path}")
+                println("  [SKIP] input.hprof missing")
                 continue
             }
 
             val expectedFile = File(scenarioFolder, "expected.json")
             if (!expectedFile.exists()) {
-                println("  [SKIP] No expected.json found at ${expectedFile.path}")
+                println("  [SKIP] expected.json missing")
                 continue
             }
 
-            // 1. Analyze and Normalize
-            val actualLeak = analyzeHprof(hprofFile)
+            val expected = gson.fromJson(expectedFile.readText(), NormalizedLeak::class.java)
+
+            // 1. Analyze
+            val actualLeaks = analyzeHprofForVerification(hprofFile)
+
+            // 2. Find best match
+            val actualLeak = actualLeaks.find { it.className == expected.className }
+                ?: actualLeaks.firstOrNull()
 
             if (actualLeak == null) {
-                println("  [FAIL] Analysis failed to produce any application leaks.")
+                println("  [FAIL] No leaks found in heap.")
                 allPassed = false
                 continue
             }
 
-            // 2. Persist Actual for Diffing
+            // 3. Persist Actual
             val actualFile = File(actualDir, "$scenarioId.actual.json")
             actualFile.writeText(gson.toJson(actualLeak))
 
-            // 3. Semantic Comparison
-            val expected = gson.fromJson(expectedFile.readText(), NormalizedLeak::class.java)
+            // 4. Compare
             val result =
                 GoldenComparator.compare(actualLeak, expected).copy(scenarioId = scenarioId)
 
             if (result.isMatch) {
                 println("  [PASS] Output matches golden.")
             } else {
-                println("  [FAIL] Mismatch detected between expected.json and actual.json")
+                println("  [FAIL] Mismatch detected.")
                 result.differences.forEach { println("    $it") }
-                println("  Check generated actual: ${actualFile.absolutePath}")
                 allPassed = false
             }
         }
@@ -79,22 +99,28 @@ class VerificationRunner {
         return allPassed
     }
 
-    private fun analyzeHprof(file: File): NormalizedLeak? {
+    private fun analyzeHprofForVerification(file: File): List<NormalizedLeak> {
         val analyzer = HeapAnalyzer(OnAnalysisProgressListener.NO_OP)
-        val analysis = analyzer.analyze(
-            heapDumpFile = file,
-            leakingObjectFinder = shark.FilteringLeakingObjectFinder(
-                shark.AndroidObjectInspectors.appLeakingObjectFilters
-            ),
-            referenceMatchers = shark.AndroidReferenceMatchers.appDefaults,
-            computeRetainedHeapSize = true,
-            objectInspectors = shark.AndroidObjectInspectors.appDefaults
-        )
+        val sourceProvider = FileSourceProvider(file)
 
-        return if (analysis is shark.HeapAnalysisSuccess) {
-            LeakNormalizer.normalize(analysis).firstOrNull()
-        } else {
-            null
+        return sourceProvider.openHeapGraph().use { graph ->
+            val analysis = analyzer.analyze(
+                heapDumpFile = file,
+                graph = graph,
+                leakingObjectFinder = FilteringLeakingObjectFinder(
+                    AndroidObjectInspectors.appLeakingObjectFilters
+                ),
+                referenceMatchers = AndroidReferenceMatchers.appDefaults,
+                objectInspectors = LeakLensObjectInspectors.canonicalConfig,
+                computeRetainedHeapSize = true,
+                metadataExtractor = MetadataExtractor.NO_OP
+            )
+
+            if (analysis is HeapAnalysisSuccess) {
+                LeakNormalizer.normalize(analysis)
+            } else {
+                emptyList()
+            }
         }
     }
 }

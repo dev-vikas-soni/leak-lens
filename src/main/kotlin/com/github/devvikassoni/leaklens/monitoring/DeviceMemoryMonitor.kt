@@ -9,9 +9,11 @@ import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -121,6 +123,56 @@ class DeviceMemoryMonitor(private val project: Project) : Disposable {
     }
 
     fun isActive(): Boolean = isMonitoring
+
+    fun startMonitoringFlow() {
+        if (isActive()) return
+
+        val adbService = AdbHeapDumpService.getInstance(project)
+
+        ApplicationManager.getApplication().executeOnPooledThread {
+            val devices = adbService.listDevices()
+            ApplicationManager.getApplication().invokeLater {
+                if (devices.isEmpty()) {
+                    notify("No connected devices found.", NotificationType.WARNING)
+                    return@invokeLater
+                }
+
+                val device = devices.first()
+                ApplicationManager.getApplication().executeOnPooledThread {
+                    val processes = adbService.listDebuggableProcesses(device)
+                    ApplicationManager.getApplication().invokeLater {
+                        if (processes.isEmpty()) {
+                            notify("No debuggable processes found.", NotificationType.WARNING)
+                            return@invokeLater
+                        }
+
+                        val packageName = if (processes.size == 1) {
+                            processes.first()
+                        } else {
+                            Messages.showEditableChooseDialog(
+                                "Select process:",
+                                "LeakLens Monitor",
+                                Messages.getQuestionIcon(),
+                                processes.toTypedArray(),
+                                processes.first(),
+                                null
+                            ) ?: return@invokeLater
+                        }
+
+                        startMonitoring(device, packageName)
+                        notify("Monitoring $packageName memory...", NotificationType.INFORMATION)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun notify(msg: String, type: NotificationType) {
+        NotificationGroupManager.getInstance()
+            .getNotificationGroup("LeakLens Notifications")
+            .createNotification("LeakLens", msg, type)
+            .notify(project)
+    }
 
     private fun queryMemoryInfo(deviceSerial: String?, packageName: String): MemorySnapshot? {
         val adbService = AdbHeapDumpService.getInstance(project)

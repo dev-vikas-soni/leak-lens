@@ -7,14 +7,29 @@ Platform versions.
 
 ### UAST Unit Tests
 
-Located in `src/test/kotlin/.../inspections/`. These tests use the IntelliJ Platform testing
-framework to verify that static inspections correctly identify and highlight leaking patterns in
-Kotlin and Java source code.
+Located in `src/test/kotlin/.../inspections/`. These tests use `BasePlatformTestCase` to verify that
+static inspections correctly identify and highlight leaking patterns in both Kotlin and Java.
 
-### Shark Integration Tests
+* **Positive Cases**: Verify that leaks are highlighted at the correct line.
+* **Negative Cases**: Verify that safe patterns (e.g., using `applicationContext`) do NOT trigger
+  warnings.
 
-Verify the host-side heap analysis engine. We use a set of golden `.hprof` files to ensure that the
-Shark bridge correctly identifies signatures and builds reference chains.
+### Static Analysis Benchmarks
+
+A specialized **Benchmark Corpus** (`src/test/testData/inspections/benchmark/`) is used to verify
+performance and accuracy across complex modern Android scenarios:
+
+* Nested Compose `remember` blocks.
+* Multi-layered Hilt dependency graphs.
+* Complex Coroutine/Flow lifecycle interactions.
+
+### Deterministic Verification Platform
+
+The `:verification` module provides a standalone regression engine that validates Shark output
+against historical "ground truth" data:
+
+* **Golden Fixtures**: Pre-captured heaps and expected JSON results.
+* **Leak Normalizer**: Ensures signatures are stable across different runtime environments.
 
 ### Plugin Verification
 

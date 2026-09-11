@@ -1,6 +1,6 @@
 package com.github.devvikassoni.leaklens.toolWindow
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
+import com.github.devvikassoni.leaklens.model.toUnifiedIssue
 import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.intellij.openapi.Disposable
 import com.intellij.openapi.application.ApplicationManager
@@ -62,9 +62,9 @@ class LeakLensMainPanel(
         add(tabbedPane, BorderLayout.CENTER)
 
         // Wire selection
-        leakTreePanel.onLeakSelected = { leak ->
-            if (leak.signature.isNotEmpty()) {
-                leakDetailPanel.showLeakDetail(leak)
+        leakTreePanel.onLeakSelected = { issue ->
+            if (issue.id.isNotEmpty()) {
+                leakDetailPanel.showLeakDetail(issue)
             } else {
                 leakDetailPanel.showEmptyState()
             }
@@ -80,12 +80,18 @@ class LeakLensMainPanel(
 
         // Subscribe to all leak updates from the service
         val projectService = LeakLensProjectService.getInstance(project)
-        combine(projectService.leaks, projectService.liveIssues) { heapLeaks, liveIssues ->
-            heapLeaks + liveIssues
-        }.onEach { allLeaks ->
+        combine(
+            projectService.leaks,
+            projectService.liveIssues,
+            projectService.staticIssues
+        ) { heapLeaks, liveIssues, staticIssues ->
+            val unifiedHeap = (heapLeaks + liveIssues).map { it.toUnifiedIssue() }
+            val unifiedStatic = staticIssues.map { it.toUnifiedIssue() }
+            unifiedHeap + unifiedStatic
+        }.onEach { allIssues ->
             ApplicationManager.getApplication().invokeLater {
                 if (!project.isDisposed) {
-                    refreshLeaks(allLeaks)
+                    refreshLeaks(allIssues)
                 }
             }
         }.launchIn(scope)
@@ -94,9 +100,9 @@ class LeakLensMainPanel(
     /**
      * Called when new leaks are available (from service state).
      */
-    fun refreshLeaks(leaks: List<LeakInfo>) {
+    fun refreshLeaks(issues: List<com.github.devvikassoni.leaklens.model.UnifiedIssue>) {
         if (project.isDisposed) return
-        leakTreePanel.updateLeaks(leaks)
+        leakTreePanel.updateLeaks(issues)
     }
 
     override fun dispose() {

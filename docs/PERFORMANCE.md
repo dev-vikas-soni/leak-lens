@@ -36,6 +36,14 @@ Tests are conducted using the **IntelliJ Platform Benchmark** tool.
 
 ## 4. Scaling Techniques
 
-LeakLens maintains sub-second latency on large projects by using **UAST Hinted Visitors**. By
-filtering for specific elements (like fields or call expressions) at the platform level, we avoid
-traversing the majority of the PSI tree during real-time inspections.
+LeakLens maintains sub-second latency on large projects using several optimization layers:
+
+* **UAST Hinted Visitors**: Filters for specific elements (fields, call expressions) at the platform
+  level, avoiding full PSI tree traversal.
+* **Non-blocking UAST Resolution**: Uses `ReadAction.nonBlocking` for type hierarchy resolution,
+  ensuring the UI thread remains responsive even during complex inheritance checks.
+* **O(1) Gutter Marker Caching**: `LeakLensProjectService` maintains a `ConcurrentHashMap` of leaky
+  lines. This allows the `GutterIconRenderer` to perform a constant-time lookup instead of scanning
+  the full analysis state on every repaint.
+* **Unified Issue Indexing**: Issues are indexed by file path and rule ID, minimizing the search
+  space when updating or retrieving results for the active editor.

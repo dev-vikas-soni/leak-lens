@@ -1,5 +1,9 @@
 package com.github.devvikassoni.leaklens.inspections
 
+import com.github.devvikassoni.leaklens.inspections.LeakLensInspectionUtils.isActivity
+import com.github.devvikassoni.leaklens.inspections.LeakLensInspectionUtils.isActivityOrFragment
+import com.github.devvikassoni.leaklens.inspections.LeakLensInspectionUtils.isFragment
+import com.github.devvikassoni.leaklens.inspections.LeakLensInspectionUtils.isViewOrBindingType
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiType
@@ -77,6 +81,29 @@ object LeakLensInspectionUtils {
         val psiClass = com.intellij.psi.util.PsiTypesUtil.getPsiClass(type) ?: return false
         return InheritanceUtil.isInheritor(psiClass, "android.view.View") ||
                 type.canonicalText.contains("Binding")
+    }
+
+    fun isViewModel(uClass: UClass): Boolean {
+        return InheritanceUtil.isInheritor(uClass.javaPsi, "androidx.lifecycle.ViewModel")
+    }
+
+    fun isLifecycleOwner(type: PsiType): Boolean {
+        val psiClass = com.intellij.psi.util.PsiTypesUtil.getPsiClass(type) ?: return false
+        return InheritanceUtil.isInheritor(psiClass, "androidx.lifecycle.LifecycleOwner")
+    }
+
+    fun isCoroutineScope(type: PsiType): Boolean {
+        val psiClass = com.intellij.psi.util.PsiTypesUtil.getPsiClass(type) ?: return false
+        return InheritanceUtil.isInheritor(psiClass, "kotlinx.coroutines.CoroutineScope")
+    }
+
+    fun isComposable(method: org.jetbrains.uast.UMethod): Boolean {
+        return method.annotations.any { it.qualifiedName?.contains("Composable") == true }
+    }
+
+    fun isApplicationContext(element: com.intellij.psi.PsiElement): Boolean {
+        val text = element.text
+        return text.contains("applicationContext") || text.contains("getApplicationContext")
     }
 
     /**

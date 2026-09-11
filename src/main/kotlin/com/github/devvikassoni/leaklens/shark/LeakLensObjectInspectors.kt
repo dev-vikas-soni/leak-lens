@@ -1,6 +1,9 @@
 package com.github.devvikassoni.leaklens.shark
 
-import shark.*
+import com.github.devvikassoni.leaklens.shark.LeakLensObjectInspectors.canonicalConfig
+import shark.AndroidObjectInspectors
+import shark.ObjectInspector
+import shark.ObjectReporter
 
 /**
  * Custom ObjectInspectors for Shark that detect project-specific leak patterns
@@ -10,8 +13,24 @@ import shark.*
 object LeakLensObjectInspectors {
 
     /**
-     * Returns the full list of custom inspectors to use alongside Android defaults.
+     * Canonical list of inspectors including Android defaults and LeakLens custom logic.
+     * This is the single source of truth for both production and verification.
      */
+    val canonicalConfig: List<ObjectInspector> =
+        AndroidObjectInspectors.appDefaults + listOf(
+            ViewModelContextInspector,
+            SingletonContextInspector,
+            CoroutineScopeInspector,
+            ComposableLeakInspector,
+            WorkManagerLeakInspector,
+            NavigationLeakInspector
+        )
+
+    /**
+     * Returns the full list of custom inspectors ONLY.
+     * Deprecated: Use [canonicalConfig] for analysis.
+     */
+    @Deprecated("Use canonicalConfig", ReplaceWith("canonicalConfig"))
     val all: List<ObjectInspector> = listOf(
         ViewModelContextInspector,
         SingletonContextInspector,

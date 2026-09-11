@@ -3,13 +3,20 @@ package com.github.devvikassoni.leaklens.actions
 import com.github.devvikassoni.leaklens.LeakLensBundle
 import com.github.devvikassoni.leaklens.compat.ProgressFacade
 import com.github.devvikassoni.leaklens.inspections.AnonymousInnerClassLeakInspection
+import com.github.devvikassoni.leaklens.inspections.ComposeContextLeakInspection
 import com.github.devvikassoni.leaklens.inspections.ContextPassedToSingletonInspection
+import com.github.devvikassoni.leaklens.inspections.DeprecatedLifecycleScopeInspection
+import com.github.devvikassoni.leaklens.inspections.FlowLifecycleInspection
 import com.github.devvikassoni.leaklens.inspections.GlobalScopeWithContextInspection
+import com.github.devvikassoni.leaklens.inspections.HiltScopeMismatchInspection
 import com.github.devvikassoni.leaklens.inspections.MissingRemoveCallbacksInspection
 import com.github.devvikassoni.leaklens.inspections.StaticActivityReferenceInspection
+import com.github.devvikassoni.leaklens.inspections.ViewModelContextLeakInspection
 import com.github.devvikassoni.leaklens.inspections.ViewReferenceHeldInspection
+import com.github.devvikassoni.leaklens.inspections.WorkerContextLeakInspection
 import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.intellij.codeInspection.InspectionManager
+import com.intellij.codeInspection.LocalInspectionToolSession
 import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.icons.AllIcons
 import com.intellij.ide.BrowserUtil
@@ -22,30 +29,22 @@ import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.progress.ProgressManager
 import com.intellij.openapi.progress.Task
 import com.intellij.openapi.wm.ToolWindowManager
+import com.intellij.psi.PsiFile
 import com.intellij.psi.PsiManager
 import com.intellij.psi.search.FileTypeIndex
 import com.intellij.psi.search.GlobalSearchScope
 
-/**
- * Action to open the Marketplace review page.
- */
 class RatePluginAction : AnAction(
     LeakLensBundle.message("leaklens.action.rate.title"),
     LeakLensBundle.message("leaklens.action.rate.description"),
     AllIcons.Actions.IntentionBulb
 ) {
     override fun actionPerformed(e: AnActionEvent) {
-        BrowserUtil.browse(
-            "https://plugins.jetbrains.com/plugin/32079-leaklens--memory-leak-detector--ai-assistant/edit/reviews"
-        )
+        BrowserUtil.browse("https://plugins.jetbrains.com/plugin/32079-leaklens--memory-leak-detector--ai-assistant/edit/reviews")
     }
-
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 }
 
-/**
- * Action to run static leak inspections on the currently open file.
- */
 class AnalyzeCurrentFileAction : AnAction(
     LeakLensBundle.message("leaklens.action.analyze.file.title"),
     LeakLensBundle.message("leaklens.action.analyze.file.description"),
@@ -66,45 +65,13 @@ class AnalyzeCurrentFileAction : AnAction(
                 ApplicationManager.getApplication().invokeLater {
                     ToolWindowManager.getInstance(project).getToolWindow("LeakLens")?.show()
                 }
-
-                val inspections = listOf(
-                    StaticActivityReferenceInspection(),
-                    AnonymousInnerClassLeakInspection(),
-                    ContextPassedToSingletonInspection(),
-                    MissingRemoveCallbacksInspection(),
-                    GlobalScopeWithContextInspection(),
-                    ViewReferenceHeldInspection()
-                )
-
-                val manager = InspectionManager.getInstance(project)
-                val projectService = LeakLensProjectService.getInstance(project)
-
-                // Use read action to access PSI
-                ApplicationManager.getApplication().runReadAction {
-                    projectService.clearLiveIssuesForFile(virtualFile.path)
-
-                    for (inspection in inspections) {
-                        val holder = ProblemsHolder(manager, psiFile, false)
-                        val visitor = inspection.buildVisitor(holder, false)
-                        psiFile.accept(visitor)
-                    }
-                }
+                runInspections(project, listOf(psiFile))
             }
         })
     }
-
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
-
-    override fun update(e: AnActionEvent) {
-        val project = e.project
-        val editor = if (project != null) FileEditorManager.getInstance(project).selectedTextEditor else null
-        e.presentation.isEnabled = editor != null
-    }
 }
 
-/**
- * Action to run static leak inspections on all files in the project.
- */
 class AnalyzeProjectAction : AnAction(
     LeakLensBundle.message("leaklens.action.analyze.project.title"),
     LeakLensBundle.message("leaklens.action.analyze.project.description"),
@@ -112,7 +79,6 @@ class AnalyzeProjectAction : AnAction(
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
-
         ProgressManager.getInstance().run(object : Task.Backgroundable(
             project,
             LeakLensBundle.message("leaklens.progress.analyzing.project"),
@@ -123,53 +89,19 @@ class AnalyzeProjectAction : AnAction(
                     ToolWindowManager.getInstance(project).getToolWindow("LeakLens")?.show()
                 }
 
-                val inspections = listOf(
-                    StaticActivityReferenceInspection(),
-                    AnonymousInnerClassLeakInspection(),
-                    ContextPassedToSingletonInspection(),
-                    MissingRemoveCallbacksInspection(),
-                    GlobalScopeWithContextInspection(),
-                    ViewReferenceHeldInspection()
-                )
-
-                val manager = InspectionManager.getInstance(project)
-                val projectService = LeakLensProjectService.getInstance(project)
-
                 val ktType = com.intellij.openapi.fileTypes.FileTypeManager.getInstance()
                     .getFileTypeByExtension("kt")
                 val javaType = com.intellij.openapi.fileTypes.FileTypeManager.getInstance()
                     .getFileTypeByExtension("java")
-
                 val kotlinFiles =
                     FileTypeIndex.getFiles(ktType, GlobalSearchScope.projectScope(project))
                 val javaFiles =
                     FileTypeIndex.getFiles(javaType, GlobalSearchScope.projectScope(project))
-                val allFiles = kotlinFiles + javaFiles
-
-                projectService.clearAllLiveIssues()
-
-                allFiles.forEachIndexed { index, virtualFile ->
-                    if (indicator.isCanceled) return@forEachIndexed
-                    ProgressFacade.setText(
-                        indicator,
-                        LeakLensBundle.message("leaklens.progress.analyzing.file", virtualFile.name)
-                    )
-                    ProgressFacade.setFraction(
-                        indicator,
-                        index.toDouble() / allFiles.size.coerceAtLeast(1)
-                    )
-
-                    // Use read action to access PSI
-                    ApplicationManager.getApplication().runReadAction {
-                        val psiFile = PsiManager.getInstance(project).findFile(virtualFile)
-                            ?: return@runReadAction
-
-                        for (inspection in inspections) {
-                            val holder = ProblemsHolder(manager, psiFile, false)
-                            psiFile.accept(inspection.buildVisitor(holder, false))
-                        }
-                    }
+                val allFiles = (kotlinFiles + javaFiles).mapNotNull {
+                    PsiManager.getInstance(project).findFile(it)
                 }
+
+                runInspections(project, allFiles, indicator)
             }
         })
     }
@@ -177,9 +109,70 @@ class AnalyzeProjectAction : AnAction(
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 }
 
-/**
- * Action to clear all detected leaks from the dashboard.
- */
+private fun runInspections(
+    project: com.intellij.openapi.project.Project,
+    files: List<PsiFile>,
+    indicator: ProgressIndicator? = null
+) {
+    val inspections = listOf(
+        StaticActivityReferenceInspection(),
+        AnonymousInnerClassLeakInspection(),
+        ContextPassedToSingletonInspection(),
+        MissingRemoveCallbacksInspection(),
+        GlobalScopeWithContextInspection(),
+        ViewReferenceHeldInspection(),
+        ComposeContextLeakInspection(),
+        FlowLifecycleInspection(),
+        ViewModelContextLeakInspection(),
+        DeprecatedLifecycleScopeInspection(),
+        WorkerContextLeakInspection(),
+        HiltScopeMismatchInspection()
+    )
+
+    val manager = InspectionManager.getInstance(project)
+    val projectService = LeakLensProjectService.getInstance(project)
+
+    files.forEachIndexed { index, psiFile ->
+        if (indicator?.isCanceled == true) return@forEachIndexed
+        indicator?.let {
+            ProgressFacade.setText(
+                it,
+                LeakLensBundle.message("leaklens.progress.analyzing.file", psiFile.name)
+            )
+            ProgressFacade.setFraction(it, index.toDouble() / files.size.coerceAtLeast(1))
+        }
+
+        ApplicationManager.getApplication().runReadAction {
+            val virtualFile = psiFile.virtualFile ?: return@runReadAction
+            projectService.clearLiveIssuesForFile(virtualFile.path)
+            projectService.clearStaticIssuesForFile(virtualFile.path)
+
+            for (inspection in inspections) {
+                val holder = ProblemsHolder(manager, psiFile, false)
+                val session = createSession(psiFile) ?: continue
+                val visitor = inspection.buildVisitor(holder, false, session)
+                psiFile.accept(visitor)
+                inspection.inspectionFinished(session, holder)
+            }
+        }
+    }
+}
+
+private fun createSession(psiFile: PsiFile): LocalInspectionToolSession? {
+    return try {
+        // Try the 3-arg constructor (PsiFile, int, int) which is public in most versions but might be hidden in some AS builds
+        val constructor = LocalInspectionToolSession::class.java.getDeclaredConstructor(
+            PsiFile::class.java,
+            Int::class.javaPrimitiveType,
+            Int::class.javaPrimitiveType
+        )
+        constructor.isAccessible = true
+        constructor.newInstance(psiFile, 0, psiFile.textLength)
+    } catch (e: Exception) {
+        null
+    }
+}
+
 class ClearAllAction : AnAction(
     LeakLensBundle.message("leaklens.action.clear.title"),
     LeakLensBundle.message("leaklens.action.clear.description"),
@@ -188,17 +181,14 @@ class ClearAllAction : AnAction(
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         LeakLensProjectService.getInstance(project).clearLeaks()
+        LeakLensProjectService.getInstance(project).clearAllStaticIssues()
     }
-
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 }
 
-/**
- * Action to clear all local .hprof files generated by LeakLens.
- */
 class ClearLocalSnapshotsAction : AnAction(
     "Clear Local Snapshots",
-    "Delete all local .hprof files generated by LeakLens to free up space",
+    "Delete all local .hprof files generated by LeakLens",
     AllIcons.Actions.DeleteTag
 ) {
     override fun actionPerformed(e: AnActionEvent) {
@@ -206,84 +196,42 @@ class ClearLocalSnapshotsAction : AnAction(
         com.github.devvikassoni.leaklens.services.AdbHeapDumpService.getInstance(project)
             .clearLocalSnapshots()
     }
-
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 }
 
-/**
- * Action to run static leak inspections on files selected in the Project View.
- */
 class AnalyzeSelectedFilesAction : AnAction(
     "Analyze Memory Leaks",
-    "Run LeakLens static analysis on selected files or directories",
+    "Run LeakLens static analysis on selected files",
     AllIcons.Actions.Find
 ) {
     override fun actionPerformed(e: AnActionEvent) {
         val project = e.project ?: return
         val virtualFiles =
             e.getData(com.intellij.openapi.actionSystem.CommonDataKeys.VIRTUAL_FILE_ARRAY) ?: return
-
         ProgressManager.getInstance()
             .run(object : Task.Backgroundable(project, "LeakLens: Analyzing Selection", true) {
                 override fun run(indicator: ProgressIndicator) {
                     ApplicationManager.getApplication().invokeLater {
                         ToolWindowManager.getInstance(project).getToolWindow("LeakLens")?.show()
                     }
-
-                    val inspections = listOf(
-                        StaticActivityReferenceInspection(),
-                        AnonymousInnerClassLeakInspection(),
-                        ContextPassedToSingletonInspection(),
-                        MissingRemoveCallbacksInspection(),
-                        GlobalScopeWithContextInspection(),
-                        ViewReferenceHeldInspection()
-                    )
-
-                    val manager = InspectionManager.getInstance(project)
-                    val projectService = LeakLensProjectService.getInstance(project)
-
-                    val filesToScan = mutableSetOf<com.intellij.openapi.vfs.VirtualFile>()
-                    virtualFiles.forEach { vf -> collectFiles(vf, filesToScan) }
-
-                    filesToScan.forEachIndexed { index, virtualFile ->
-                        if (indicator.isCanceled) return@forEachIndexed
-                        ProgressFacade.setText(
-                            indicator,
-                            LeakLensBundle.message(
-                                "leaklens.progress.analyzing.file",
-                                virtualFile.name
-                            )
-                        )
-                        ProgressFacade.setFraction(
-                            indicator,
-                            index.toDouble() / filesToScan.size.coerceAtLeast(1)
-                        )
-
-                        ApplicationManager.getApplication().runReadAction {
-                            val psiFile = PsiManager.getInstance(project).findFile(virtualFile)
-                                ?: return@runReadAction
-                            projectService.clearLiveIssuesForFile(virtualFile.path)
-
-                            for (inspection in inspections) {
-                                val holder = ProblemsHolder(manager, psiFile, false)
-                                psiFile.accept(inspection.buildVisitor(holder, false))
-                            }
-                        }
-                    }
-                }
-
-                private fun collectFiles(
-                    vf: com.intellij.openapi.vfs.VirtualFile,
-                    result: MutableSet<com.intellij.openapi.vfs.VirtualFile>
-                ) {
-                    if (vf.isDirectory) {
-                        vf.children.forEach { collectFiles(it, result) }
-                    } else if (vf.extension == "kt" || vf.extension == "java") {
-                        result.add(vf)
-                    }
+                    val filesToScan = mutableListOf<PsiFile>()
+                    virtualFiles.forEach { vf -> collectFiles(project, vf, filesToScan) }
+                    runInspections(project, filesToScan, indicator)
                 }
             })
     }
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+}
+
+private fun collectFiles(
+    project: com.intellij.openapi.project.Project,
+    vf: com.intellij.openapi.vfs.VirtualFile,
+    result: MutableList<PsiFile>
+) {
+    if (vf.isDirectory) {
+        vf.children.forEach { collectFiles(project, it, result) }
+    } else if (vf.extension == "kt" || vf.extension == "java") {
+        PsiManager.getInstance(project).findFile(vf)?.let { result.add(it) }
+    }
 }

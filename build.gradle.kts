@@ -1,5 +1,5 @@
-import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import java.util.Properties
 
 plugins {
@@ -7,6 +7,10 @@ plugins {
     id("org.jetbrains.intellij.platform")
     id("org.jetbrains.changelog")
     id("io.gitlab.arturbosch.detekt") version "1.23.6"
+}
+
+kotlin {
+    jvmToolchain(21)
 }
 
 detekt {

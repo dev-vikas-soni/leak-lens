@@ -45,6 +45,26 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
             if (document != null) {
                 val line = document.getLineNumber(element.textRange.startOffset) + 1
                 if (service.isLineLeaky(filePath, line)) {
+                    val staticIssues = service.getStaticIssuesForFile(filePath)
+                    val staticIssue = staticIssues.find { it.line == line }
+
+                    if (staticIssue != null) {
+                        val tooltip =
+                            "⚠️ LeakLens Static: ${staticIssue.title}\n\n${staticIssue.description}\n\n💡 Fix: ${staticIssue.suggestedFix ?: "No automatic fix available."}"
+                        return LineMarkerInfo(
+                            element,
+                            element.textRange,
+                            AllIcons.General.Warning,
+                            { tooltip },
+                            { _, _ ->
+                                com.intellij.openapi.wm.ToolWindowManager.getInstance(project)
+                                    .getToolWindow("LeakLens")?.show()
+                            },
+                            GutterIconRenderer.Alignment.LEFT,
+                            { tooltip }
+                        )
+                    }
+
                     val liveIssues = service.getLiveIssuesForFile(filePath)
                     val issue = liveIssues.find { it.signature.endsWith("_$line") }
                     if (issue != null) {

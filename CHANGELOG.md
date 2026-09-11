@@ -4,6 +4,40 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-11
+
+### Added
+
+- **First-Run Onboarding**: A non-intrusive, one-time notification to introduce new users to the
+  Memory Monitor.
+- **Application-Level Persistence**: New global state management (`LeakLensPluginState`) for
+  cross-project settings and onboarding status.
+- **Semantic Lifetime Engine**: New core engine that reasons about object lifetimes (Singleton,
+  Activity, Fragment, ViewModel, etc.) to detect leaks with high precision.
+- **Unified Findings Dashboard**: Consolidates runtime heap leaks and static analysis issues into a
+  single, unified view.
+- **Modern Android Analysis**:
+    - **Jetpack Compose**: Detects `Context` capture in `remember` blocks and Composable states.
+    - **Coroutines & Flow**: Identifies unsafe `Flow` collection (missing `repeatOnLifecycle`) and
+      captures in `GlobalScope`.
+    - **Hilt**: Validates scoping consistency (e.g., `@Singleton` injecting `@ActivityScoped`
+      components).
+    - **ViewModels & Workers**: Detects lifecycle-heavy references retained in long-lived fields.
+- **Evidence-Driven AI Fixes**: AI Fix Assistant now leverages semantic evidence (lifetime
+  relationships) for more accurate remediation suggestions.
+- **Benchmark Corpus**: Comprehensive test suite for modern Android leak patterns and performance
+  verification.
+
+### Improved
+
+- **Shared Monitoring Flow**: Refactored `DeviceMemoryMonitor` to centralize device discovery and
+  process selection logic.
+- **UI Performance**: Implemented O(1) caching for gutter markers and non-blocking UAST resolution
+  for lag-free typing.
+- **Deduplication**: Improved issue fingerprinting to track findings across multiple analysis runs.
+- **Base Inspection Framework**: Unified all inspections under a common base for consistent
+  reporting and remediation.
+
 ## [0.3.2] - 2026-08-22
 
 ### Added
@@ -244,9 +278,13 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.4.0...HEAD
 
-[0.3.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.0...v0.3.2
+[0.4.0]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.2...v0.4.0
+
+[0.3.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.1...v0.3.2
+
+[0.3.1]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.2.1...v0.2.2

@@ -1,9 +1,10 @@
-import org.gradle.kotlin.dsl.dependencies
-import org.gradle.kotlin.dsl.repositories
-
 plugins {
     id("org.jetbrains.kotlin.jvm")
     id("application")
+}
+
+kotlin {
+    jvmToolchain(21)
 }
 
 group = "com.github.devvikassoni.leaklens.verification"

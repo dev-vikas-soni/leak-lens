@@ -4,6 +4,7 @@ import com.github.devvikassoni.leaklens.ai.AiUtils
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.model.LeakTraceReference
+import com.github.devvikassoni.leaklens.model.Lifetime
 import com.intellij.codeInspection.LocalQuickFix
 import com.intellij.codeInspection.ProblemDescriptor
 import com.intellij.openapi.project.Project
@@ -15,7 +16,11 @@ import com.intellij.openapi.project.Project
 class AskGeminiFix(
     private val description: String,
     private val className: String,
-    private val line: Int
+    private val line: Int,
+    private val ownerLifetime: Lifetime? = null,
+    private val referencedLifetime: Lifetime? = null,
+    private val evidence: String? = null,
+    private val riskExplanation: String? = null
 ) : LocalQuickFix {
     override fun getName(): String = "LeakLens: Ask AI for a fix"
     override fun getFamilyName(): String = "LeakLens AI Fixes"
@@ -30,7 +35,11 @@ class AskGeminiFix(
             retainedObjectCount = 1,
             severity = LeakSeverity.WARNING,
             referenceChain = emptyList<LeakTraceReference>(),
-            suggestedFix = "Use the 'Ask Gemini AI' button to get a full analysis."
+            suggestedFix = "Use the 'Ask Gemini AI' button to get a full analysis.",
+            ownerLifetime = ownerLifetime?.toString(),
+            referencedLifetime = referencedLifetime?.toString(),
+            evidence = evidence,
+            riskExplanation = riskExplanation
         )
         AiUtils.askGemini(project, dummyLeak)
     }

@@ -17,5 +17,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".FragmentHostActivity"
+            android:theme="@android:style/Theme.Material.Light.NoActionBar" />
+
+        <activity android:name=".ComposeHostActivity" />
+
+        <activity android:name=".SingletonHostActivity" />
+
+        <activity android:name=".BitmapHostActivity" />
+
+        <activity android:name=".WorkerHostActivity" />
     </application>
 </manifest>

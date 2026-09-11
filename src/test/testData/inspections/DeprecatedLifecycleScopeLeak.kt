@@ -1,21 +1,32 @@
-// Mock lifecycle functions
-@Suppress("UNUSED_PARAMETER")
-fun launchWhenStarted(block: suspend () -> Unit) {
-}
+package testData.inspections
+
+import android.app.Activity
+
+interface CoroutineScope
+object GlobalScope : CoroutineScope
 
 @Suppress("UNUSED_PARAMETER")
-fun launchWhenResumed(block: suspend () -> Unit) {
+fun CoroutineScope.launchWhenStarted(block: suspend () -> Unit) {
+}
+@Suppress("UNUSED_PARAMETER")
+fun CoroutineScope.launchWhenResumed(block: suspend () -> Unit) {
 }
 
-class MyActivity {
+val lifecycleScope = GlobalScope
+
+class DeprecatedLifecycleScopeLeak : Activity() {
+
     fun setupObservers() {
-        // This should be flagged
-        <warning descr="LeakLens: launchWhenStarted is deprecated and can cause memory/resource leaks in the background. Use repeatOnLifecycle instead.">launchWhenStarted</warning> {
-            // flow.collect()
+        // Bad: launchWhenStarted
+        lifecycleScope.< warning descr =
+            "LeakLens: launchWhenStarted, launchWhenResumed, etc. are deprecated and can lead to resource leaks. Use repeatOnLifecycle instead. (ACTIVITY -> ACTIVITY)" > launchWhenStarted < / warning > {
+                // no-op
         }
 
-        <warning descr="LeakLens: launchWhenResumed is deprecated and can cause memory/resource leaks in the background. Use repeatOnLifecycle instead.">launchWhenResumed</warning> {
-            // flow.collect()
+        // Bad: launchWhenResumed
+        lifecycleScope.< warning descr =
+            "LeakLens: launchWhenStarted, launchWhenResumed, etc. are deprecated and can lead to resource leaks. Use repeatOnLifecycle instead. (ACTIVITY -> ACTIVITY)" > launchWhenResumed < / warning > {
+                // no-op
         }
     }
 }

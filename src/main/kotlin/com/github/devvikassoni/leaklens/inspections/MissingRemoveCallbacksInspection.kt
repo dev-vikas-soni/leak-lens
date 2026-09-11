@@ -1,13 +1,8 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.LocalQuickFix
-import com.intellij.codeInspection.ProblemDescriptor
-import com.intellij.codeInspection.ProblemHighlightType
+import com.github.devvikassoni.leaklens.inspections.registry.RuleRegistry
+import com.intellij.codeInspection.LocalInspectionToolSession
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.openapi.project.Project
 import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
@@ -20,15 +15,14 @@ import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 /**
  * Detects Handler usage without removeCallbacksAndMessages in onDestroy.
  */
-class MissingRemoveCallbacksInspection : LocalInspectionTool() {
+class MissingRemoveCallbacksInspection :
+    BaseLeakLensInspection(RuleRegistry.MISSING_REMOVE_CALLBACKS) {
 
-    override fun getGroupDisplayName() = "LeakLens"
-    override fun getDisplayName() = "Missing removeCallbacksAndMessages in onDestroy"
-    override fun getShortName() = "LeakLensMissingRemoveCallbacks"
-
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
+    override fun buildVisitor(
+        holder: ProblemsHolder,
+        isOnTheFly: Boolean,
+        session: LocalInspectionToolSession
+    ): PsiElementVisitor {
         return UastHintedVisitorAdapter.create(
             holder.file.language,
             object : AbstractUastNonRecursiveVisitor() {
@@ -52,21 +46,15 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
                         if (!hasCleanup) {
                             val elementToHighlight =
                                 field.uastAnchor?.sourcePsi ?: field.sourcePsi ?: continue
-                            val description =
-                                "LeakLens: Handler '$fieldName' may cause a leak. Call removeCallbacks in onDestroy."
-                            holder.registerProblem(
-                                elementToHighlight,
-                                description,
-                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                RemoveCallbacksQuickFix(fieldName),
-                                AskGeminiFix(
-                                    description,
-                                    "android.os.Handler",
-                                    LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                                )
-                            )
 
-                            fileIssues.add(createLeakInfo(field))
+                            registerLeak(
+                                holder = holder,
+                                element = elementToHighlight,
+                                description = "Handler '$fieldName' may cause a leak. Call removeCallbacks in onDestroy().",
+                                className = node.javaPsi.qualifiedName,
+                                symbolName = "handler_$fieldName",
+                                suggestedFix = "Call $fieldName.removeCallbacksAndMessages(null) in onDestroy()."
+                            )
                         }
                     }
                     return false
@@ -76,26 +64,20 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
         )
     }
 
-    private fun createLeakInfo(field: UField): LeakInfo {
-        val line = field.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "missing_cleanup_leak_${field.name}_$line",
-            shortDescription = "Missing cleanup for Handler ${field.name}",
-            leakTrace = "Handler field: ${field.name} (line $line)",
-            retainedObjectClassName = "android.os.Handler",
-            retainedByteSize = 0,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.WARNING,
-            referenceChain = emptyList(),
-            suggestedFix = "Call ${field.name}.removeCallbacksAndMessages(null) in onDestroy() or onDestroyView()."
-        )
+    override fun getQuickFixes(element: com.intellij.psi.PsiElement): Array<com.intellij.codeInspection.LocalQuickFix> {
+        val uField = element.toUElementOfType<UField>() ?: return emptyArray()
+        return arrayOf(RemoveCallbacksQuickFix(uField.name))
     }
 
-    private class RemoveCallbacksQuickFix(private val handlerName: String) : LocalQuickFix {
+    private class RemoveCallbacksQuickFix(private val handlerName: String) :
+        com.intellij.codeInspection.LocalQuickFix {
         override fun getName() = "Add removeCallbacksAndMessages in onDestroy"
         override fun getFamilyName() = "LeakLens quick fixes"
 
-        override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
+        override fun applyFix(
+            project: com.intellij.openapi.project.Project,
+            descriptor: com.intellij.codeInspection.ProblemDescriptor
+        ) {
             val element = descriptor.psiElement
             val uField = element.toUElementOfType<UField>() ?: return
             val uClass = uField.getContainingUClass() ?: return
@@ -136,8 +118,7 @@ class MissingRemoveCallbacksInspection : LocalInspectionTool() {
                         factory.createExpression("$handlerName.removeCallbacksAndMessages(null)")
                     body.addBefore(newExpr, body.rBrace)
                 } else {
-                    val newFunc =
-                        factory.createFunction(
+                    val newFunc = factory.createFunction(
                             "override fun onDestroy() {\n    super.onDestroy()\n    $handlerName.removeCallbacksAndMessages(null)\n}"
                         )
                     ktClass.add(newFunc)

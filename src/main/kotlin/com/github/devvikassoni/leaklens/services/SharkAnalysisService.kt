@@ -8,9 +8,17 @@ import com.github.devvikassoni.leaklens.model.LeakTraceReference
 import com.github.devvikassoni.leaklens.shark.LeakLensObjectInspectors
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.project.Project
-import shark.*
-import shark.HprofHeapGraph.Companion.openHeapGraph
 import java.io.File
+import shark.AndroidObjectInspectors
+import shark.AndroidReferenceMatchers
+import shark.FileSourceProvider
+import shark.FilteringLeakingObjectFinder
+import shark.HeapAnalysisFailure
+import shark.HeapAnalysisSuccess
+import shark.HeapAnalyzer
+import shark.HprofHeapGraph.Companion.openHeapGraph
+import shark.LeakTrace
+import shark.MetadataExtractor
 
 /**
  * Service that encapsulates the Shark heap analysis engine.
@@ -59,8 +67,8 @@ class SharkAnalysisService {
             ProgressFacade.setText(indicator, "Analyzing heap: $step")
         }
 
-        // Combine Android defaults with LeakLens custom inspectors
-        val objectInspectors = AndroidObjectInspectors.appDefaults + LeakLensObjectInspectors.all
+        // Use the canonical configuration from LeakLensObjectInspectors
+        val objectInspectors = LeakLensObjectInspectors.canonicalConfig
 
         val sourceProvider = FileSourceProvider(hprofFile)
         val analysis = sourceProvider.openHeapGraph().use { graph ->

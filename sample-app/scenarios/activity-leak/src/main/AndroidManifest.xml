@@ -1,2 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest></manifest>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity
+            android:name="com.github.devvikassoni.leaklens.sample.scenarios.activity.LeakyActivity"
+            android:exported="true" />
+    </application>
+</manifest>

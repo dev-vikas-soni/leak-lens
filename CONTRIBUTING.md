@@ -9,13 +9,22 @@ LeakLens is built using the **IntelliJ Platform Gradle Plugin**. To set up your 
 
 1. **Android Studio / IntelliJ IDEA**: Use the latest stable version of Android Studio or IntelliJ
    IDEA (Community or Ultimate).
-2. **JDK 21**: Ensure you have JDK 21 installed and configured as your project SDK.
+2. **JDK 21**: Ensure you have JDK 21 installed. The project uses **Gradle Toolchains** to enforce
+   the correct JDK for compilation, so your global SDK setting is primarily for the Gradle Daemon.
+    - LeakLens targets **JDK 21**.
+    - Sibling projects like `leakcanary` (used for plugin testing) target **JDK 17** for
+      compatibility.
 3. **Clone & Build**:
    ```bash
    git clone https://github.com/dev-vikas-soni/leak-lens.git
    cd leak-lens
    ./gradlew buildPlugin
    ```
+   > [!NOTE]
+   > If you encounter Android Gradle Plugin initialization errors related to
+   `AndroidLocationsBuildService`, ensure you don't have conflicting environment variables. We
+   recommend unsetting `ANDROID_PREFS_ROOT` if `ANDROID_USER_HOME` is also set.
+
 4. **Run with Plugin**:
    ```bash
    ./gradlew runIde

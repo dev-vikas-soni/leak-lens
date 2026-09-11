@@ -21,6 +21,7 @@ data class NormalizedLeak(
     val className: String,
     val severity: String,
     val referenceChain: List<String>,
+    val leakingReasons: List<String> = emptyList(),
     val inspectionId: String? = null
 )
 

@@ -33,6 +33,13 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h4>0.4.0</h4>
+        <ul>
+            <li><b>Onboarding Experience</b>: Proactive one-time notification to introduce the Memory Monitor on project open.</li>
+            <li><b>Unified Monitoring Flow</b>: Refactored device and process discovery for a more consistent startup experience.</li>
+            <li><b>Persistent Plugin State</b>: Introduced application-level persistence for global onboarding and plugin configuration.</li>
+            <li><b>Semantic Lifetime Engine</b>: Enhanced precision for modern Android patterns including Jetpack Compose, Hilt, and Coroutines.</li>
+        </ul>
         <h4>0.3.2</h4>
         <ul>
             <li><b>Platform Stability</b>: Fixed JetBrains Marketplace resolution errors for <code>org.jetbrains.android</code>.</li>

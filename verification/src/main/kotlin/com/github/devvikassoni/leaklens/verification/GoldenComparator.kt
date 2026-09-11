@@ -15,6 +15,12 @@ object GoldenComparator {
             diffs.add("  Actual:   ${actual.referenceChain.joinToString(" -> ")}")
         }
 
+        if (actual.leakingReasons != expected.leakingReasons) {
+            diffs.add("Leaking reasons mismatch:")
+            diffs.add("  Expected: ${expected.leakingReasons}")
+            diffs.add("  Actual:   ${actual.leakingReasons}")
+        }
+
         return ComparisonResult(
             scenarioId = "unknown", // Should be set by caller
             isMatch = diffs.isEmpty(),

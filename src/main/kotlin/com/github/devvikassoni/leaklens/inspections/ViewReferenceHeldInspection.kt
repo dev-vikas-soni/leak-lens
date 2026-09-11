@@ -1,13 +1,8 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.LocalQuickFix
-import com.intellij.codeInspection.ProblemDescriptor
-import com.intellij.codeInspection.ProblemHighlightType
+import com.github.devvikassoni.leaklens.inspections.registry.RuleRegistry
+import com.intellij.codeInspection.LocalInspectionToolSession
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.openapi.project.Project
 import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
@@ -20,15 +15,13 @@ import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 /**
  * Detects View references held in Fragment fields that are not nulled out in onDestroyView.
  */
-class ViewReferenceHeldInspection : LocalInspectionTool() {
+class ViewReferenceHeldInspection : BaseLeakLensInspection(RuleRegistry.VIEW_REFERENCE_HELD) {
 
-    override fun getGroupDisplayName() = "LeakLens"
-    override fun getDisplayName() = "View reference held beyond lifecycle in Fragment"
-    override fun getShortName() = "LeakLensViewReferenceHeld"
-
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
+    override fun buildVisitor(
+        holder: ProblemsHolder,
+        isOnTheFly: Boolean,
+        session: LocalInspectionToolSession
+    ): PsiElementVisitor {
         return UastHintedVisitorAdapter.create(
             holder.file.language,
             object : AbstractUastNonRecursiveVisitor() {
@@ -45,31 +38,23 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
 
                     for (field in viewFields) {
                         val name = field.name
-                        // Look for name = null or _name = null (common for backing fields) or name?.let { it = null } etc.
-                        // We use a simple but broader string check for UAST source string.
                         val isNulled = bodyText.contains("$name = null") ||
                                 bodyText.contains("$name=null") ||
                                 bodyText.contains("_$name = null") ||
                                 bodyText.contains("$name?.let") ||
-                                bodyText.contains("$name.clear") // For some custom binding types
+                                bodyText.contains("$name.clear")
 
                         if (!isNulled) {
                             val elementToHighlight = field.uastAnchor?.sourcePsi ?: field.sourcePsi ?: continue
-                            val description =
-                                "LeakLens: View field '$name' is not nulled in onDestroyView()."
-                            holder.registerProblem(
-                                elementToHighlight,
-                                description,
-                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                NullifyInOnDestroyViewFix(name),
-                                AskGeminiFix(
-                                    description,
-                                    field.type.canonicalText,
-                                    LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                                )
-                            )
 
-                            fileIssues.add(createLeakInfo(field))
+                            registerLeak(
+                                holder = holder,
+                                element = elementToHighlight,
+                                description = "View field '$name' is not nulled in onDestroyView().",
+                                className = node.javaPsi.qualifiedName,
+                                symbolName = "view_$name",
+                                suggestedFix = "Set $name = null in onDestroyView() to allow GC."
+                            )
                         }
                     }
                     return false
@@ -79,26 +64,20 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
         )
     }
 
-    private fun createLeakInfo(field: UField): LeakInfo {
-        val line = field.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "view_reference_leak_${field.name}_$line",
-            shortDescription = "View reference ${field.name} not cleared",
-            leakTrace = "Fragment field: ${field.name} (line $line)",
-            retainedObjectClassName = "android.view.View",
-            retainedByteSize = 0,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.WARNING,
-            referenceChain = emptyList(),
-            suggestedFix = "Set ${field.name} = null in onDestroyView() to allow GC."
-        )
+    override fun getQuickFixes(element: com.intellij.psi.PsiElement): Array<com.intellij.codeInspection.LocalQuickFix> {
+        val uField = element.toUElementOfType<UField>() ?: return emptyArray()
+        return arrayOf(NullifyInOnDestroyViewFix(uField.name))
     }
 
-    private class NullifyInOnDestroyViewFix(private val fieldName: String) : LocalQuickFix {
+    private class NullifyInOnDestroyViewFix(private val fieldName: String) :
+        com.intellij.codeInspection.LocalQuickFix {
         override fun getName() = "Nullify '$fieldName' in onDestroyView()"
         override fun getFamilyName() = "LeakLens quick fixes"
 
-        override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
+        override fun applyFix(
+            project: com.intellij.openapi.project.Project,
+            descriptor: com.intellij.codeInspection.ProblemDescriptor
+        ) {
             val element = descriptor.psiElement
             val uField = element.toUElementOfType<UField>() ?: return
             val uClass = uField.getContainingUClass() ?: return
@@ -131,8 +110,7 @@ class ViewReferenceHeldInspection : LocalInspectionTool() {
                     val newExpr = factory.createExpression("$fieldName = null")
                     body.addBefore(newExpr, body.rBrace)
                 } else {
-                    val newFunc =
-                        factory.createFunction(
+                    val newFunc = factory.createFunction(
                             "override fun onDestroyView() {\n    super.onDestroyView()\n    $fieldName = null\n}"
                         )
                     ktClass.add(newFunc)

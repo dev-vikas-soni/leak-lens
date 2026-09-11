@@ -1,61 +1,55 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.LocalQuickFix
-import com.intellij.codeInspection.ProblemDescriptor
-import com.intellij.codeInspection.ProblemHighlightType
+import com.github.devvikassoni.leaklens.inspections.registry.RuleRegistry
+import com.intellij.codeInspection.LocalInspectionToolSession
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.openapi.project.Project
 import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.psi.PsiField
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UField
+import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.toUElementOfType
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
  * Detects Activity or Fragment stored in a static field or companion object.
- * Uses UastHintedVisitorAdapter so the visitor fires only on UField nodes,
- * avoiding the O(N) toUElement() cost of visiting every PSI element.
  */
-class StaticActivityReferenceInspection : LocalInspectionTool() {
+class StaticActivityReferenceInspection :
+    BaseLeakLensInspection(RuleRegistry.STATIC_ACTIVITY_REFERENCE) {
 
-    override fun getGroupDisplayName() = "LeakLens"
-    override fun getDisplayName() = "Activity/Fragment stored in static field"
-    override fun getShortName() = "LeakLensStaticActivityReference"
-
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
+    override fun buildVisitor(
+        holder: ProblemsHolder,
+        isOnTheFly: Boolean,
+        session: LocalInspectionToolSession
+    ): PsiElementVisitor {
         return UastHintedVisitorAdapter.create(
             holder.file.language,
             object : AbstractUastNonRecursiveVisitor() {
 
                 override fun visitField(node: UField): Boolean {
                     if (node.isStatic && LeakLensInspectionUtils.isActivityOrFragmentType(node.type)) {
+                        val sourcePsi = node.sourcePsi ?: node.javaPsi
+                        if (sourcePsi != null && LeakLensInspectionUtils.isApplicationContext(
+                                sourcePsi
+                            )
+                        ) return false
+
                         val elementToHighlight =
                             node.uastAnchor?.sourcePsi ?: node.sourcePsi ?: return false
                         val fieldName = node.name
+
                         val description =
-                            "LeakLens: Static field '$fieldName' holds an Activity/Fragment reference. " +
-                                    "This causes a memory leak as static fields outlive the Activity lifecycle."
-
-                        holder.registerProblem(
-                            elementToHighlight,
-                            description,
-                            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                            WrapWithWeakReferenceFix(fieldName),
-                            AskGeminiFix(
-                                description,
-                                node.type.canonicalText,
-                                LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                            ),
+                            "Static field '$fieldName' holds an Activity/Fragment reference. This causes a memory leak as static fields outlive the Activity lifecycle."
+                        registerLeak(
+                            holder = holder,
+                            element = elementToHighlight,
+                            description = description,
+                            className = node.getContainingUClass()?.javaPsi?.qualifiedName,
+                            functionName = null,
+                            symbolName = fieldName,
+                            suggestedFix = "Wrap the reference in a WeakReference or clear it in onDestroy()."
                         )
-
-                        fileIssues.add(createLeakInfo(node))
                     }
                     return false
                 }
@@ -64,26 +58,20 @@ class StaticActivityReferenceInspection : LocalInspectionTool() {
         )
     }
 
-    private fun createLeakInfo(node: UField): LeakInfo {
-        val line = node.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "static_leak_${node.name}_$line",
-            shortDescription = "Static Field holding Activity/Fragment",
-            leakTrace = "Static field: ${node.name} (line $line)",
-            retainedObjectClassName = node.type.canonicalText,
-            retainedByteSize = 0L,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.WARNING,
-            referenceChain = emptyList(),
-            suggestedFix = "Wrap the reference in a WeakReference or clear it in onDestroy()."
-        )
+    override fun getQuickFixes(element: com.intellij.psi.PsiElement): Array<com.intellij.codeInspection.LocalQuickFix> {
+        val uField = element.toUElementOfType<UField>() ?: return emptyArray()
+        return arrayOf(WrapWithWeakReferenceFix(uField.name))
     }
 
-    internal class WrapWithWeakReferenceFix(private val fieldName: String) : LocalQuickFix {
+    internal class WrapWithWeakReferenceFix(private val fieldName: String) :
+        com.intellij.codeInspection.LocalQuickFix {
         override fun getName() = "Wrap '$fieldName' with WeakReference"
         override fun getFamilyName() = "LeakLens quick fixes"
 
-        override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
+        override fun applyFix(
+            project: com.intellij.openapi.project.Project,
+            descriptor: com.intellij.codeInspection.ProblemDescriptor
+        ) {
             val element = descriptor.psiElement
             val uField = element.toUElementOfType<UField>() ?: return
             val fieldType = uField.type.presentableText

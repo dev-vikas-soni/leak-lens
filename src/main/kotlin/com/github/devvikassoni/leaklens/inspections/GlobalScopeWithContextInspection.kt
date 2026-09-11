@@ -1,63 +1,79 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.LocalQuickFix
-import com.intellij.codeInspection.ProblemDescriptor
-import com.intellij.codeInspection.ProblemHighlightType
+import com.github.devvikassoni.leaklens.inspections.engine.LifetimeEngine
+import com.github.devvikassoni.leaklens.inspections.registry.RuleRegistry
+import com.github.devvikassoni.leaklens.model.Lifetime
+import com.intellij.codeInspection.LocalInspectionToolSession
 import com.intellij.codeInspection.ProblemsHolder
-import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.uast.UCallExpression
+import org.jetbrains.uast.UElement
+import org.jetbrains.uast.UExpression
 import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
+import org.jetbrains.uast.visitor.AbstractUastVisitor
 
 /**
- * Detects coroutines launched in GlobalScope that capture Context/Activity references.
+ * Detects coroutines launched in long-lived scopes that capture Context/Activity references.
  */
-class GlobalScopeWithContextInspection : LocalInspectionTool() {
+class GlobalScopeWithContextInspection :
+    BaseLeakLensInspection(RuleRegistry.GLOBAL_SCOPE_WITH_CONTEXT) {
 
-    override fun getGroupDisplayName() = "LeakLens"
-    override fun getDisplayName() = "GlobalScope coroutine may leak Activity/Context"
-    override fun getShortName() = "LeakLensGlobalScopeWithContext"
-
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
+    override fun buildVisitor(
+        holder: ProblemsHolder,
+        isOnTheFly: Boolean,
+        session: LocalInspectionToolSession
+    ): PsiElementVisitor {
         return UastHintedVisitorAdapter.create(
             holder.file.language,
             object : AbstractUastNonRecursiveVisitor() {
                 override fun visitCallExpression(node: UCallExpression): Boolean {
                     val methodName = node.methodName
-                    val receiver = node.receiver
+                    if (methodName !in listOf("launch", "async")) return false
 
-                    if (receiver?.asSourceString() == "GlobalScope" && methodName in listOf(
-                            "launch",
-                            "async"
-                        )
-                    ) {
-                        val containingClass = node.getContainingUClass() ?: return false
-                        if (LeakLensInspectionUtils.isActivityOrFragment(containingClass)) {
-                            val elementToHighlight =
-                                node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return false
-                            val description =
-                                "LeakLens: GlobalScope.$methodName may cause a memory leak. Use lifecycleScope."
-                            holder.registerProblem(
-                                elementToHighlight,
-                                description,
-                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                UseLifecycleScopeQuickFix(),
-                                AskGeminiFix(
-                                    description,
-                                    containingClass.name ?: "Unknown",
-                                    LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                                )
-                            )
+                    val receiver = node.receiver ?: return false
+                    val scopeLifetime = LifetimeEngine.getScopeLifetime(receiver)
+                    if (scopeLifetime == Lifetime.UNKNOWN) return false
 
-                            fileIssues.add(createLeakInfo(methodName ?: "launch", node))
-                        }
+                    node.valueArguments.forEach { arg ->
+                        arg.accept(object : AbstractUastVisitor() {
+                            override fun visitElement(node: UElement): Boolean {
+                                if (node is UExpression) {
+                                    val type =
+                                        node.getExpressionType() ?: return super.visitElement(node)
+
+                                    val relationship =
+                                        LifetimeEngine.analyzeAsynchronousRelationship(
+                                            scopeLifetime = scopeLifetime,
+                                            referencedType = type,
+                                            evidenceSource = "Coroutine $methodName block captures ${type.presentableText}"
+                                        )
+
+                                    if (relationship.isRisky) {
+                                        val elementToHighlight =
+                                            node.sourcePsi ?: return super.visitElement(node)
+                                        registerLeak(
+                                            holder = holder,
+                                            element = elementToHighlight,
+                                            description = rule.description,
+                                            className = node.getContainingUClass()?.javaPsi?.qualifiedName,
+                                            functionName = methodName,
+                                            symbolName = "coroutine_capture",
+                                            suggestedFix = "Use a scope bound to the captured object's lifecycle.",
+                                            ownerLifetime = relationship.ownerLifetime,
+                                            referencedLifetime = relationship.referencedLifetime,
+                                            evidence = relationship.evidence,
+                                            riskExplanation = relationship.riskExplanation,
+                                            confidence = relationship.confidence
+                                        )
+                                        // Once we flag one capture in a block, we can stop for this specific node
+                                        return true
+                                    }
+                                }
+                                return super.visitElement(node)
+                            }
+                        })
                     }
                     return false
                 }
@@ -66,27 +82,21 @@ class GlobalScopeWithContextInspection : LocalInspectionTool() {
         )
     }
 
-    private fun createLeakInfo(methodName: String, node: UCallExpression): LeakInfo {
-        val line = node.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "global_scope_leak_${methodName}_$line",
-            shortDescription = "GlobalScope.$methodName in Activity/Fragment",
-            leakTrace = "Launched in GlobalScope (line $line)",
-            retainedObjectClassName = "kotlinx.coroutines.GlobalScope",
-            retainedByteSize = 0,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.WARNING,
-            referenceChain = emptyList(),
-            suggestedFix = "Use 'lifecycleScope' or 'viewModelScope' for automatic cancellation."
-        )
+    override fun getQuickFixes(element: com.intellij.psi.PsiElement): Array<com.intellij.codeInspection.LocalQuickFix> {
+        // Only suggest lifecycleScope if we are sure we are in an Activity/Fragment context
+        return arrayOf(UseLifecycleScopeQuickFix())
     }
 
-    private class UseLifecycleScopeQuickFix : LocalQuickFix {
+    private class UseLifecycleScopeQuickFix : com.intellij.codeInspection.LocalQuickFix {
         override fun getName() = "Use lifecycleScope"
         override fun getFamilyName() = "LeakLens quick fixes"
 
-        override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
+        override fun applyFix(
+            project: com.intellij.openapi.project.Project,
+            descriptor: com.intellij.codeInspection.ProblemDescriptor
+        ) {
             val element = descriptor.psiElement
+            // This is a simplified quick fix, usually needs more context to be safe
             if (element is org.jetbrains.kotlin.psi.KtSimpleNameExpression) {
                 val factory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
                 element.replace(factory.createSimpleName("lifecycleScope"))

@@ -6,7 +6,16 @@ import dagger.hilt.android.scopes.ActivityScoped
 class MyActivityHelper @Inject constructor()
 
 @Singleton
-class UserRepository @Inject constructor(
-    // Bad: Singleton injecting an ActivityScoped dependency
-    <error descr="LeakLens: Scope mismatch. A javax.inject.Singleton class cannot inject a dagger.hilt.android.scopes.ActivityScoped dependency. This will leak the narrower scope.">val helper: MyActivityHelper</error>
-)
+class UserRepository @Inject constructor() {
+    // Bad: Singleton injects ActivityScoped
+    @Inject
+    val <error descr =
+        "LeakLens: A wider-scoped Hilt component (e.g., @Singleton) injects a narrower-scoped dependency (e.g., @ActivityScoped). (SINGLETON -> ACTIVITY)" > helper < / error >: MyActivityHelper? = null
+}
+
+@Singleton
+class SafeRepository @Inject constructor() {
+    // Good: Singleton injects Singleton (implicitly or explicitly)
+    @Inject
+    val otherRepo: UserRepository? = null
+}

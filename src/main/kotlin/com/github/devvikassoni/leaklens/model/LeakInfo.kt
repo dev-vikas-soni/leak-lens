@@ -11,7 +11,13 @@ data class LeakInfo(
     val referenceChain: List<LeakTraceReference>,
     val timestamp: Long = System.currentTimeMillis(),
     val isLibraryLeak: Boolean = false,
-    val suggestedFix: String? = null
+    val suggestedFix: String? = null,
+
+    // Static Analysis Semantic Metadata
+    val ownerLifetime: String? = null,
+    val referencedLifetime: String? = null,
+    val evidence: String? = null,
+    val riskExplanation: String? = null
 )
 
 data class LeakTraceReference(

@@ -8,6 +8,7 @@ import com.github.devvikassoni.leaklens.settings.PersistedHistoryEntry
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,7 +17,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import java.util.concurrent.ConcurrentHashMap
 
 @Service(Service.Level.PROJECT)
 class LeakLensProjectService(private val project: Project, val scope: CoroutineScope) {
@@ -33,11 +33,28 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             initialValue = emptyList()
         )
 
+    private val _staticIssues =
+        MutableStateFlow<Map<String, Map<String, List<com.github.devvikassoni.leaklens.model.StaticAnalysisIssue>>>>(
+            emptyMap()
+        )
+    val staticIssues: StateFlow<List<com.github.devvikassoni.leaklens.model.StaticAnalysisIssue>> =
+        _staticIssues
+            .map { fileMap -> fileMap.values.flatMap { ruleMap -> ruleMap.values.flatten() } }
+            .stateIn(
+            scope = scope,
+            started = SharingStarted.Eagerly,
+            initialValue = emptyList()
+        )
+
     /**
      * Returns live issues for a specific file to support efficient gutter markers.
      */
     fun getLiveIssuesForFile(filePath: String): List<LeakInfo> {
         return _liveIssues.value[filePath]?.values?.flatten() ?: emptyList()
+    }
+
+    fun getStaticIssuesForFile(filePath: String): List<com.github.devvikassoni.leaklens.model.StaticAnalysisIssue> {
+        return _staticIssues.value[filePath]?.values?.flatten() ?: emptyList()
     }
 
     // O(1) cache for gutter markers to avoid O(N*M) lag on the highlighting thread
@@ -104,6 +121,103 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             val lines =
                 updatedFileIssues.mapNotNull { it.signature.substringAfterLast('_').toIntOrNull() }
                     .toSet()
+            liveLeakyLines[filePath] = lines
+        }
+    }
+
+    fun addStaticIssue(issue: com.github.devvikassoni.leaklens.model.StaticAnalysisIssue) {
+        _staticIssues.update { currentMap ->
+            val newMap = currentMap.toMutableMap()
+            val fileMap = newMap[issue.filePath]?.toMutableMap() ?: mutableMapOf()
+            val ruleIssues = fileMap[issue.ruleId]?.toMutableList() ?: mutableListOf()
+
+            // Deduplicate by fingerprint
+            if (ruleIssues.none { it.fingerprint == issue.fingerprint }) {
+                ruleIssues.add(issue)
+            }
+
+            newMap[issue.filePath] = fileMap
+            newMap
+        }
+        updateLineCache(issue.filePath)
+    }
+
+    fun addStaticIssues(issues: Collection<com.github.devvikassoni.leaklens.model.StaticAnalysisIssue>) {
+        if (issues.isEmpty()) return
+        val affectedFiles = mutableSetOf<String>()
+        _staticIssues.update { currentMap ->
+            val newMap = currentMap.toMutableMap()
+            issues.groupBy { it.filePath }.forEach { (filePath, fileIssues) ->
+                affectedFiles.add(filePath)
+                val newFileMap = newMap[filePath]?.toMutableMap() ?: mutableMapOf()
+                fileIssues.groupBy { it.ruleId }.forEach { (ruleId, newRuleIssues) ->
+                    val ruleIssues = newFileMap[ruleId]?.toMutableList() ?: mutableListOf()
+                    newRuleIssues.forEach { issue ->
+                        if (ruleIssues.none { it.fingerprint == issue.fingerprint }) {
+                            ruleIssues.add(issue)
+                        }
+                    }
+                    newFileMap[ruleId] = ruleIssues
+                }
+                newMap[filePath] = newFileMap
+            }
+            newMap
+        }
+        affectedFiles.forEach { updateLineCache(it) }
+    }
+
+    fun updateStaticIssuesForFile(
+        filePath: String,
+        ruleId: String,
+        issues: Collection<com.github.devvikassoni.leaklens.model.StaticAnalysisIssue>
+    ) {
+        _staticIssues.update { currentMap ->
+            val newMap = currentMap.toMutableMap()
+            val fileMap = newMap[filePath]?.toMutableMap() ?: mutableMapOf()
+
+            if (issues.isEmpty()) {
+                fileMap.remove(ruleId)
+            } else {
+                // Deduplicate within the incoming batch itself
+                val distinctIssues = issues.distinctBy { it.fingerprint }
+                fileMap[ruleId] = distinctIssues
+            }
+
+            if (fileMap.isEmpty()) {
+                newMap.remove(filePath)
+            } else {
+                newMap[filePath] = fileMap
+            }
+            newMap
+        }
+        updateLineCache(filePath)
+    }
+
+    fun clearStaticIssuesForFile(filePath: String) {
+        _staticIssues.update { currentMap ->
+            val newMap = currentMap.toMutableMap()
+            newMap.remove(filePath)
+            newMap
+        }
+        updateLineCache(filePath)
+    }
+
+    fun clearAllStaticIssues() {
+        _staticIssues.value = emptyMap()
+        liveLeakyLines.clear()
+    }
+
+    private fun updateLineCache(filePath: String) {
+        val staticIssues = _staticIssues.value[filePath]?.values?.flatten() ?: emptyList()
+        val liveIssues = _liveIssues.value[filePath]?.values?.flatten() ?: emptyList()
+
+        val lines = (staticIssues.map { it.line } +
+                liveIssues.mapNotNull { it.signature.substringAfterLast('_').toIntOrNull() })
+            .toSet()
+
+        if (lines.isEmpty()) {
+            liveLeakyLines.remove(filePath)
+        } else {
             liveLeakyLines[filePath] = lines
         }
     }

@@ -4,23 +4,43 @@ import androidx.lifecycle.ViewModel
 annotation class Composable
 
 class MyViewModel : ViewModel() {
-    @Suppress("UNUSED_PARAMETER")
-    fun setContext(context: Context) {
+    fun setContext(@Suppress("UNUSED_PARAMETER") context: Context) {
     }
 }
+
+val Context.applicationContext: Context get() = this
 
 @Composable
 fun MyScreen(viewModel: MyViewModel, context: Context) {
     // Bad: Passing context to ViewModel inside Composable
-    viewModel.setContext(<error descr="LeakLens: Passing Context/Activity to a ViewModel in Compose causes leaks. Use LocalContext only for UI operations.">context</error>)
+    viewModel.setContext(< error descr =
+        "LeakLens: Activity Context passed to a Singleton or long-lived object. This will leak the Activity if not cleared. (VIEWMODEL -> ACTIVITY)" > context < / error >)
 
-    // Bad: Capturing context in remember
+    // Safe: Activity outlives Composition
     remember {
-        MyHelper(<error descr="LeakLens: Context captured in remember { } can outlive Activity. Use rememberUpdatedState or pass Context as a key.">context</error>)
+        MyHelper(context)
+    }
+
+    // Good: application context
+    remember {
+        MyHelper(context.applicationContext)
     }
 }
 
-class MyHelper(val context: Context)
+class MyHelper(@Suppress("UNUSED_PARAMETER") val context: Context)
 
-@Suppress("UNUSED_PARAMETER")
 fun <T> remember(calculation: () -> T): T = calculation()
+fun LaunchedEffect(@Suppress("UNUSED_PARAMETER") key: Any, block: suspend () -> Unit) {
+    // avoid unused parameter
+    println(block)
+}
+
+@Composable
+fun EffectTest(context: Context) {
+    // Safe: capture in LaunchedEffect (cancelled when disposed)
+    LaunchedEffect(Unit) {
+        println(context)
+    }
+}
+
+fun println(@Suppress("UNUSED_PARAMETER") any: Any) {}

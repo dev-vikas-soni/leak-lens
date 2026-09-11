@@ -3,12 +3,13 @@ package com.github.devvikassoni.leaklens.toolWindow
 import com.github.devvikassoni.leaklens.ai.AiUtils
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
+import com.github.devvikassoni.leaklens.model.UnifiedIssue
+import com.github.devvikassoni.leaklens.model.toUnifiedIssue
 import com.github.devvikassoni.leaklens.services.SourceNavigationService
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.fileChooser.FileChooser
 import com.intellij.openapi.fileChooser.FileChooserDescriptor
 import com.intellij.openapi.project.Project
-import com.intellij.openapi.ui.Messages
 import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.dsl.builder.AlignX
@@ -57,7 +58,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
     private val classLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 12f) }
     private val sizeLabel = JBLabel().apply { font = font.deriveFont(Font.PLAIN, 11f) }
 
-    private var currentLeak: LeakInfo? = null
+    private var currentIssue: UnifiedIssue? = null
 
     private val askGeminiButton = JButton("Ask Gemini AI").apply {
         icon = AllIcons.Actions.QuickfixBulb
@@ -155,7 +156,6 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             resizeWeight = 0.6
         }
 
-        // Wrap content in a panel that supports alpha painting for the fade animation
         val animatedContent = object : JPanel(BorderLayout()) {
             override fun paintChildren(g: Graphics) {
                 val g2 = g as Graphics2D
@@ -179,45 +179,72 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         showEmptyState()
     }
 
-    fun showLeakDetail(leak: LeakInfo) {
-        currentLeak = leak
-        severityLabel.icon = when (leak.severity) {
+    fun showLeakDetail(issue: UnifiedIssue) {
+        currentIssue = issue
+        severityLabel.icon = when (issue.severity) {
             LeakSeverity.CRITICAL -> AllIcons.General.Error
             LeakSeverity.WARNING -> AllIcons.General.Warning
             LeakSeverity.LIBRARY_LEAK -> AllIcons.General.Information
         }
-        severityLabel.text = leak.severity.displayName
+        severityLabel.text = issue.severity.displayName
 
-        classLabel.text = "Class: ${leak.retainedObjectClassName}"
+        classLabel.text = "Class: ${issue.className}"
         classLabel.cursor = Cursor.getPredefinedCursor(Cursor.HAND_CURSOR)
         for (al in classLabel.mouseListeners) classLabel.removeMouseListener(al)
         classLabel.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 SourceNavigationService.getInstance(project)
-                    .navigateToClass(leak.retainedObjectClassName)
+                    .navigateToClass(issue.className)
             }
         })
-        classLabel.toolTipText = "Click to open ${leak.retainedObjectClassName}"
+        classLabel.toolTipText = "Click to open ${issue.className}"
 
-        val sizeStr = if (leak.retainedByteSize >= 1024 * 1024) {
-            "${leak.retainedByteSize / (1024 * 1024)} MB"
+        if (issue.source == com.github.devvikassoni.leaklens.model.IssueSource.HEAP_ANALYSIS) {
+            val leak = issue.originalIssue as LeakInfo
+            val sizeStr = if (leak.retainedByteSize >= 1024 * 1024) {
+                "${leak.retainedByteSize / (1024 * 1024)} MB"
+            } else {
+                "${leak.retainedByteSize / 1024} KB"
+            }
+            sizeLabel.text = "Retained: $sizeStr | Objects: ${leak.retainedObjectCount}"
         } else {
-            "${leak.retainedByteSize / 1024} KB"
+            sizeLabel.text = "Confidence: ${issue.confidence} | Source: Static Analysis"
         }
-        sizeLabel.text = "Retained: $sizeStr | Objects: ${leak.retainedObjectCount}"
 
         // Configure Gemini button
         askGeminiButton.isVisible = true
         for (al in askGeminiButton.actionListeners) askGeminiButton.removeActionListener(al)
         askGeminiButton.addActionListener {
-            val prompt = AiUtils.askGemini(project, leak)
-            fixSuggestionArea.text = "PROMPT COPIED TO CLIPBOARD:\n\n$prompt"
+            val leakInfo = when (issue.source) {
+                com.github.devvikassoni.leaklens.model.IssueSource.HEAP_ANALYSIS -> issue.originalIssue as LeakInfo
+                com.github.devvikassoni.leaklens.model.IssueSource.STATIC_ANALYSIS -> {
+                    val static =
+                        issue.originalIssue as com.github.devvikassoni.leaklens.model.StaticAnalysisIssue
+                    LeakInfo(
+                        signature = static.fingerprint,
+                        shortDescription = static.description,
+                        leakTrace = static.description,
+                        retainedObjectClassName = static.className ?: "Unknown",
+                        retainedByteSize = 0,
+                        retainedObjectCount = 1,
+                        severity = issue.severity,
+                        referenceChain = emptyList(),
+                        suggestedFix = static.suggestedFix
+                    )
+                }
+
+                else -> null
+            }
+            leakInfo?.let { AiUtils.askGemini(project, it) }
+            fixSuggestionArea.text =
+                "PROMPT COPIED TO CLIPBOARD:\n\nAnalyze this leak using Gemini Assistant."
         }
 
         // Configure Verify Fix button
         val coordinator =
             com.github.devvikassoni.leaklens.services.LeakAnalysisCoordinator.getInstance(project)
-        verifyFixButton.isVisible = coordinator.lastDumpContext != null
+        verifyFixButton.isVisible =
+            coordinator.lastDumpContext != null && issue.source == com.github.devvikassoni.leaklens.model.IssueSource.HEAP_ANALYSIS
         for (al in verifyFixButton.actionListeners) verifyFixButton.removeActionListener(al)
         verifyFixButton.addActionListener {
             val context = coordinator.lastDumpContext
@@ -229,7 +256,8 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         // Configure Mapping button
         val deobService =
             com.github.devvikassoni.leaklens.deobfuscation.DeobfuscationService.getInstance(project)
-        linkMappingButton.isVisible = !deobService.hasMappings()
+        linkMappingButton.isVisible =
+            !deobService.hasMappings() && issue.source == com.github.devvikassoni.leaklens.model.IssueSource.HEAP_ANALYSIS
         for (al in linkMappingButton.actionListeners) linkMappingButton.removeActionListener(al)
         linkMappingButton.addActionListener {
             val descriptor = FileChooserDescriptor(true, false, false, false, false, false)
@@ -239,15 +267,14 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             val file = FileChooser.chooseFile(descriptor, project, null)
             if (file != null) {
                 if (deobService.loadMappingFile(java.io.File(file.path))) {
-                    // Update settings for persistence
                     val settings =
                         com.github.devvikassoni.leaklens.settings.LeakLensSettingsState.getInstance(
                             project
                         )
                     settings.mappingFilePath = file.path
 
-                    // Refresh current view with deobfuscated data
-                    currentLeak?.let { leak ->
+                    if (issue.source == com.github.devvikassoni.leaklens.model.IssueSource.HEAP_ANALYSIS) {
+                        val leak = issue.originalIssue as LeakInfo
                         val deobLeak = leak.copy(
                             retainedObjectClassName = deobService.deobfuscateClassName(leak.retainedObjectClassName),
                             leakTrace = deobService.deobfuscateTrace(leak.leakTrace),
@@ -255,21 +282,15 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
                                 ref.copy(owningClassName = deobService.deobfuscateClassName(ref.owningClassName))
                             }
                         )
-                        showLeakDetail(deobLeak)
+                        showLeakDetail(deobLeak.toUnifiedIssue())
                     }
-                } else {
-                    Messages.showErrorDialog(
-                        project,
-                        "Failed to parse mapping file. Ensure it is a valid ProGuard/R8 format.",
-                        "Deobfuscation Error"
-                    )
                 }
             }
         }
 
-        buildClickableTrace(leak)
+        buildClickableTrace(issue)
 
-        val fix = leak.suggestedFix
+        val fix = issue.suggestedFix
         if (fix == null || fix.contains("No fix suggestion available")) {
             fixSuggestionArea.text =
                 "No automatic fix found for this pattern.\n\nUse the 'Ask Gemini AI' button above to get assistance from Android Studio's built-in AI."
@@ -278,11 +299,11 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         }
 
         (mainContent.layout as CardLayout).show(mainContent, "CONTENT")
-        fadeIn() // ✨ Animate in the new content
+        fadeIn()
     }
 
     fun showEmptyState() {
-        currentLeak = null
+        currentIssue = null
         severityLabel.text = ""
         severityLabel.icon = null
         classLabel.text = ""
@@ -296,7 +317,7 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         (mainContent.layout as CardLayout).show(mainContent, "EMPTY")
     }
 
-    private fun buildClickableTrace(leak: LeakInfo) {
+    private fun buildClickableTrace(issue: UnifiedIssue) {
         val doc = tracePane.styledDocument
         doc.remove(0, doc.length)
 
@@ -312,16 +333,26 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
             StyleConstants.setBold(this, true)
         }
 
-        doc.insertString(doc.length, "═══ REFERENCE CHAIN ═══\n\n", normalStyle)
-        for ((index, ref) in leak.referenceChain.withIndex()) {
-            doc.insertString(doc.length, "  ".repeat(index) + "↓ ", normalStyle)
-            doc.insertString(doc.length, ref.owningClassName, linkStyle)
-            doc.insertString(doc.length, ".${ref.referenceName}", linkStyle)
-            doc.insertString(doc.length, " (${ref.referenceType})\n", normalStyle)
+        if (issue.source == com.github.devvikassoni.leaklens.model.IssueSource.HEAP_ANALYSIS) {
+            val leak = issue.originalIssue as LeakInfo
+            doc.insertString(doc.length, "═══ REFERENCE CHAIN ═══\n\n", normalStyle)
+            for ((index, ref) in leak.referenceChain.withIndex()) {
+                doc.insertString(doc.length, "  ".repeat(index) + "↓ ", normalStyle)
+                doc.insertString(doc.length, ref.owningClassName, linkStyle)
+                doc.insertString(doc.length, ".${ref.referenceName}", linkStyle)
+                doc.insertString(doc.length, " (${ref.referenceType})\n", normalStyle)
+            }
+            doc.insertString(doc.length, "\n═══ FULL TRACE ═══\n\n", normalStyle)
+            doc.insertString(doc.length, leak.leakTrace, normalStyle)
+        } else {
+            doc.insertString(doc.length, "═══ STATIC ANALYSIS FINDING ═══\n\n", normalStyle)
+            doc.insertString(doc.length, issue.description, normalStyle)
+            doc.insertString(
+                doc.length,
+                "\n\nLocation: ${issue.filePath}:${issue.line}",
+                normalStyle
+            )
         }
-
-        doc.insertString(doc.length, "\n═══ FULL TRACE ═══\n\n", normalStyle)
-        doc.insertString(doc.length, leak.leakTrace, normalStyle)
     }
 
     private fun handleTraceClick(e: MouseEvent) {
@@ -329,7 +360,6 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
         val doc = tracePane.styledDocument
         val text = doc.getText(0, doc.length)
 
-        // Find if we clicked a word
         var start = offset
         var end = offset
         while (start > 0 && (text[start - 1].isLetterOrDigit() || text[start - 1] == '.' || text[start - 1] == '$' || text[start - 1] == '_')) start--
@@ -338,15 +368,16 @@ class LeakDetailPanel(private val project: Project) : JPanel(BorderLayout()) {
 
         if (word.isBlank()) return
 
-        // 1. Try to find if this is a field in our reference chain
-        currentLeak?.referenceChain?.forEach { ref ->
-            if (word.endsWith(ref.referenceName) || word == ref.owningClassName) {
-                SourceNavigationService.getInstance(project).navigateToReference(ref)
-                return
+        if (currentIssue?.source == com.github.devvikassoni.leaklens.model.IssueSource.HEAP_ANALYSIS) {
+            val leak = currentIssue?.originalIssue as LeakInfo
+            leak.referenceChain.forEach { ref ->
+                if (word.endsWith(ref.referenceName) || word == ref.owningClassName) {
+                    SourceNavigationService.getInstance(project).navigateToReference(ref)
+                    return
+                }
             }
         }
 
-        // 2. Fallback: navigate to class
         val className = if (word.contains('.') && word.first().isLetter()) word else null
         if (className != null) {
             SourceNavigationService.getInstance(project).navigateToClass(className)

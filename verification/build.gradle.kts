@@ -19,7 +19,7 @@ dependencies {
     implementation(project(":")) // Link to the main plugin engine
     implementation("com.squareup.leakcanary:shark:2.14")
     implementation("com.squareup.leakcanary:shark-android:2.14")
-    implementation("com.google.code.gson:gson:2.14.0")
+    implementation("com.google.code.gson:gson:2.15.0")
     testImplementation(kotlin("test"))
 }
 

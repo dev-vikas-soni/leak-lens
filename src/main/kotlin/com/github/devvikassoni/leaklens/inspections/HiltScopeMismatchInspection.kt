@@ -1,139 +1,125 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.LocalInspectionToolSession
-import com.intellij.codeInspection.ProblemHighlightType
-import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.psi.PsiClass
+import com.intellij.psi.PsiClassType
 import com.intellij.psi.PsiElementVisitor
-import com.intellij.psi.util.PsiTypesUtil
+import com.intellij.psi.PsiType
 import com.intellij.uast.UastHintedVisitorAdapter
+import org.jetbrains.kotlin.psi.KtAnnotated
 import org.jetbrains.uast.UClass
-import org.jetbrains.uast.UParameter
+import org.jetbrains.uast.UElement
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
- * Detects Hilt scope mismatches where a wider-scoped class (like @Singleton)
- * injects a narrower-scoped dependency (like an @ActivityScoped component).
- *
- * This causes the narrower-scoped dependency (and potentially the Activity itself)
- * to be retained for the lifetime of the wider scope, leading to a memory leak.
+ * Detects Hilt scope mismatches: a scoped class injecting (via constructor or field, directly or through
+ * `Provider`/`Lazy`) a dependency whose scope is not an ancestor of its own component, e.g. a
+ * `@Singleton` holding an `@ActivityScoped` object (and therefore the Activity).
  */
-class HiltScopeMismatchInspection : LocalInspectionTool() {
+class HiltScopeMismatchInspection : LeakLensInspectionBase() {
 
-    override fun getGroupDisplayName() = "LeakLens"
     override fun getDisplayName() = "Hilt Scope Mismatch (Wider scope holds narrower scope)"
     override fun getShortName() = "LeakLensHiltScopeMismatch"
 
-    private val widerScopes = setOf(
-        "javax.inject.Singleton",
-        "dagger.hilt.android.scopes.ActivityRetainedScoped",
-        "dagger.hilt.android.scopes.ViewModelScoped"
-    )
-
-    private val narrowerScopes = setOf(
-        "dagger.hilt.android.scopes.ActivityScoped",
-        "dagger.hilt.android.scopes.FragmentScoped",
-        "dagger.hilt.android.scopes.ViewScoped"
-    )
-
-    override fun buildVisitor(
-        holder: ProblemsHolder,
-        isOnTheFly: Boolean,
-        session: LocalInspectionToolSession
-    ): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
-        return UastHintedVisitorAdapter.create(
-            holder.file.language,
+    override fun buildLeakVisitor(reporter: LeakReporter): PsiElementVisitor =
+        UastHintedVisitorAdapter.create(
+            reporter.file.language,
             object : AbstractUastNonRecursiveVisitor() {
                 override fun visitClass(node: UClass): Boolean {
-                    // 1. Check if the class has a wider scope (e.g., @Singleton)
-                    val classScope = getScopeAnnotation(node.javaPsi) ?: return false
+                    val classScope = scopeOf(node.javaPsi) ?: return false
+                    val allowed = ALLOWED[classScope] ?: return false
 
-                    // We only care if it's one of the "wider" scopes leaking a narrower one.
-                    // For simplicity, let's treat Singleton as leaking anything narrower.
-                    if (!isWiderScope(classScope)) return false
+                    val injected = mutableListOf<Pair<UElement, PsiType>>()
+                    node.methods.filter { it.isConstructor && hasInject(it.javaPsi) }
+                        .forEach { ctor -> ctor.uastParameters.forEach { injected += it to it.type } }
+                    node.fields.filter { hasInject(it.javaPsi) || hasInject(it.sourcePsi) }
+                        .forEach { injected += it to it.type }
 
-                    // 2. Look for @Inject constructors (or all constructors if we assume constructor injection)
-                    val constructors = node.methods.filter { it.isConstructor }
-                    for (constructor in constructors) {
-                        val hasInject =
-                            constructor.annotations.any { it.qualifiedName == "javax.inject.Inject" }
-                        if (!hasInject) continue
-
-                        // 3. Check constructor parameters
-                        for (param in constructor.uastParameters) {
-                            val paramTypeClass = PsiTypesUtil.getPsiClass(param.type) ?: continue
-                            val paramScope = getScopeAnnotation(paramTypeClass) ?: continue
-
-                            if (isNarrowerScope(paramScope)) {
-                                val elementToHighlight =
-                                    param.sourcePsi ?: param.javaPsi ?: continue
-                                val description =
-                                    "LeakLens: Scope mismatch. A $classScope class cannot inject a $paramScope dependency. " +
-                                            "This will leak the narrower scope."
-
-                                holder.registerProblem(
-                                    elementToHighlight,
-                                    description,
-                                    ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                    AskGeminiFix(
-                                        description,
-                                        node.name ?: "Unknown",
-                                        LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                                    )
-                                )
-
-                                fileIssues.add(createLeakInfo(node, param, classScope, paramScope))
-                            }
-                        }
+                    for ((element, type) in injected) {
+                        val dependency = AndroidTypes.classOf(unwrapProvider(type)) ?: continue
+                        val depScope = scopeOf(dependency) ?: continue
+                        if (depScope in allowed) continue
+                        val anchor = element.sourcePsi ?: continue
+                        val name = (element as? com.intellij.psi.PsiNamedElement)?.name
+                            ?: (anchor as? com.intellij.psi.PsiNamedElement)?.name
+                            ?: "dependency"
+                        val classLabel = simple(classScope)
+                        val depLabel = simple(depScope)
+                        reporter.report(
+                            anchor,
+                            "LeakLens: Scope mismatch. @$classLabel ${node.name} injects @$depLabel " +
+                                "${dependency.name}, which will be retained beyond its lifecycle.",
+                            Finding(
+                                key = LeakReporter.memberKey(node, "inject:${dependency.qualifiedName}"),
+                                title = "@$classLabel injects @$depLabel ${dependency.name}",
+                                location = "Injected '$name' in ${node.name}",
+                                retainedClass = dependency.qualifiedName ?: dependency.name ?: "Unknown",
+                                suggestedFix = "Inject the narrower-scoped dependency where it is used, pass it as " +
+                                    "a method argument, or widen its scope deliberately.",
+                                severity = LeakSeverity.CRITICAL,
+                            ),
+                        )
                     }
                     return false
                 }
             },
             arrayOf(UClass::class.java)
         )
+
+    private fun hasInject(element: Any?): Boolean = when (element) {
+        is com.intellij.psi.PsiModifierListOwner -> AndroidTypes.hasAnnotation(element, AndroidTypes.INJECT_ANNOTATIONS)
+        is KtAnnotated -> element.annotationEntries.any { it.shortName?.asString() == "Inject" }
+        else -> false
     }
 
-    private fun getScopeAnnotation(psiClass: PsiClass): String? {
-        val annotations = psiClass.annotations
-        for (annotation in annotations) {
-            val fqn = annotation.qualifiedName ?: continue
-            if (widerScopes.contains(fqn) || narrowerScopes.contains(fqn)) {
-                return fqn
-            }
-        }
-        return null
+    private fun unwrapProvider(type: PsiType): PsiType {
+        val classType = type as? PsiClassType ?: return type
+        val fqn = classType.resolve()?.qualifiedName ?: return type
+        return if (fqn in PROVIDERS) classType.parameters.firstOrNull() ?: type else type
     }
 
-    private fun isWiderScope(scopeFqn: String): Boolean {
-        return widerScopes.contains(scopeFqn)
+    private fun scopeOf(psiClass: PsiClass): String? {
+        if (psiClass.hasAnnotation(HILT_VIEW_MODEL)) return VIEW_MODEL_SCOPED
+        return SCOPES.firstOrNull { psiClass.hasAnnotation(it) }
     }
 
-    private fun isNarrowerScope(scopeFqn: String): Boolean {
-        return narrowerScopes.contains(scopeFqn)
-    }
+    private fun simple(fqn: String) = fqn.substringAfterLast('.')
 
-    private fun createLeakInfo(
-        uClass: UClass,
-        param: UParameter,
-        classScope: String,
-        paramScope: String
-    ): LeakInfo {
-        val line = param.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "hilt_scope_mismatch_${uClass.name}_${param.name}_$line",
-            shortDescription = "Scope mismatch: $classScope injects $paramScope",
-            leakTrace = "Constructor parameter '${param.name}' in ${uClass.name} (line $line)",
-            retainedObjectClassName = param.type.canonicalText,
-            retainedByteSize = 0L,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.CRITICAL,
-            referenceChain = emptyList(),
-            suggestedFix = "Remove the narrower-scoped dependency from the $classScope class or change scopes to match."
+    private companion object {
+        const val SINGLETON = "javax.inject.Singleton"
+        const val JAKARTA_SINGLETON = "jakarta.inject.Singleton"
+        const val ACTIVITY_RETAINED = "dagger.hilt.android.scopes.ActivityRetainedScoped"
+        const val VIEW_MODEL_SCOPED = "dagger.hilt.android.scopes.ViewModelScoped"
+        const val ACTIVITY_SCOPED = "dagger.hilt.android.scopes.ActivityScoped"
+        const val FRAGMENT_SCOPED = "dagger.hilt.android.scopes.FragmentScoped"
+        const val VIEW_SCOPED = "dagger.hilt.android.scopes.ViewScoped"
+        const val SERVICE_SCOPED = "dagger.hilt.android.scopes.ServiceScoped"
+        const val HILT_VIEW_MODEL = "dagger.hilt.android.lifecycle.HiltViewModel"
+
+        val SCOPES = listOf(
+            SINGLETON,
+            JAKARTA_SINGLETON,
+            ACTIVITY_RETAINED,
+            VIEW_MODEL_SCOPED,
+            ACTIVITY_SCOPED,
+            FRAGMENT_SCOPED,
+            VIEW_SCOPED,
+            SERVICE_SCOPED,
+        )
+        val PROVIDERS = setOf("javax.inject.Provider", "jakarta.inject.Provider", "dagger.Lazy")
+
+        private val ROOT = setOf(SINGLETON, JAKARTA_SINGLETON)
+
+        /** Scopes a component may depend on: its own and its ancestors in the Hilt component hierarchy. */
+        val ALLOWED: Map<String, Set<String>> = mapOf(
+            SINGLETON to ROOT,
+            JAKARTA_SINGLETON to ROOT,
+            ACTIVITY_RETAINED to ROOT + ACTIVITY_RETAINED,
+            VIEW_MODEL_SCOPED to ROOT + ACTIVITY_RETAINED + VIEW_MODEL_SCOPED,
+            ACTIVITY_SCOPED to ROOT + ACTIVITY_RETAINED + ACTIVITY_SCOPED,
+            FRAGMENT_SCOPED to ROOT + ACTIVITY_RETAINED + ACTIVITY_SCOPED + FRAGMENT_SCOPED,
+            VIEW_SCOPED to ROOT + ACTIVITY_RETAINED + ACTIVITY_SCOPED + VIEW_SCOPED,
+            SERVICE_SCOPED to ROOT + SERVICE_SCOPED,
         )
     }
 }

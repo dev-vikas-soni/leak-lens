@@ -7,10 +7,19 @@ import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.model.LeakTraceReference
 import com.github.devvikassoni.leaklens.shark.LeakLensObjectInspectors
 import com.intellij.openapi.components.Service
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.Project
 import shark.*
 import shark.HprofHeapGraph.Companion.openHeapGraph
 import java.io.File
+import java.util.concurrent.CancellationException
+
+/**
+ * Thrown when Shark could not analyze a heap dump (e.g. truncated or corrupt HPROF),
+ * so callers can distinguish a failure from a clean heap with no leaks.
+ */
+class HeapAnalysisFailedException(cause: Throwable) :
+    RuntimeException("Heap analysis failed: ${cause.message ?: cause.javaClass.simpleName}", cause)
 
 /**
  * Service that encapsulates the Shark heap analysis engine.
@@ -30,6 +39,9 @@ class SharkAnalysisService {
 
     /**
      * Analyze a heap dump with optimizations for large files and cancellation support.
+     *
+     * @throws HeapAnalysisFailedException if Shark fails to analyze the dump.
+     * @throws ProcessCanceledException if the user cancels via [indicator].
      */
     fun analyzeHprof(
         hprofFile: File,
@@ -63,18 +75,24 @@ class SharkAnalysisService {
         val objectInspectors = AndroidObjectInspectors.appDefaults + LeakLensObjectInspectors.all
 
         val sourceProvider = FileSourceProvider(hprofFile)
-        val analysis = sourceProvider.openHeapGraph().use { graph ->
-            heapAnalyzer.analyze(
-                heapDumpFile = hprofFile,
-                graph = graph,
-                leakingObjectFinder = FilteringLeakingObjectFinder(
-                    AndroidObjectInspectors.appLeakingObjectFilters
-                ),
-                referenceMatchers = AndroidReferenceMatchers.appDefaults,
-                objectInspectors = objectInspectors,
-                computeRetainedHeapSize = true,
-                metadataExtractor = MetadataExtractor.NO_OP
-            )
+        val analysis = try {
+            sourceProvider.openHeapGraph().use { graph ->
+                heapAnalyzer.analyze(
+                    heapDumpFile = hprofFile,
+                    graph = graph,
+                    leakingObjectFinder = FilteringLeakingObjectFinder(
+                        AndroidObjectInspectors.appLeakingObjectFilters
+                    ),
+                    referenceMatchers = AndroidReferenceMatchers.appDefaults,
+                    objectInspectors = objectInspectors,
+                    computeRetainedHeapSize = true,
+                    metadataExtractor = MetadataExtractor.NO_OP
+                )
+            }
+        } catch (e: Exception) {
+            findCancellation(e)?.let { throw it }
+            CompatibilityLogger.warn("LeakLens: Could not open heap dump ${hprofFile.name}", e)
+            throw HeapAnalysisFailedException(e)
         }
 
         return when (analysis) {
@@ -90,13 +108,23 @@ class SharkAnalysisService {
             }
 
             is HeapAnalysisFailure -> {
-                CompatibilityLogger.error(
-                    "LeakLens: Analysis failed with Shark exception",
-                    analysis.exception
-                )
-                emptyList()
+                // Shark catches every Throwable, including our cancellation from the progress listener.
+                findCancellation(analysis.exception)?.let { throw it }
+                CompatibilityLogger.warn("LeakLens: Analysis failed with Shark exception", analysis.exception)
+                throw HeapAnalysisFailedException(analysis.exception.cause ?: analysis.exception)
             }
         }
+    }
+
+    private fun findCancellation(throwable: Throwable): RuntimeException? {
+        var current: Throwable? = throwable
+        while (current != null) {
+            if (current is ProcessCanceledException || current is CancellationException) {
+                return current as RuntimeException
+            }
+            current = current.cause.takeIf { it !== current }
+        }
+        return null
     }
 
     private fun convertToLeakInfoList(analysis: HeapAnalysisSuccess): List<LeakInfo> {

@@ -1,23 +1,23 @@
 <html>
 <body>
-Detects cases where an <b>Activity</b> or <b>Fragment</b> is stored in a static field or a companion
-object.
+Reports static fields (Java <code>static</code>, Kotlin <code>companion object</code> / <code>object</code>
+properties) whose type is bound to a UI lifecycle: <b>Activity</b>, <b>Fragment</b>, <b>View</b>,
+<b>Dialog</b> or a non-Application <b>Context</b>.
 <p>
-    Storing an <code>Activity</code> or <code>Fragment</code> in a static field causes a memory leak
-    because static fields
-    persist for the lifetime of the application process, preventing the <code>Activity</code> or
-    <code>Fragment</code>
-    from being garbage collected after it is destroyed.
+    Static fields live as long as the process. Holding a UI object there keeps the destroyed
+    Activity and its whole view hierarchy reachable.
 </p>
-<p><b>Example:</b></p>
+<p><b>Leaks:</b></p>
 <pre><code>
-class MyActivity : Activity() {
-  companion object {
-    var staticActivity: MyActivity? = null // Leak!
-  }
+class MainActivity : Activity() {
+    companion object {
+        var current: MainActivity? = null
+    }
 }
 </code></pre>
-<p><b>Fix:</b> Use a <code>WeakReference</code> or clear the static reference in
-    <code>onDestroy()</code>.</p>
+<p><b>Fix:</b> pass the object where it is needed, use <code>applicationContext</code> for
+    app-wide needs, or clear the field in <code>onDestroy()</code>. Fields annotated with Hilt's
+    <code>@ApplicationContext</code> and <code>Application</code>-typed fields are not reported.</p>
+<p>Suppress with <code>@Suppress("LeakLensStaticActivityReference")</code>.</p>
 </body>
 </html>

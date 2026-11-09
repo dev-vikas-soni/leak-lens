@@ -21,4 +21,16 @@ class SharkAnalysisServiceTest : BasePlatformTestCase() {
         val leaks = service.analyzeHprof(nonExistentFile)
         assertTrue(leaks.isEmpty())
     }
+
+    fun testAnalyzeCorruptFileThrowsInsteadOfReportingNoLeaks() {
+        val corrupt = File.createTempFile("leaklens_corrupt_", ".hprof")
+        try {
+            corrupt.writeText("this is not an hprof file")
+            assertThrows(HeapAnalysisFailedException::class.java) {
+                service.analyzeHprof(corrupt)
+            }
+        } finally {
+            corrupt.delete()
+        }
+    }
 }

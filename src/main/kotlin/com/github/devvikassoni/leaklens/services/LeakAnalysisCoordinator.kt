@@ -57,7 +57,11 @@ class LeakAnalysisCoordinator(private val project: Project) {
                         return
                     }
 
-                    analyzeLocalFile(localFile, indicator)
+                    try {
+                        analyzeLocalFile(localFile, indicator)
+                    } finally {
+                        localFile.delete()
+                    }
                 } finally {
                     projectService.setAnalyzing(false)
                 }
@@ -109,11 +113,15 @@ class LeakAnalysisCoordinator(private val project: Project) {
                         return
                     }
 
-                    // Wait for the dump to be flushed to disk on the device
+                    // `am dumpheap` may return before the app finishes writing the file
                     ProgressFacade.setText(indicator, "Waiting for heap dump to complete...")
-                    for (i in 1..30) {
-                        ProgressFacade.checkCanceled(indicator)
-                        Thread.sleep(100) // Total 3 seconds safe wait
+                    if (!adbService.waitForRemoteFileComplete(deviceSerial, remotePath, indicator)) {
+                        adbService.deleteRemoteFile(deviceSerial, remotePath)
+                        notify(
+                            "Timed out waiting for the heap dump to finish writing on the device",
+                            NotificationType.ERROR
+                        )
+                        return
                     }
 
                     ProgressFacade.setText(indicator, "Pulling heap dump from device...")
@@ -129,11 +137,13 @@ class LeakAnalysisCoordinator(private val project: Project) {
                     // Clean up remote file
                     adbService.deleteRemoteFile(deviceSerial, remotePath)
 
-                    analyzeLocalFile(localFile, indicator)
-
-                    // Cleanup local hprof after analysis to avoid disk bloat
-                    if (localFile.exists()) {
-                        localFile.delete()
+                    try {
+                        analyzeLocalFile(localFile, indicator)
+                    } finally {
+                        // Cleanup local hprof after analysis to avoid disk bloat
+                        if (localFile.exists()) {
+                            localFile.delete()
+                        }
                     }
                 } finally {
                     projectService.setAnalyzing(false)
@@ -165,7 +175,16 @@ class LeakAnalysisCoordinator(private val project: Project) {
         ProgressFacade.setFraction(indicator, 0.2)
 
         val sharkService = SharkAnalysisService.getInstance(project)
-        val rawLeaks = sharkService.analyzeHprof(hprofFile, indicator)
+        val rawLeaks = try {
+            sharkService.analyzeHprof(hprofFile, indicator)
+        } catch (e: HeapAnalysisFailedException) {
+            notify(
+                "Heap analysis failed for ${hprofFile.name}: ${e.cause?.message ?: e.message}. " +
+                        "The dump may be incomplete or corrupt; try capturing it again.",
+                NotificationType.ERROR
+            )
+            return
+        }
 
         // Deobfuscation
         ProgressFacade.setText(indicator, "Deobfuscating traces...")

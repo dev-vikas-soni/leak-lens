@@ -1,0 +1,24 @@
+<html>
+<body>
+Reports <b>ViewModel</b> (including <code>AndroidViewModel</code>) fields that hold an
+<b>Activity</b>, <b>Fragment</b>, <b>View</b>, <b>Dialog</b>, <b>Drawable</b> or a non-application
+<b>Context</b>.
+<p>
+    ViewModels survive configuration changes, so any UI object they keep outlives the Activity that
+    created it.
+</p>
+<p><b>Leaks:</b></p>
+<pre><code>
+class ProfileViewModel(private val activity: Activity) : ViewModel()
+</code></pre>
+<p><b>Safe:</b></p>
+<pre><code>
+@HiltViewModel
+class ProfileViewModel @Inject constructor(
+    @ApplicationContext private val context: Context
+) : ViewModel()
+</code></pre>
+<p>Context fields are not reported when they come from <code>@ApplicationContext</code>,
+    <code>applicationContext</code> or <code>getApplication()</code>.</p>
+</body>
+</html>

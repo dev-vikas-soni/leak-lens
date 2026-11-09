@@ -4,6 +4,48 @@
 
 ## [Unreleased]
 
+### Added
+
+- **Static analysis:** descriptions for all 12 inspections, `@Suppress`/`//noinspection` support,
+  K2 Kotlin mode support, and a regression suite (Java and Kotlin, K1 and K2, including quick fixes).
+- **Analyze Project / Selected Files / Current File** now run every enabled LeakLens inspection in
+  the background with progress and cancellation, skip generated sources, and report the result.
+
+### Changed
+
+- **Static analysis is type-resolved:** checks use inheritance (Activity, Fragment, View, ViewModel,
+  Worker, Flow, LifecycleCoroutineScope, GlobalScope) instead of class-name or text matching, which
+  removes most false positives and catches subclasses.
+- Context-to-singleton, ViewModel and Compose checks only report when the Context is actually
+  stored, and skip `applicationContext` and Hilt `@ApplicationContext`.
+- Hilt scope checks follow the full component hierarchy (including `@HiltViewModel`, `Provider`
+  and `Lazy`).
+- Static issue signatures no longer contain line numbers, so baselines survive unrelated edits.
+- All inspections default to WARNING level.
+
+- **AI API key** is now stored in the IDE password safe (shared across projects) and migrated
+  automatically from the old project settings file.
+- **Baseline** honors the `baselineFilePath` setting and writes valid, atomically replaced JSON.
+
+### Fixed
+
+- Failed or corrupt heap dump analysis is reported as an error instead of "No leaks detected".
+- Cancelling an analysis no longer surfaces an IDE fatal error.
+- Live static-analysis issues are now published to the dashboard, status bar and gutter.
+- Heap dumps are pulled only after the device finishes writing them (no fixed sleeps).
+- Auto-detect no longer replays old LeakCanary dumps from the logcat buffer, and pulls dumps from
+  app-private storage via `run-as`.
+- adb is discovered via `local.properties`, `ANDROID_HOME` and default SDK paths, and no longer
+  runs on the UI thread when toggling auto-detect.
+- Startup cleanup no longer deletes heap dumps that another project may still be analyzing.
+- Concurrent baseline additions are no longer lost; special characters are escaped correctly.
+- Status bar widget no longer leaks a coroutine each time it is re-created.
+- Gemini AI suggestions use the current `gemini-flash-latest` model (`gemini-pro` was retired).
+- Quick fixes now produce compilable code with imports, support preview, and no longer suggest
+  `WeakReference` for static fields. They also create the missing `onDestroy()`, `onDestroyView()`
+  or `onDetachedFromWindow()` override when needed.
+- Gutter icons use the reported source line, and stale issues are cleared when a file is re-analyzed.
+
 ## [0.3.2] - 2026-08-22
 
 ### Added

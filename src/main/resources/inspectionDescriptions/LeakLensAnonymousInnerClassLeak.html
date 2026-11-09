@@ -1,13 +1,24 @@
 <html>
 <body>
-Detects anonymous inner classes (like <code>Runnable</code> or <code>Handler</code>) that implicitly
-hold a reference to an outer <code>Activity</code> or <code>Fragment</code>.
+Reports anonymous classes (Java) and object expressions (Kotlin) created inside an
+<b>Activity</b> or <b>Fragment</b> and handed to something that can outlive it:
+<ul>
+    <li>a <code>Thread</code> (subclass or constructor argument);</li>
+    <li><code>Handler.postDelayed/postAtTime/sendMessageDelayed/sendMessageAtTime</code>;</li>
+    <li><code>Executor.execute/submit/schedule*</code> and <code>Timer.schedule*</code>;</li>
+    <li>a static field.</li>
+</ul>
 <p>
-    If these objects are passed to long-lived systems (like a background thread or a global
-    handler), they can prevent
-    the outer <code>Activity</code> from being garbage collected.
+    Java anonymous classes always hold a reference to the enclosing instance. Kotlin object
+    expressions are only reported when they actually capture the outer class.
 </p>
-<p><b>Fix:</b> Convert to a static inner class and use a <code>WeakReference</code> to the Activity
-    if needed.</p>
+<p><b>Leaks:</b></p>
+<pre><code>
+handler.postDelayed(new Runnable() {
+    @Override public void run() { updateUi(); }
+}, 60_000);
+</code></pre>
+<p><b>Fix:</b> use a static nested class (holding a <code>WeakReference</code> if it needs the
+    Activity), or cancel the work in <code>onDestroy()</code>.</p>
 </body>
 </html>

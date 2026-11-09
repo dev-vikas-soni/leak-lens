@@ -1,0 +1,28 @@
+<html>
+<body>
+Reports Hilt components that inject a dependency with a <b>narrower scope</b> than their own,
+through an <code>@Inject</code> constructor or field (also through <code>Provider&lt;T&gt;</code>
+and <code>dagger.Lazy&lt;T&gt;</code>).
+<p>
+    A <code>@Singleton</code> holding an <code>@ActivityScoped</code> object retains that object, and
+    typically its Activity, for the lifetime of the process.
+</p>
+<p>A scope may only depend on itself and its ancestors:</p>
+<ul>
+    <li><code>@Singleton</code> → Singleton</li>
+    <li><code>@ActivityRetainedScoped</code> → Singleton, ActivityRetained</li>
+    <li><code>@ViewModelScoped</code> / <code>@HiltViewModel</code> → Singleton, ActivityRetained, ViewModel</li>
+    <li><code>@ActivityScoped</code> → Singleton, ActivityRetained, Activity</li>
+    <li><code>@FragmentScoped</code> → … Activity, Fragment</li>
+    <li><code>@ViewScoped</code> → … Activity, View</li>
+    <li><code>@ServiceScoped</code> → Singleton, Service</li>
+</ul>
+<p><b>Leaks:</b></p>
+<pre><code>
+@ActivityScoped class Navigator @Inject constructor(private val activity: Activity)
+@Singleton class Analytics @Inject constructor(private val navigator: Navigator)
+</code></pre>
+<p><b>Fix:</b> inject the narrower dependency where it is used, pass it as a method argument, or
+    deliberately widen its scope.</p>
+</body>
+</html>

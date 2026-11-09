@@ -24,7 +24,7 @@ class AiAnalysisService(private val project: Project) {
     companion object {
         const val AI_BADGE = "🤖 AI-Generated Suggestion"
         private const val OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-        private const val GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
+        private const val GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent"
 
         fun getInstance(project: Project): AiAnalysisService =
             project.getService(AiAnalysisService::class.java)
@@ -35,7 +35,7 @@ class AiAnalysisService(private val project: Project) {
      */
     fun isEnabled(): Boolean {
         val settings = LeakLensSettingsState.getInstance(project)
-        return settings.aiEnabled && settings.aiProvider != "none" && settings.aiApiKey.isNotBlank()
+        return settings.aiEnabled && settings.aiProvider != "none" && AiCredentials.getApiKey().isNotBlank()
     }
 
     /**
@@ -49,10 +49,11 @@ class AiAnalysisService(private val project: Project) {
 
         try {
             val prompt = buildPrompt(leak, settings.aiAnonymizePackageNames)
+            val apiKey = AiCredentials.getApiKey()
 
             val response = when (settings.aiProvider) {
-                "openai" -> callOpenAI(prompt, settings.aiApiKey)
-                "gemini" -> callGemini(prompt, settings.aiApiKey)
+                "openai" -> callOpenAI(prompt, apiKey)
+                "gemini" -> callGemini(prompt, apiKey)
                 else -> null
             }
 
@@ -180,12 +181,14 @@ class AiAnalysisService(private val project: Project) {
     }
 
     private fun callGemini(prompt: String, apiKey: String): String? {
-        val url = URI("$GEMINI_URL?key=$apiKey").toURL()
+        val url = URI(GEMINI_URL).toURL()
         val connection = url.openConnection() as HttpURLConnection
 
         try {
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
+            // Header instead of ?key= so the key doesn't end up in proxy/server URL logs
+            connection.setRequestProperty("x-goog-api-key", apiKey)
             connection.doOutput = true
             connection.connectTimeout = 30000
             connection.readTimeout = 30000

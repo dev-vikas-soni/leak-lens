@@ -1,0 +1,26 @@
+<html>
+<body>
+Reports <code>Flow</code> collection in Activities, Fragments and Compose that keeps running while
+the UI is in the background:
+<ul>
+    <li><code>collect</code>/<code>collectLatest</code> inside <code>lifecycleScope.launch { }</code>
+        without <code>repeatOnLifecycle</code> or <code>flowWithLifecycle</code>;</li>
+    <li><code>flow.launchIn(lifecycleScope)</code> without <code>flowWithLifecycle</code>;</li>
+    <li><code>collectAsState()</code> in a <code>@Composable</code> (weak warning).</li>
+</ul>
+<p><b>Leaks:</b></p>
+<pre><code>
+lifecycleScope.launch { viewModel.state.collect { render(it) } }
+</code></pre>
+<p><b>Safe:</b></p>
+<pre><code>
+lifecycleScope.launch {
+    repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.state.collect { render(it) } }
+}
+
+val state by viewModel.state.collectAsStateWithLifecycle()
+</code></pre>
+<p>Quick fixes wrap the collection in <code>repeatOnLifecycle</code>, insert
+    <code>flowWithLifecycle</code>, or switch to <code>collectAsStateWithLifecycle()</code>.</p>
+</body>
+</html>

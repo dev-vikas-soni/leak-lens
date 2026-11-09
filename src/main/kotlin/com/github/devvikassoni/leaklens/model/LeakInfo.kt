@@ -11,7 +11,13 @@ data class LeakInfo(
     val referenceChain: List<LeakTraceReference>,
     val timestamp: Long = System.currentTimeMillis(),
     val isLibraryLeak: Boolean = false,
-    val suggestedFix: String? = null
+    val suggestedFix: String? = null,
+    /** Static analysis only: absolute path of the file containing the finding. */
+    val sourceFile: String? = null,
+    /** Static analysis only: 1-based line of the finding, or 0 when unknown. */
+    val sourceLine: Int = 0,
+    /** Static analysis only: short name of the inspection that produced the finding. */
+    val inspectionId: String? = null
 )
 
 data class LeakTraceReference(

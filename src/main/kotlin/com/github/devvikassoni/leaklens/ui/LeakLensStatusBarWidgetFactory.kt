@@ -13,6 +13,7 @@ import com.intellij.util.ui.JBUI
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import javax.swing.JComponent
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -22,7 +23,6 @@ class LeakLensStatusBarWidgetFactory : StatusBarWidgetFactory {
     override fun getDisplayName() = "LeakLens Status"
     override fun isAvailable(project: Project) = true
     override fun createWidget(project: Project): StatusBarWidget = LeakLensStatusBarWidget(project)
-    override fun disposeWidget(widget: StatusBarWidget) {}
     override fun canBeEnabledOn(statusBar: StatusBar) = true
 
     private class LeakLensStatusBarWidget(private val project: Project) :
@@ -42,9 +42,12 @@ class LeakLensStatusBarWidgetFactory : StatusBarWidgetFactory {
             })
         }
 
+        // Cancelled in dispose(); otherwise each re-created widget leaks a collector in the project scope
+        private val updatesJob: Job
+
         init {
             val service = LeakLensProjectService.getInstance(project)
-            combine(service.leaks, service.liveIssues) { heapLeaks, liveIssues ->
+            updatesJob = combine(service.leaks, service.liveIssues) { heapLeaks, liveIssues ->
                 heapLeaks.size + liveIssues.size
             }.onEach { total ->
                 updateUI(total)
@@ -68,6 +71,8 @@ class LeakLensStatusBarWidgetFactory : StatusBarWidgetFactory {
 
         override fun getComponent(): JComponent = component
         override fun install(statusBar: StatusBar) {}
-        override fun dispose() {}
+        override fun dispose() {
+            updatesJob.cancel()
+        }
     }
 }

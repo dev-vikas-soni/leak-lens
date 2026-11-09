@@ -1,5 +1,6 @@
 package com.github.devvikassoni.leaklens.settings
 
+import com.github.devvikassoni.leaklens.ai.AiCredentials
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.Project
 import com.intellij.ui.dsl.builder.*
@@ -9,6 +10,10 @@ import javax.swing.DefaultComboBoxModel
  * Settings page for LeakLens.
  */
 class LeakLensConfigurable(private val project: Project) : BoundConfigurable("LeakLens") {
+
+    // Read the credential store once per dialog; isModified() polls bound getters frequently.
+    private val storedApiKey by lazy { AiCredentials.getApiKey() }
+    private var currentApiKey: String? = null
 
     override fun createPanel() = panel {
         val settings = LeakLensSettingsState.getInstance(project)
@@ -59,7 +64,11 @@ class LeakLensConfigurable(private val project: Project) : BoundConfigurable("Le
             }
             row("API Key:") {
                 passwordField()
-                    .bindText({ settings.aiApiKey }, { settings.aiApiKey = it })
+                    .bindText({ currentApiKey ?: storedApiKey }, { key ->
+                        if (key != (currentApiKey ?: storedApiKey)) AiCredentials.setApiKey(key)
+                        currentApiKey = key
+                    })
+                    .comment("Stored in the IDE password safe, not in project files.")
                     .align(AlignX.FILL)
             }
             row {

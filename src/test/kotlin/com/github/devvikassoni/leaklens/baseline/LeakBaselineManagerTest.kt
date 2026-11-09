@@ -127,4 +127,49 @@ class LeakBaselineManagerTest : BasePlatformTestCase() {
         val newManager = LeakBaselineManager(project)
         assertTrue(newManager.isInBaseline(leak))
     }
+
+    private fun leak(signature: String, description: String = "Leak") = LeakInfo(
+        signature = signature,
+        shortDescription = description,
+        retainedObjectClassName = "com.test.Leaked",
+        retainedByteSize = 100,
+        retainedObjectCount = 1,
+        leakTrace = "trace...",
+        severity = LeakSeverity.WARNING,
+        isLibraryLeak = false,
+        referenceChain = emptyList(),
+        suggestedFix = null
+    )
+
+    private fun waitForPersisted(expectedCount: Int) {
+        var retries = 200
+        while (retries-- > 0) {
+            if (baselineFile.exists() && LeakBaselineManager(project).getBaselineCount() == expectedCount) return
+            Thread.sleep(20)
+        }
+    }
+
+    @Test
+    fun testSpecialCharactersRoundTrip() {
+        val tricky = leak("sig_\"quoted\"_\\path", "Holds \"mContext\" via C:\\tmp\nnext line")
+        baselineManager.addToBaseline(tricky)
+        waitForPersisted(1)
+
+        val reloaded = LeakBaselineManager(project)
+        assertTrue(reloaded.isInBaseline(tricky))
+        assertEquals(1, reloaded.getBaselineCount())
+    }
+
+    @Test
+    fun testConcurrentAddsAreAllPersisted() {
+        val leaks = (1..25).map { leak("concurrent_$it") }
+        val threads = leaks.map { l -> Thread { baselineManager.addToBaseline(l) } }
+        threads.forEach { it.start() }
+        threads.forEach { it.join() }
+        waitForPersisted(leaks.size)
+
+        val reloaded = LeakBaselineManager(project)
+        assertEquals(leaks.size, reloaded.getBaselineCount())
+        leaks.forEach { assertTrue(reloaded.isInBaseline(it)) }
+    }
 }

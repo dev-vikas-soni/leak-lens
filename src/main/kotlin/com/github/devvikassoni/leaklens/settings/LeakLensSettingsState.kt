@@ -1,5 +1,6 @@
 package com.github.devvikassoni.leaklens.settings
 
+import com.github.devvikassoni.leaklens.ai.AiCredentials
 import com.intellij.openapi.components.PersistentStateComponent
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.State
@@ -27,6 +28,11 @@ class LeakLensSettingsState : PersistentStateComponent<LeakLensSettingsState> {
     // AI settings
     var aiEnabled: Boolean = false
     var aiProvider: String = "none" // "none", "openai", "gemini"
+
+    /**
+     * Legacy plaintext key from versions <= 0.3.2. Only read for migration into
+     * [com.github.devvikassoni.leaklens.ai.AiCredentials]; always blank afterwards so it is never persisted.
+     */
     var aiApiKey: String = ""
     var aiAnonymizePackageNames: Boolean = true
     var aiSendFullContext: Boolean = false
@@ -59,6 +65,10 @@ class LeakLensSettingsState : PersistentStateComponent<LeakLensSettingsState> {
 
     override fun loadState(state: LeakLensSettingsState) {
         XmlSerializerUtil.copyBean(state, this)
+        if (aiApiKey.isNotBlank()) {
+            AiCredentials.setApiKey(aiApiKey)
+            aiApiKey = ""
+        }
     }
 
     companion object {

@@ -46,7 +46,7 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
                 val line = document.getLineNumber(element.textRange.startOffset) + 1
                 if (service.isLineLeaky(filePath, line)) {
                     val liveIssues = service.getLiveIssuesForFile(filePath)
-                    val issue = liveIssues.find { it.signature.endsWith("_$line") }
+                    val issue = liveIssues.find { it.sourceLine == line }
                     if (issue != null) {
                         val tooltip =
                             "⚠️ LeakLens (Live): ${issue.shortDescription}\n\n${issue.suggestedFix ?: ""}"

@@ -56,7 +56,7 @@ class DeobfuscationService(private val project: Project) {
             logger.info("LeakLens: Loaded ${mappings.size} deobfuscation mappings from ${mappingFile.name}")
             true
         } catch (e: Exception) {
-            logger.error("LeakLens: Failed to load mapping file", e)
+            logger.warn("LeakLens: Failed to load mapping file", e)
             false
         }
     }

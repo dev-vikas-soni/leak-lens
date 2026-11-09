@@ -1,138 +1,147 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.LocalQuickFix
 import com.intellij.codeInspection.ProblemDescriptor
-import com.intellij.codeInspection.ProblemHighlightType
-import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.Project
+import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiElementVisitor
+import com.intellij.psi.PsiMethodCallExpression
 import com.intellij.psi.PsiModifier
+import com.intellij.psi.PsiReferenceExpression
+import com.intellij.psi.PsiThisExpression
 import com.intellij.uast.UastHintedVisitorAdapter
+import org.jetbrains.kotlin.psi.KtNamedFunction
+import org.jetbrains.kotlin.psi.KtObjectDeclaration
+import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.UExpression
-import org.jetbrains.uast.USimpleNameReferenceExpression
+import org.jetbrains.uast.UMethod
 import org.jetbrains.uast.UThisExpression
+import org.jetbrains.uast.getContainingUClass
+import org.jetbrains.uast.skipParenthesizedExprDown
+import org.jetbrains.uast.toUElementOfType
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
- * Detects Activity Context passed to a Singleton, which lives for the app's duration.
+ * Detects an Activity/View/UI Context passed to a singleton (Kotlin `object`, `@Singleton`, or a class
+ * with a static self-typed instance field) **and stored** by it.
  */
-class ContextPassedToSingletonInspection : LocalInspectionTool() {
+class ContextPassedToSingletonInspection : LeakLensInspectionBase() {
 
-    override fun getGroupDisplayName() = "LeakLens"
     override fun getDisplayName() = "Activity Context passed to Singleton"
     override fun getShortName() = "LeakLensContextPassedToSingleton"
 
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
-        return UastHintedVisitorAdapter.create(
-            holder.file.language,
+    override fun buildLeakVisitor(reporter: LeakReporter): PsiElementVisitor =
+        UastHintedVisitorAdapter.create(
+            reporter.file.language,
             object : AbstractUastNonRecursiveVisitor() {
                 override fun visitCallExpression(node: UCallExpression): Boolean {
-                    val args = node.valueArguments
-                    for (arg in args) {
-                        if (isActivityContext(arg)) {
-                            val method = node.resolve() ?: continue
-                            val containingClass = method.containingClass ?: continue
+                    if (node.valueArgumentCount == 0) return false
+                    val method = node.resolve() ?: return false
+                    val singleton = singletonOf(method.containingClass ?: return false) ?: return false
+                    val uMethod = method.toUElementOfType<UMethod>() ?: return false
+                    if ((uMethod.sourcePsi as? KtNamedFunction)?.receiverTypeReference != null) return false
 
-                            if (isSingleton(containingClass)) {
-                                val paramIndex = args.indexOf(arg)
-                                val paramType =
-                                    method.parameterList.parameters.getOrNull(paramIndex)?.type
-                                        ?: continue
+                    for (index in 0 until method.parameterList.parametersCount) {
+                        val arg = node.getArgumentForParameter(index) ?: continue
+                        if (!isUiContextArgument(arg, node)) continue
+                        val parameter = ParameterFlow.parameterOf(uMethod, index) ?: continue
+                        if (!ParameterFlow.storesParameter(uMethod, parameter)) continue
+                        val anchor = arg.sourcePsi ?: continue
+                        val singletonName = singleton.name ?: "Singleton"
+                        val fix = applicationContextFix(arg)
 
-                                if (LeakLensInspectionUtils.isActivityOrFragmentType(paramType) || paramType.canonicalText.contains(
-                                        "Context"
-                                    )
-                                ) {
-                                    val elementToHighlight =
-                                        arg.sourcePsi ?: node.sourcePsi ?: continue
-                                    val description =
-                                        "LeakLens: Passing Activity Context to a Singleton will cause a memory leak."
-                                    holder.registerProblem(
-                                        elementToHighlight,
-                                        description,
-                                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                        UseApplicationContextQuickFix(),
-                                        AskGeminiFix(
-                                            description,
-                                            containingClass.name ?: "Singleton",
-                                            LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                                        )
-                                    )
-
-                                    fileIssues.add(
-                                        createLeakInfo(
-                                            containingClass.name ?: "Singleton",
-                                            arg
-                                        )
-                                    )
-                                }
-                            }
-                        }
+                        reporter.report(
+                            anchor,
+                            "LeakLens: Activity/UI Context is stored by singleton '$singletonName' and will leak. " +
+                                "Pass applicationContext instead.",
+                            Finding(
+                                key = LeakReporter.memberKey(node, "${singleton.qualifiedName}.${method.name}"),
+                                title = "UI Context stored by $singletonName",
+                                location = "Passed to $singletonName.${method.name}()",
+                                retainedClass = arg.getExpressionType()?.canonicalText ?: AndroidTypes.CONTEXT,
+                                suggestedFix = "Pass context.applicationContext to $singletonName.",
+                            ),
+                            *listOfNotNull(fix).toTypedArray(),
+                        )
                     }
                     return false
                 }
             },
             arrayOf(UCallExpression::class.java)
         )
-    }
 
-    private fun createLeakInfo(singletonName: String, arg: UExpression): LeakInfo {
-        val line = arg.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "singleton_context_leak_${singletonName}_$line",
-            shortDescription = "Activity Context passed to $singletonName",
-            leakTrace = "Passed to: $singletonName (line $line)",
-            retainedObjectClassName = "android.content.Context",
-            retainedByteSize = 0,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.WARNING,
-            referenceChain = emptyList(),
-            suggestedFix = "Use 'context.applicationContext' instead of an Activity context."
-        )
-    }
-
-    private fun isActivityContext(arg: UExpression): Boolean {
-        if (arg is UThisExpression) return true
-        if (arg is USimpleNameReferenceExpression && (arg.identifier == "context" || arg.identifier == "activity")) return true
-        return false
-    }
-
-    private fun isSingleton(psiClass: PsiClass): Boolean {
-        val hasInstance = psiClass.fields.any { field ->
-            field.hasModifierProperty(com.intellij.psi.PsiModifier.STATIC) &&
-                    (field.name == "INSTANCE" || field.name == "instance" || field.name == "sInstance")
+    private fun singletonOf(owner: PsiClass): PsiClass? {
+        if (AndroidTypes.hasAnnotation(owner, AndroidTypes.SINGLETON_ANNOTATIONS)) return owner
+        val ktObject = owner.navigationElement as? KtObjectDeclaration
+        if (ktObject != null && !ktObject.isObjectLiteral()) {
+            if (!ktObject.isCompanion()) return owner
+            val outer = owner.containingClass ?: return null
+            return outer.takeIf { hasStaticSelfField(it) }
         }
-        val hasSingletonAnnotation = psiClass.annotations.any { it.qualifiedName?.contains("Singleton") == true }
-        return hasInstance || hasSingletonAnnotation
+        return owner.takeIf { hasStaticSelfField(it) }
+    }
+
+    private fun hasStaticSelfField(psiClass: PsiClass) = psiClass.fields.any {
+        it.hasModifierProperty(PsiModifier.STATIC) && AndroidTypes.classOf(it.type) == psiClass
+    }
+
+    private fun isUiContextArgument(arg: UExpression, call: UCallExpression): Boolean {
+        val expr = arg.skipParenthesizedExprDown()
+        val psiClass = AndroidTypes.classOf(expr.getExpressionType()) ?: return false
+        if (AndroidTypes.inherits(psiClass, AndroidTypes.APPLICATION)) return false
+        if (AndroidTypes.isActivity(psiClass) || AndroidTypes.isFragment(psiClass) ||
+            AndroidTypes.isView(psiClass) || AndroidTypes.inherits(psiClass, AndroidTypes.DIALOG)
+        ) {
+            return true
+        }
+        if (!AndroidTypes.inherits(psiClass, AndroidTypes.CONTEXT)) return false
+        if (isApplicationContextExpression(expr)) return false
+        val caller = call.getContainingUClass()?.javaPsi
+        return AndroidTypes.isLifecycleComponent(caller) || AndroidTypes.isView(caller)
+    }
+
+    private fun applicationContextFix(arg: UExpression): LocalQuickFix? {
+        val expr = arg.skipParenthesizedExprDown()
+        if (!AndroidTypes.inherits(expr.getExpressionType(), AndroidTypes.CONTEXT)) return null
+        val psi = expr.sourcePsi ?: return null
+        if (!LeakFixUtils.isKotlin(psi)) return UseApplicationContextQuickFix()
+        val safe = expr is UThisExpression ||
+            (expr is UCallExpression && expr.methodName in setOf("requireContext", "requireActivity"))
+        return if (safe) UseApplicationContextQuickFix() else null
     }
 
     private class UseApplicationContextQuickFix : LocalQuickFix {
         override fun getName() = "Use applicationContext"
-        override fun getFamilyName() = "LeakLens singleton fix"
+        override fun getFamilyName() = "LeakLens: Use applicationContext"
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-            val element = descriptor.psiElement
-            val isKotlin = element.language.id.equals("kotlin", ignoreCase = true)
-
-            if (isKotlin) {
-                val factory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
-                element.replace(factory.createExpression("${element.text}.applicationContext"))
+            val element = descriptor.psiElement ?: return
+            if (LeakFixUtils.isKotlin(element)) {
+                val text = if (element.text == "this") "applicationContext" else "${element.text}.applicationContext"
+                element.replace(KtPsiFactory(project).createExpression(text))
             } else {
-                val factory = com.intellij.psi.JavaPsiFacade.getElementFactory(project)
-                element.replace(
-                    factory.createExpressionFromText(
-                        "${element.text}.getApplicationContext()",
-                        element
-                    )
-                )
+                val simple = element is PsiThisExpression || element is PsiReferenceExpression ||
+                    element is PsiMethodCallExpression
+                val text = when {
+                    element.text == "this" -> "getApplicationContext()"
+                    simple -> "${element.text}.getApplicationContext()"
+                    else -> "(${element.text}).getApplicationContext()"
+                }
+                element.replace(JavaPsiFacade.getElementFactory(project).createExpressionFromText(text, element))
             }
+        }
+    }
+
+    companion object {
+        internal fun isApplicationContextExpression(expr: UExpression?): Boolean {
+            if (expr == null) return false
+            val resolved = AndroidTypes.resolveRef(expr) ?: (expr as? UCallExpression)?.resolve()
+            val name = (resolved as? com.intellij.psi.PsiMethod)?.name
+                ?: (expr as? UCallExpression)?.methodName
+                ?: expr.sourcePsi?.text?.substringAfterLast('.')
+            return name == "getApplicationContext" || name == "applicationContext" || name == "getApplication"
         }
     }
 }

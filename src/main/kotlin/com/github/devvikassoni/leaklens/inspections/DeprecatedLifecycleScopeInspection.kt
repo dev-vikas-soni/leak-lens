@@ -1,80 +1,115 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.ProblemHighlightType
-import com.intellij.codeInspection.ProblemsHolder
+import com.intellij.codeInspection.LocalQuickFix
+import com.intellij.codeInspection.ProblemDescriptor
+import com.intellij.openapi.project.Project
 import com.intellij.psi.PsiElementVisitor
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.uast.UastHintedVisitorAdapter
+import org.jetbrains.kotlin.psi.KtCallExpression
+import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
+import org.jetbrains.kotlin.psi.KtLambdaExpression
+import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.jetbrains.uast.UCallExpression
-import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
- * Detects usage of deprecated lifecycle coroutine builders like launchWhenStarted,
- * which are known to cause resource leaks when the app is in the background.
+ * Detects the deprecated `LifecycleCoroutineScope.launchWhenX` builders, which only *suspend* the
+ * coroutine in the background (keeping upstream flows and resources alive) instead of cancelling it.
  */
-class DeprecatedLifecycleScopeInspection : LocalInspectionTool() {
+class DeprecatedLifecycleScopeInspection : LeakLensInspectionBase() {
 
-    override fun getGroupDisplayName() = "LeakLens"
     override fun getDisplayName() = "Deprecated lifecycleScope.launchWhenX causes leaks"
     override fun getShortName() = "LeakLensDeprecatedLifecycleScope"
 
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
-        return UastHintedVisitorAdapter.create(
-            holder.file.language,
+    override fun buildLeakVisitor(reporter: LeakReporter): PsiElementVisitor =
+        UastHintedVisitorAdapter.create(
+            reporter.file.language,
             object : AbstractUastNonRecursiveVisitor() {
                 override fun visitCallExpression(node: UCallExpression): Boolean {
-                    val methodName = node.methodName
-
-                    if (methodName in listOf(
-                            "launchWhenStarted",
-                            "launchWhenResumed",
-                            "launchWhenCreated"
+                    val methodName = node.methodName ?: return false
+                    val state = STATES[methodName] ?: return false
+                    val method = node.resolve() ?: return false
+                    if (!AndroidTypes.inherits(
+                            method.containingClass,
+                            AndroidTypes.LIFECYCLE_COROUTINE_SCOPE
                         )
                     ) {
-                        val containingClass = node.getContainingUClass() ?: return false
-
-                        val elementToHighlight =
-                            node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return false
-                        val description =
-                            "LeakLens: $methodName is deprecated and can cause memory/resource leaks in the background. Use repeatOnLifecycle instead."
-
-                        holder.registerProblem(
-                            elementToHighlight,
-                            description,
-                            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                            AskGeminiFix(
-                                description,
-                                containingClass.name ?: "Unknown",
-                                LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                            )
-                        )
-
-                        fileIssues.add(createLeakInfo(methodName ?: "launchWhenStarted", node))
+                        return false
                     }
+
+                    val anchor = node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return false
+                    val fix = migrationFixFor(node, state)
+                    reporter.report(
+                        anchor,
+                        "LeakLens: $methodName is deprecated; it suspends instead of cancelling in the " +
+                            "background, keeping collectors and resources alive. Use repeatOnLifecycle.",
+                        Finding(
+                            key = LeakReporter.memberKey(node, methodName),
+                            title = "Deprecated $methodName used",
+                            location = "$methodName call",
+                            retainedClass = AndroidTypes.LIFECYCLE_COROUTINE_SCOPE,
+                            suggestedFix = "lifecycleScope.launch { " +
+                                "repeatOnLifecycle(Lifecycle.State.$state) { ... } }",
+                        ),
+                        *listOfNotNull(fix).toTypedArray(),
+                    )
                     return false
                 }
             },
             arrayOf(UCallExpression::class.java)
         )
+
+    private fun migrationFixFor(node: UCallExpression, state: String): LocalQuickFix? {
+        val call = node.sourcePsi as? KtCallExpression ?: return null
+        if (lambdaOf(call) == null) return null
+        val qualified = call.parent as? KtDotQualifiedExpression
+        val receiver = qualified?.takeIf { it.selectorExpression == call }?.receiverExpression?.text
+        val owner = ownerPrefix(receiver) ?: return null
+        return MigrateToRepeatOnLifecycleFix(state, owner)
     }
 
-    private fun createLeakInfo(methodName: String, node: UCallExpression): LeakInfo {
-        val line = node.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "lifecycle_scope_leak_${methodName}_$line",
-            shortDescription = "Deprecated $methodName used",
-            leakTrace = "Launched with $methodName (line $line)",
-            retainedObjectClassName = "androidx.lifecycle.LifecycleCoroutineScope",
-            retainedByteSize = 0,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.WARNING,
-            referenceChain = emptyList(),
-            suggestedFix = "Use lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { ... } } to safely collect flows."
+    private class MigrateToRepeatOnLifecycleFix(private val state: String, private val owner: String) : LocalQuickFix {
+        override fun getName() = "Migrate to launch { repeatOnLifecycle(Lifecycle.State.$state) }"
+        override fun getFamilyName() = "LeakLens: Migrate to repeatOnLifecycle"
+
+        override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
+            val call = PsiTreeUtil.getParentOfType(descriptor.psiElement, KtCallExpression::class.java) ?: return
+            val lambda = lambdaOf(call) ?: return
+            val qualified = (call.parent as? KtDotQualifiedExpression)?.takeIf { it.selectorExpression == call }
+            val receiver = qualified?.receiverExpression?.text?.let { "$it." }.orEmpty()
+            val body = lambda.bodyExpression?.text.orEmpty()
+            val newText = "${receiver}launch {\n${owner}repeatOnLifecycle(Lifecycle.State.$state) {\n$body\n}\n}"
+            val replaced = (qualified ?: call).replace(KtPsiFactory(project).createExpression(newText))
+            LeakFixUtils.addKotlinImports(
+                replaced.containingFile,
+                "kotlinx.coroutines.launch",
+                "androidx.lifecycle.Lifecycle",
+                "androidx.lifecycle.repeatOnLifecycle",
+            )
+            LeakFixUtils.reformat(project, replaced)
+        }
+    }
+
+    companion object {
+        private val STATES = mapOf(
+            "launchWhenCreated" to "CREATED",
+            "launchWhenStarted" to "STARTED",
+            "launchWhenResumed" to "RESUMED",
         )
+
+        internal fun lambdaOf(call: KtCallExpression): KtLambdaExpression? =
+            call.lambdaArguments.singleOrNull()?.getLambdaExpression()
+                ?: call.valueArguments.lastOrNull()?.getArgumentExpression() as? KtLambdaExpression
+
+        /**
+         * `lifecycleScope` → "" and `x.lifecycleScope` → "x." so repeatOnLifecycle runs on the same
+         * LifecycleOwner as the scope; null when the owner can't be derived safely.
+         */
+        internal fun ownerPrefix(scopeText: String?): String? = when {
+            scopeText == null || scopeText == "lifecycleScope" -> ""
+            scopeText.endsWith(".lifecycleScope") -> scopeText.removeSuffix("lifecycleScope")
+            else -> null
+        }
     }
 }

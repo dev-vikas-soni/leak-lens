@@ -102,3 +102,8 @@ intellijPlatform {
         password.set(providers.environmentVariable("PRIVATE_KEY_PASSWORD"))
     }
 }
+
+// `./gradlew test -PkotlinK2=true` runs the suite against the K2 (FIR-based) Kotlin plugin mode.
+tasks.test {
+    systemProperty("idea.kotlin.plugin.use.k2", providers.gradleProperty("kotlinK2").getOrElse("false"))
+}

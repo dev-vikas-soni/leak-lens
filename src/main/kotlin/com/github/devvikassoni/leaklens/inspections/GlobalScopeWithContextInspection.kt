@@ -1,96 +1,92 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
 import com.intellij.codeInspection.LocalQuickFix
 import com.intellij.codeInspection.ProblemDescriptor
-import com.intellij.codeInspection.ProblemHighlightType
-import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.openapi.project.Project
+import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiElementVisitor
+import com.intellij.psi.util.PsiTreeUtil
 import com.intellij.uast.UastHintedVisitorAdapter
+import org.jetbrains.kotlin.psi.KtCallExpression
+import org.jetbrains.kotlin.psi.KtDotQualifiedExpression
+import org.jetbrains.kotlin.psi.KtObjectDeclaration
+import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.jetbrains.uast.UCallExpression
 import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
- * Detects coroutines launched in GlobalScope that capture Context/Activity references.
+ * Detects `GlobalScope.launch/async` inside Activities, Fragments, Views and ViewModels. Such
+ * coroutines are never cancelled and keep the enclosing component alive.
  */
-class GlobalScopeWithContextInspection : LocalInspectionTool() {
+class GlobalScopeWithContextInspection : LeakLensInspectionBase() {
 
-    override fun getGroupDisplayName() = "LeakLens"
     override fun getDisplayName() = "GlobalScope coroutine may leak Activity/Context"
     override fun getShortName() = "LeakLensGlobalScopeWithContext"
 
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
-        return UastHintedVisitorAdapter.create(
-            holder.file.language,
+    override fun buildLeakVisitor(reporter: LeakReporter): PsiElementVisitor =
+        UastHintedVisitorAdapter.create(
+            reporter.file.language,
             object : AbstractUastNonRecursiveVisitor() {
                 override fun visitCallExpression(node: UCallExpression): Boolean {
                     val methodName = node.methodName
-                    val receiver = node.receiver
+                    if (methodName != "launch" && methodName != "async") return false
+                    if (!isGlobalScopeReceiver(node)) return false
+                    val owner = node.getContainingUClass()?.javaPsi ?: return false
+                    val replacement = replacementScope(owner) ?: return false
 
-                    if (receiver?.asSourceString() == "GlobalScope" && methodName in listOf(
-                            "launch",
-                            "async"
-                        )
-                    ) {
-                        val containingClass = node.getContainingUClass() ?: return false
-                        if (LeakLensInspectionUtils.isActivityOrFragment(containingClass)) {
-                            val elementToHighlight =
-                                node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return false
-                            val description =
-                                "LeakLens: GlobalScope.$methodName may cause a memory leak. Use lifecycleScope."
-                            holder.registerProblem(
-                                elementToHighlight,
-                                description,
-                                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                UseLifecycleScopeQuickFix(),
-                                AskGeminiFix(
-                                    description,
-                                    containingClass.name ?: "Unknown",
-                                    LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                                )
-                            )
-
-                            fileIssues.add(createLeakInfo(methodName ?: "launch", node))
-                        }
-                    }
+                    val anchor = node.methodIdentifier?.sourcePsi ?: node.sourcePsi ?: return false
+                    val ownerName = owner.name ?: "component"
+                    val fix = replacement.second?.let { ReplaceGlobalScopeFix(replacement.first, it) }
+                        ?.takeIf { node.sourcePsi is KtCallExpression }
+                    reporter.report(
+                        anchor,
+                        "LeakLens: GlobalScope.$methodName in $ownerName is never cancelled and can leak it. " +
+                            "Use ${replacement.first}.",
+                        Finding(
+                            key = LeakReporter.memberKey(node, "GlobalScope.$methodName"),
+                            title = "GlobalScope.$methodName in $ownerName",
+                            location = "Launched in GlobalScope",
+                            retainedClass = owner.qualifiedName ?: ownerName,
+                            suggestedFix = "Use ${replacement.first} so the coroutine is cancelled with its owner.",
+                        ),
+                        *listOfNotNull(fix).toTypedArray(),
+                    )
                     return false
                 }
             },
             arrayOf(UCallExpression::class.java)
         )
+
+    private fun isGlobalScopeReceiver(node: UCallExpression): Boolean {
+        val receiverClass = AndroidTypes.classOf(AndroidTypes.receiverTypeOf(node))
+        if (receiverClass?.qualifiedName == AndroidTypes.GLOBAL_SCOPE) return true
+        return when (val resolved = AndroidTypes.resolveRef(node.receiver)) {
+            is PsiClass -> resolved.qualifiedName == AndroidTypes.GLOBAL_SCOPE
+            is KtObjectDeclaration -> resolved.fqName?.asString() == AndroidTypes.GLOBAL_SCOPE
+            else -> false
+        }
     }
 
-    private fun createLeakInfo(methodName: String, node: UCallExpression): LeakInfo {
-        val line = node.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "global_scope_leak_${methodName}_$line",
-            shortDescription = "GlobalScope.$methodName in Activity/Fragment",
-            leakTrace = "Launched in GlobalScope (line $line)",
-            retainedObjectClassName = "kotlinx.coroutines.GlobalScope",
-            retainedByteSize = 0,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.WARNING,
-            referenceChain = emptyList(),
-            suggestedFix = "Use 'lifecycleScope' or 'viewModelScope' for automatic cancellation."
-        )
+    /** Scope to suggest and the import providing it (null import = no automatic fix). */
+    private fun replacementScope(owner: PsiClass): Pair<String, String?>? = when {
+        AndroidTypes.isLifecycleComponent(owner) -> "lifecycleScope" to "androidx.lifecycle.lifecycleScope"
+        AndroidTypes.isViewModel(owner) -> "viewModelScope" to "androidx.lifecycle.viewModelScope"
+        AndroidTypes.isView(owner) -> "findViewTreeLifecycleOwner()?.lifecycleScope" to null
+        else -> null
     }
 
-    private class UseLifecycleScopeQuickFix : LocalQuickFix {
-        override fun getName() = "Use lifecycleScope"
-        override fun getFamilyName() = "LeakLens quick fixes"
+    private class ReplaceGlobalScopeFix(private val scope: String, private val import: String) : LocalQuickFix {
+        override fun getName() = "Replace GlobalScope with $scope"
+        override fun getFamilyName() = "LeakLens: Replace GlobalScope"
 
         override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
-            val element = descriptor.psiElement
-            if (element is org.jetbrains.kotlin.psi.KtSimpleNameExpression) {
-                val factory = org.jetbrains.kotlin.psi.KtPsiFactory(project)
-                element.replace(factory.createSimpleName("lifecycleScope"))
-            }
+            val call = PsiTreeUtil.getParentOfType(descriptor.psiElement, KtCallExpression::class.java) ?: return
+            val qualified = (call.parent as? KtDotQualifiedExpression)
+                ?.takeIf { it.selectorExpression == call }
+                ?: return
+            qualified.receiverExpression.replace(KtPsiFactory(project).createExpression(scope))
+            LeakFixUtils.addKotlinImports(qualified.containingFile, import)
         }
     }
 }

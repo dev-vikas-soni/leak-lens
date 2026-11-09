@@ -1,0 +1,23 @@
+<html>
+<body>
+Reports <b>WorkManager</b> workers (<code>ListenableWorker</code> subclasses) that store a
+<code>Context</code> in a field.
+<p>
+    Workers already expose <code>applicationContext</code>. Keeping the constructor Context in a
+    field is redundant and becomes a leak when a custom <code>WorkerFactory</code> passes a
+    non-Application Context.
+</p>
+<p><b>Before:</b></p>
+<pre><code>
+class SyncWorker(private val ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
+    override fun doWork(): Result { use(ctx); return Result.success() }
+}
+</code></pre>
+<p><b>After</b> (available as a quick fix):</p>
+<pre><code>
+class SyncWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, params) {
+    override fun doWork(): Result { use(applicationContext); return Result.success() }
+}
+</code></pre>
+</body>
+</html>

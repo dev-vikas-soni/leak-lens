@@ -1,0 +1,24 @@
+<html>
+<body>
+Reports <code>lifecycleScope.launchWhenCreated/Started/Resumed</code>.
+<p>
+    These APIs are deprecated: they <i>suspend</i> the coroutine while the lifecycle is below the
+    target state instead of cancelling it, so upstream flows, callbacks and the resources they hold
+    stay alive in the background.
+</p>
+<p><b>Before:</b></p>
+<pre><code>
+viewLifecycleOwner.lifecycleScope.launchWhenStarted {
+    viewModel.state.collect { render(it) }
+}
+</code></pre>
+<p><b>After</b> (available as a quick fix):</p>
+<pre><code>
+viewLifecycleOwner.lifecycleScope.launch {
+    viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+        viewModel.state.collect { render(it) }
+    }
+}
+</code></pre>
+</body>
+</html>

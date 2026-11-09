@@ -3,6 +3,7 @@ package com.github.devvikassoni.leaklens.actions
 import com.github.devvikassoni.leaklens.services.LogcatHeapDumpListener
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
+import com.intellij.openapi.actionSystem.ActionUpdateThread
 import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.project.Project
@@ -31,6 +32,8 @@ class ToggleAutoDetectAction : AnAction() {
         e.presentation.text = if (listener.isActive()) "Stop Auto-Detect" else "Start Auto-Detect"
         e.presentation.isEnabledAndVisible = true
     }
+
+    override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     private fun notify(project: Project, content: String, type: NotificationType) {
         NotificationGroupManager.getInstance()

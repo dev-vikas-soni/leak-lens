@@ -33,6 +33,15 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h4>0.4.0</h4>
+        <ul>
+            <li><b>Smarter Static Analysis</b>: All 12 inspections are now type-resolved (Activity, Fragment, View, ViewModel, Worker, Flow, Hilt scopes), with far fewer false positives and support for subclasses.</li>
+            <li><b>Analyze Project / Files</b>: Runs every enabled LeakLens inspection in the background with progress and cancellation, skipping generated sources.</li>
+            <li><b>Reliable Quick Fixes</b>: Fixes produce compilable code, add imports, support preview, and create missing <code>onDestroy()</code>/<code>onDestroyView()</code> overrides.</li>
+            <li><b>Stable Baselines</b>: Issue signatures no longer depend on line numbers; <code>@Suppress</code> is honored.</li>
+            <li><b>K2 Kotlin Mode</b>: Supported and tested.</li>
+            <li><b>Reliability</b>: Corrupt/failed heap dumps are reported as errors, heap dumps are pulled only after they are fully written, adb discovery is improved, and the AI API key is stored in the IDE password safe.</li>
+        </ul>
         <h4>0.3.2</h4>
         <ul>
             <li><b>Platform Stability</b>: Fixed JetBrains Marketplace resolution errors for <code>org.jetbrains.android</code>.</li>
@@ -124,6 +133,7 @@
     <depends>com.intellij.modules.java</depends>
     <depends>org.jetbrains.android</depends>
     <depends>com.intellij.modules.androidstudio</depends>
+    <depends>org.jetbrains.kotlin</depends>
 
     <resource-bundle>messages.LeakLensBundle</resource-bundle>
 
@@ -199,20 +209,24 @@
             shortName="LeakLensDeprecatedLifecycleScope" />
         <localInspection displayName="LeakLens: Unsafe collection of Flow in UI" enabledByDefault="true" groupName="LeakLens"
             implementationClass="com.github.devvikassoni.leaklens.inspections.FlowLifecycleInspection" language="UAST"
-            level="ERROR"
+            level="WARNING"
             shortName="LeakLensFlowLifecycleLeak" />
         <localInspection displayName="Context/Activity passed to ViewModel in Compose" enabledByDefault="true" groupName="LeakLens"
             implementationClass="com.github.devvikassoni.leaklens.inspections.ComposeContextLeakInspection" language="UAST"
-            level="ERROR"
+            level="WARNING"
             shortName="LeakLensComposeContextLeak" />
         <localInspection displayName="Hilt Scope Mismatch (Wider scope holds narrower scope)" enabledByDefault="true" groupName="LeakLens"
             implementationClass="com.github.devvikassoni.leaklens.inspections.HiltScopeMismatchInspection"
-            language="UAST" level="ERROR"
+            language="UAST" level="WARNING"
             shortName="LeakLensHiltScopeMismatch" />
         <localInspection displayName="Worker stores Context in a field (use applicationContext)" enabledByDefault="true" groupName="LeakLens"
             implementationClass="com.github.devvikassoni.leaklens.inspections.WorkerContextLeakInspection"
             language="UAST" level="WARNING"
             shortName="LeakLensWorkerContextLeak" />
+    </extensions>
+
+    <extensions defaultExtensionNs="org.jetbrains.kotlin">
+        <supportsKotlinPluginMode supportsK2="true"/>
     </extensions>
 
     <actions>

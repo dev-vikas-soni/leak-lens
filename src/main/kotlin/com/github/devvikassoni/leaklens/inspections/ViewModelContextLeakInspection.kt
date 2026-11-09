@@ -1,93 +1,101 @@
 package com.github.devvikassoni.leaklens.inspections
 
-import com.github.devvikassoni.leaklens.model.LeakInfo
-import com.github.devvikassoni.leaklens.model.LeakSeverity
-import com.intellij.codeInspection.LocalInspectionTool
-import com.intellij.codeInspection.ProblemHighlightType
-import com.intellij.codeInspection.ProblemsHolder
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
+import org.jetbrains.uast.UBinaryExpression
 import org.jetbrains.uast.UClass
 import org.jetbrains.uast.UField
+import org.jetbrains.uast.UastBinaryOperator
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
+import org.jetbrains.uast.visitor.AbstractUastVisitor
 
 /**
- * Detects if a ViewModel stores a reference to a Context, Activity, or View,
- * which is a classic memory leak since ViewModels outlive Activities.
+ * Detects ViewModels (including AndroidViewModel) that store an Activity, Fragment, View, Dialog,
+ * Drawable or non-Application Context. Contexts qualified with Hilt's `@ApplicationContext` or
+ * initialised from `applicationContext`/`getApplication()` are allowed.
  */
-class ViewModelContextLeakInspection : LocalInspectionTool() {
+class ViewModelContextLeakInspection : LeakLensInspectionBase() {
 
-    override fun getGroupDisplayName() = "LeakLens"
     override fun getDisplayName() = "ViewModel holds Activity/Context/View reference"
     override fun getShortName() = "LeakLensViewModelContextLeak"
 
-    override fun buildVisitor(holder: ProblemsHolder, isOnTheFly: Boolean): PsiElementVisitor {
-        val fileIssues = mutableListOf<LeakInfo>()
-
-        return UastHintedVisitorAdapter.create(
-            holder.file.language,
+    override fun buildLeakVisitor(reporter: LeakReporter): PsiElementVisitor =
+        UastHintedVisitorAdapter.create(
+            reporter.file.language,
             object : AbstractUastNonRecursiveVisitor() {
-
                 override fun visitClass(node: UClass): Boolean {
-                    // Check if it's a ViewModel
-                    val superTypes = node.uastSuperTypes
-                    val isViewModel = superTypes.any { type ->
-                        val text = type.type.canonicalText
-                        text.contains("ViewModel") && !text.contains("AndroidViewModel")
+                    if (!AndroidTypes.isViewModel(node.javaPsi)) return false
+                    for (field in node.fields) {
+                        if (field.isStatic || !isLeakyField(field, node)) continue
+                        val anchor = field.uastAnchor?.sourcePsi ?: field.sourcePsi ?: continue
+                        val typeName = field.type.presentableText.removeSuffix("?")
+                        reporter.report(
+                            anchor,
+                            "LeakLens: ViewModel '${node.name}' stores a $typeName in '${field.name}'. " +
+                                "ViewModels survive configuration changes and will leak it.",
+                            Finding(
+                                key = LeakReporter.memberKey(field, field.name),
+                                title = "ViewModel stores $typeName",
+                                location = "Field '${field.name}' in ${node.name}",
+                                retainedClass = field.type.canonicalText,
+                                suggestedFix = "Expose state (StateFlow/LiveData) instead of holding UI objects. " +
+                                    "If a Context is required, use AndroidViewModel.getApplication() or " +
+                                    "inject @ApplicationContext.",
+                            ),
+                        )
                     }
-
-                    if (isViewModel) {
-                        for (uField in node.fields) {
-                            val fieldType = uField.type.canonicalText
-
-                            if (LeakLensInspectionUtils.isActivityOrFragmentType(uField.type) ||
-                                fieldType.contains("android.content.Context") ||
-                                fieldType.contains("android.view.View") ||
-                                fieldType.contains("android.graphics.drawable.Drawable")
-                            ) {
-                                val elementToHighlight =
-                                    uField.uastAnchor?.sourcePsi ?: uField.sourcePsi
-                                    ?: node.sourcePsi ?: continue
-                                val description =
-                                    "LeakLens: Storing ${uField.type.presentableText} in a ViewModel will cause a memory leak."
-
-                                holder.registerProblem(
-                                    elementToHighlight,
-                                    description,
-                                    ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
-                                    AskGeminiFix(
-                                        description,
-                                        node.name ?: "ViewModel",
-                                        LeakLensInspectionUtils.getLineNumber(elementToHighlight)
-                                    )
-                                )
-
-                                fileIssues.add(
-                                    createLeakInfo(node.name ?: "ViewModel", uField)
-                                )
-                            }
-                        }
-                    }
-
                     return false
                 }
             },
             arrayOf(UClass::class.java)
         )
+
+    private fun isLeakyField(field: UField, owner: UClass): Boolean {
+        val psiClass = AndroidTypes.classOf(field.type) ?: return false
+        val isUi = AndroidTypes.isActivity(psiClass) || AndroidTypes.isFragment(psiClass) ||
+            AndroidTypes.isView(psiClass) || AndroidTypes.inherits(psiClass, AndroidTypes.DIALOG) ||
+            AndroidTypes.inherits(psiClass, AndroidTypes.DRAWABLE)
+        if (isUi) return true
+        if (!AndroidTypes.isContextType(field.type)) return false
+        return !isApplicationContextSourced(field, owner)
     }
 
-    private fun createLeakInfo(className: String, field: UField): LeakInfo {
-        val line = field.sourcePsi?.let { LeakLensInspectionUtils.getLineNumber(it) } ?: 0
-        return LeakInfo(
-            signature = "viewmodel_leak_${className}_$line",
-            shortDescription = "ViewModel stores View/Context",
-            leakTrace = "Field '${field.name}' in $className (line $line)",
-            retainedObjectClassName = field.type.presentableText,
-            retainedByteSize = 0,
-            retainedObjectCount = 1,
-            severity = LeakSeverity.WARNING,
-            referenceChain = emptyList(),
-            suggestedFix = "Remove the View/Context reference from the ViewModel. Use LiveData, StateFlow, or events to communicate with the UI."
-        )
+    private fun isApplicationContextSourced(field: UField, owner: UClass): Boolean {
+        if (AndroidTypes.hasApplicationContextQualifier(field.sourcePsi) ||
+            AndroidTypes.hasApplicationContextQualifier(field.javaPsi)
+        ) {
+            return true
+        }
+        field.uastInitializer?.let { init ->
+            if (ContextPassedToSingletonInspection.isApplicationContextExpression(init)) return true
+            if (owner.methods.any { m ->
+                    m.isConstructor && m.uastParameters.any { p ->
+                        AndroidTypes.hasApplicationContextQualifier(p.sourcePsi ?: p.javaPsi) &&
+                            ParameterFlow.refersToParameter(init, p)
+                    }
+                }
+            ) {
+                return true
+            }
+        }
+        var fromQualifiedParam = false
+        owner.methods.filter { it.isConstructor }.forEach { ctor ->
+            val qualified = ctor.uastParameters.filter {
+                AndroidTypes.hasApplicationContextQualifier(it.sourcePsi ?: it.javaPsi)
+            }
+            if (qualified.isEmpty()) return@forEach
+            ctor.uastBody?.accept(object : AbstractUastVisitor() {
+                override fun visitBinaryExpression(node: UBinaryExpression): Boolean {
+                    if (node.operator == UastBinaryOperator.ASSIGN &&
+                        AndroidTypes.refersTo(node.leftOperand, field) &&
+                        qualified.any { ParameterFlow.refersToParameter(node.rightOperand, it) }
+                    ) {
+                        fromQualifiedParam = true
+                    }
+                    return super.visitBinaryExpression(node)
+                }
+            })
+        }
+        return fromQualifiedParam
     }
 }

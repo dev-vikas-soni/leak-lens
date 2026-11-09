@@ -100,10 +100,7 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
         if (updatedFileIssues.isEmpty()) {
             liveLeakyLines.remove(filePath)
         } else {
-            // Extract line numbers from signatures like "static_leak_myField_42"
-            val lines =
-                updatedFileIssues.mapNotNull { it.signature.substringAfterLast('_').toIntOrNull() }
-                    .toSet()
+            val lines = updatedFileIssues.mapNotNull { it.sourceLine.takeIf { line -> line > 0 } }.toSet()
             liveLeakyLines[filePath] = lines
         }
     }
@@ -133,6 +130,7 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
     fun clearLeaks() {
         _leaks.value = emptyList()
         _liveIssues.value = emptyMap()
+        liveLeakyLines.clear()
         retainedClassNames = emptySet()
         referenceChainClassNames = emptySet()
     }

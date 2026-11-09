@@ -3,7 +3,6 @@ package com.github.devvikassoni.leaklens.compat
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
 import java.io.File
-import java.util.concurrent.TimeUnit
 
 /**
  * Adaptive facade for ADB operations.
@@ -40,8 +39,44 @@ object AdbFacade {
             }
         }
 
-        // Final fallback: shell PATH
-        return if (isAdbInPath()) "adb" else "adb"
+        findAdbInSdkLocations(project)?.let { return it }
+
+        // Final fallback: rely on the shell PATH
+        return "adb"
+    }
+
+    /**
+     * Looks for `platform-tools/adb` in the usual SDK locations. IDEs launched from the macOS
+     * Dock/Finder do not inherit the shell PATH, so a bare "adb" frequently fails there.
+     */
+    private fun findAdbInSdkLocations(project: Project): String? {
+        val adbName = if (System.getProperty("os.name").lowercase().contains("win")) "adb.exe" else "adb"
+        val home = System.getProperty("user.home")
+        val candidates = listOfNotNull(
+            readSdkDirFromLocalProperties(project),
+            System.getenv("ANDROID_HOME"),
+            System.getenv("ANDROID_SDK_ROOT"),
+            "$home/Library/Android/sdk",
+            "$home/Android/Sdk",
+            System.getenv("LOCALAPPDATA")?.let { "$it/Android/Sdk" }
+        )
+        return candidates.asSequence()
+            .filter { it.isNotBlank() }
+            .map { File(it, "platform-tools/$adbName") }
+            .firstOrNull { it.isFile && it.canExecute() }
+            ?.absolutePath
+    }
+
+    private fun readSdkDirFromLocalProperties(project: Project): String? {
+        val file = File(project.basePath ?: return null, "local.properties")
+        if (!file.isFile) return null
+        return try {
+            val props = java.util.Properties()
+            file.inputStream().use { props.load(it) }
+            props.getProperty("sdk.dir")
+        } catch (_: java.io.IOException) {
+            null
+        }
     }
 
     private fun resolvePathFromObject(result: Any): String? {
@@ -76,16 +111,6 @@ object AdbFacade {
             is String -> value
             is java.nio.file.Path -> value.toAbsolutePath().toString()
             else -> null
-        }
-    }
-
-    private fun isAdbInPath(): Boolean {
-        return try {
-            val process = ProcessBuilder("adb", "version").start()
-            process.waitFor(2, TimeUnit.SECONDS)
-            process.exitValue() == 0
-        } catch (_: Exception) {
-            false
         }
     }
 

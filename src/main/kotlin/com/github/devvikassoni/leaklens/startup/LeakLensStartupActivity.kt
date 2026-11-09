@@ -26,10 +26,13 @@ class LeakLensStartupActivity : ProjectActivity {
             listener.startListening()
         }
 
-        // Run auto-cleanup if enabled
+        // Run auto-cleanup if enabled. Recent files are kept: the temp dir is shared with other
+        // open projects/IDEs whose analyses may still be reading them.
         if (settings.autoCleanupOnStart) {
             com.github.devvikassoni.leaklens.services.AdbHeapDumpService.getInstance(project)
-                .clearLocalSnapshots()
+                .clearLocalSnapshots(
+                    minAgeMs = com.github.devvikassoni.leaklens.services.AdbHeapDumpService.IN_USE_GRACE_MS
+                )
         }
     }
 }

@@ -1,0 +1,21 @@
+<html>
+<body>
+Reports a UI <b>Context</b> (for example <code>LocalContext.current</code>), Activity or View passed
+from Compose code into a <b>ViewModel</b> or <code>ViewModelProvider.Factory</code> that
+<i>stores</i> it.
+<p>
+    The ViewModel outlives the composition and the hosting Activity, so the stored Context leaks
+    after a configuration change.
+</p>
+<p><b>Leaks:</b></p>
+<pre><code>
+@Composable
+fun Screen(vm: SettingsViewModel) {
+    vm.bind(LocalContext.current) // SettingsViewModel keeps it in a field
+}
+</code></pre>
+<p><b>Fix:</b> pass <code>LocalContext.current.applicationContext</code> (quick fix), or keep
+    Context-dependent work in the UI layer. Calls whose parameter is only used transiently are not
+    reported.</p>
+</body>
+</html>

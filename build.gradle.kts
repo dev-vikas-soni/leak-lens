@@ -1,5 +1,5 @@
-import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import org.jetbrains.intellij.platform.gradle.IntelliJPlatformType
+import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 import java.util.Properties
 
 plugins {
@@ -7,6 +7,10 @@ plugins {
     id("org.jetbrains.intellij.platform")
     id("org.jetbrains.changelog")
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
+}
+
+kotlin {
+    jvmToolchain(21)
 }
 
 detekt {
@@ -33,7 +37,7 @@ dependencies {
     implementation("com.squareup.leakcanary:shark:2.14")
     implementation("com.squareup.leakcanary:shark-android:2.14")
 
-    implementation("org.jetbrains.kotlin:kotlin-reflect:2.4.10")
+    implementation("org.jetbrains.kotlin:kotlin-reflect:2.4.21")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.opentest4j:opentest4j:1.3.0")

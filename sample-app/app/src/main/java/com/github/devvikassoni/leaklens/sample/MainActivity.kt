@@ -10,6 +10,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -70,6 +72,30 @@ fun ScenarioCard(scenario: Scenario) {
                         context.startActivity(intent)
                     }
 
+                    "Fragment Leak" -> {
+                        val intent =
+                            android.content.Intent(context, FragmentHostActivity::class.java)
+                                .apply {
+                                    putExtra("EXTRA_SCENARIO", "fragment_leak")
+                                }
+                        context.startActivity(intent)
+                    }
+
+                    "Flow Leak" -> {
+                        val intent =
+                            android.content.Intent(context, FragmentHostActivity::class.java)
+                                .apply {
+                                    putExtra("EXTRA_SCENARIO", "flow_leak")
+                                }
+                        context.startActivity(intent)
+                    }
+
+                    "Compose Leak" -> {
+                        val intent =
+                            android.content.Intent(context, ComposeHostActivity::class.java)
+                        context.startActivity(intent)
+                    }
+
                     "Singleton Leak" -> {
                         com.github.devvikassoni.leaklens.sample.scenarios.singleton.AppManager.context =
                             context
@@ -96,10 +122,22 @@ fun ScenarioCard(scenario: Scenario) {
                         ).show()
                     }
 
+                    "Worker Leak" -> {
+                        val workRequest =
+                            androidx.work.OneTimeWorkRequestBuilder<com.github.devvikassoni.leaklens.sample.scenarios.workmanager.LeakyWorker>()
+                                .build()
+                        androidx.work.WorkManager.getInstance(context).enqueue(workRequest)
+                        android.widget.Toast.makeText(
+                            context,
+                            "Leaky Worker enqueued!",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+
                     else -> {
                         android.widget.Toast.makeText(
                             context,
-                            "Open this screen to trigger ${scenario.name}",
+                            "Scenario ${scenario.name} triggered",
                             android.widget.Toast.LENGTH_SHORT
                         ).show()
                     }

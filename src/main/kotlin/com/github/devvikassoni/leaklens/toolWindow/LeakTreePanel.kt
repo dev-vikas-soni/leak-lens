@@ -42,9 +42,10 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
     private val cardLayout = CardLayout()
     private val contentPanel = JPanel(cardLayout)
 
-    var onLeakSelected: ((LeakInfo) -> Unit)? = null
+    var onLeakSelected: ((com.github.devvikassoni.leaklens.model.UnifiedIssue) -> Unit)? = null
 
     private val quickStartPanel = panel {
+        // ... (omitted for brevity, keeping existing)
         row {
             icon(AllIcons.General.Information).align(AlignX.CENTER)
         }
@@ -100,9 +101,9 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
 
         tree.addTreeSelectionListener {
             val node = tree.lastSelectedPathComponent as? DefaultMutableTreeNode
-            val leak = node?.userObject as? LeakInfo
-            if (leak != null) {
-                onLeakSelected?.invoke(leak)
+            val issue = node?.userObject as? com.github.devvikassoni.leaklens.model.UnifiedIssue
+            if (issue != null) {
+                onLeakSelected?.invoke(issue)
             }
         }
 
@@ -147,11 +148,11 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
         connectivityTimer?.start()
     }
 
-    fun updateLeaks(leaks: List<LeakInfo>) {
+    fun updateLeaks(issues: List<com.github.devvikassoni.leaklens.model.UnifiedIssue>) {
         if (project.isDisposed) return
         rootNode.removeAllChildren()
 
-        if (leaks.isEmpty()) {
+        if (issues.isEmpty()) {
             cardLayout.show(contentPanel, "EMPTY")
             statusLabel.text = "All clear! ✅"
             countLabel.text = ""
@@ -163,20 +164,20 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
 
         // Group by severity
         val criticalNode =
-            DefaultMutableTreeNode("Critical (${leaks.count { it.severity == LeakSeverity.CRITICAL }})")
+            DefaultMutableTreeNode("Critical (${issues.count { it.severity == LeakSeverity.CRITICAL }})")
         val warningNode =
-            DefaultMutableTreeNode("Warning (${leaks.count { it.severity == LeakSeverity.WARNING }})")
+            DefaultMutableTreeNode("Warning (${issues.count { it.severity == LeakSeverity.WARNING }})")
         val libraryNode =
-            DefaultMutableTreeNode("Library Leak (${leaks.count { it.severity == LeakSeverity.LIBRARY_LEAK }})")
+            DefaultMutableTreeNode("Library Leak (${issues.count { it.severity == LeakSeverity.LIBRARY_LEAK }})")
 
-        leaks.filter { it.severity == LeakSeverity.CRITICAL }
-            .sortedBy { it.retainedObjectClassName }
+        issues.filter { it.severity == LeakSeverity.CRITICAL }
+            .sortedBy { it.className }
             .forEach { criticalNode.add(DefaultMutableTreeNode(it)) }
-        leaks.filter { it.severity == LeakSeverity.WARNING }
-            .sortedBy { it.retainedObjectClassName }
+        issues.filter { it.severity == LeakSeverity.WARNING }
+            .sortedBy { it.className }
             .forEach { warningNode.add(DefaultMutableTreeNode(it)) }
-        leaks.filter { it.severity == LeakSeverity.LIBRARY_LEAK }
-            .sortedBy { it.retainedObjectClassName }
+        issues.filter { it.severity == LeakSeverity.LIBRARY_LEAK }
+            .sortedBy { it.className }
             .forEach { libraryNode.add(DefaultMutableTreeNode(it)) }
 
         if (criticalNode.childCount > 0) rootNode.add(criticalNode)
@@ -189,8 +190,9 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
             tree.expandRow(i)
         }
 
-        val totalRetained = leaks.sumOf { it.retainedByteSize }
-        statusLabel.text = "${leaks.size} issues found"
+        val totalRetained =
+            issues.mapNotNull { (it.originalIssue as? LeakInfo)?.retainedByteSize }.sum()
+        statusLabel.text = "${issues.size} issues found"
         countLabel.text = "Retained: ${formatBytes(totalRetained)}"
         pulseStatus() // ✨ Animate the status badge
     }
@@ -257,19 +259,20 @@ class LeakTreePanel(private val project: Project) : JPanel(BorderLayout()), Disp
             val userObj = node.userObject
 
             when (userObj) {
-                is LeakInfo -> {
+                is com.github.devvikassoni.leaklens.model.UnifiedIssue -> {
                     icon = when (userObj.severity) {
                         LeakSeverity.CRITICAL -> AllIcons.General.Error
                         LeakSeverity.WARNING -> AllIcons.General.Warning
                         LeakSeverity.LIBRARY_LEAK -> AllIcons.General.Information
                     }
-                    val simpleClassName = userObj.retainedObjectClassName.substringAfterLast('.')
+                    val simpleClassName = userObj.className.substringAfterLast('.')
                     append(simpleClassName, SimpleTextAttributes.REGULAR_BOLD_ATTRIBUTES)
-                    append(" - ${userObj.shortDescription}", SimpleTextAttributes.GRAYED_ATTRIBUTES)
+                    append(" - ${userObj.title}", SimpleTextAttributes.GRAYED_ATTRIBUTES)
 
-                    if (userObj.retainedByteSize > 0) {
+                    if (userObj.source == com.github.devvikassoni.leaklens.model.IssueSource.HEAP_ANALYSIS) {
+                        val leakInfo = userObj.originalIssue as LeakInfo
                         append(
-                            " [${formatBytes(userObj.retainedByteSize)}]",
+                            " [${formatBytes(leakInfo.retainedByteSize)}]",
                             SimpleTextAttributes.GRAY_SMALL_ATTRIBUTES
                         )
                     } else {

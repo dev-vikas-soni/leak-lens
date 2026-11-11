@@ -24,19 +24,9 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
             return null
         }
 
-        // Extract qualified name safely for both Java and Kotlin without direct plugin dependencies
-        var qualifiedName: String? = null
-        if (parent is com.intellij.psi.PsiClass) {
-            qualifiedName = parent.qualifiedName
-        } else if (parent is org.jetbrains.kotlin.psi.KtClassOrObject) {
-            qualifiedName = parent.fqName?.asString()
-        }
-
-        if (qualifiedName == null) return null
-
         val project = element.project
         val service = LeakLensProjectService.getInstance(project)
-        val virtualFile = element.containingFile.virtualFile
+        val virtualFile = element.containingFile?.virtualFile
         val filePath = virtualFile?.path
 
         // 1. Check for live issues (static analysis)
@@ -86,6 +76,16 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
                 }
             }
         }
+
+        // 2. Check for heap analysis leaks (requires class qualified name)
+        var qualifiedName: String? = null
+        if (parent is com.intellij.psi.PsiClass) {
+            qualifiedName = parent.qualifiedName
+        } else if (parent is org.jetbrains.kotlin.psi.KtClassOrObject) {
+            qualifiedName = parent.fqName?.asString()
+        }
+
+        if (qualifiedName == null) return null
 
         // 2. Check for heap analysis leaks (existing logic)
         // Fast O(1) check

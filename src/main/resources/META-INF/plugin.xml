@@ -33,6 +33,10 @@
     ]]></description>
 
     <change-notes><![CDATA[
+        <h4>0.4.1</h4>
+        <ul>
+            <li><b>Maintenance Release</b>: Patch updates and stability enhancements for Android Studio / IntelliJ Platform publishing.</li>
+        </ul>
         <h4>0.4.0</h4>
         <ul>
             <li><b>Smarter Static Analysis</b>: All 12 inspections are now type-resolved (Activity, Fragment, View, ViewModel, Worker, Flow, Hilt scopes), with far fewer false positives and support for subclasses.</li>
@@ -178,50 +182,50 @@
             <category>LeakLens</category>
         </intentionAction>
 
-        <!-- Static Analysis Inspections (UAST) -->
-        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensStaticActivityReference"
-            displayName="Activity/Fragment stored in static field" enabledByDefault="true" level="WARNING"
+        <!-- Static Analysis Inspections (UAST / JVM) -->
+        <localInspection language="JVM" groupName="LeakLens" shortName="LeakLensStaticActivityReference"
+            displayName="Activity/Fragment stored in static field" enabledByDefault="true" level="ERROR"
             implementationClass="com.github.devvikassoni.leaklens.inspections.StaticActivityReferenceInspection"/>
-        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensAnonymousInnerClassLeak"
-            displayName="Anonymous inner class may leak outer Activity/Fragment" enabledByDefault="true" level="WARNING"
+        <localInspection language="JVM" groupName="LeakLens" shortName="LeakLensAnonymousInnerClassLeak"
+            displayName="Anonymous inner class may leak outer Activity/Fragment" enabledByDefault="true" level="ERROR"
             implementationClass="com.github.devvikassoni.leaklens.inspections.AnonymousInnerClassLeakInspection"/>
-        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensContextPassedToSingleton"
-            displayName="Activity Context passed to Singleton" enabledByDefault="true" level="WARNING"
+        <localInspection language="JVM" groupName="LeakLens" shortName="LeakLensContextPassedToSingleton"
+            displayName="Activity Context passed to Singleton" enabledByDefault="true" level="ERROR"
             implementationClass="com.github.devvikassoni.leaklens.inspections.ContextPassedToSingletonInspection"/>
-        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensMissingRemoveCallbacks"
-            displayName="Missing removeCallbacksAndMessages in onDestroy" enabledByDefault="true" level="WARNING"
+        <localInspection language="JVM" groupName="LeakLens" shortName="LeakLensMissingRemoveCallbacks"
+            displayName="Missing removeCallbacksAndMessages in onDestroy" enabledByDefault="true" level="ERROR"
             implementationClass="com.github.devvikassoni.leaklens.inspections.MissingRemoveCallbacksInspection"/>
-        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensGlobalScopeWithContext"
-            displayName="GlobalScope coroutine may leak Activity/Context" enabledByDefault="true" level="WARNING"
+        <localInspection language="JVM" groupName="LeakLens" shortName="LeakLensGlobalScopeWithContext"
+            displayName="GlobalScope coroutine may leak Activity/Context" enabledByDefault="true" level="ERROR"
             implementationClass="com.github.devvikassoni.leaklens.inspections.GlobalScopeWithContextInspection"/>
-        <localInspection language="UAST" groupName="LeakLens" shortName="LeakLensViewReferenceHeld"
-            displayName="View reference held beyond lifecycle in Fragment" enabledByDefault="true" level="WARNING"
+        <localInspection language="JVM" groupName="LeakLens" shortName="LeakLensViewReferenceHeld"
+            displayName="View reference held beyond lifecycle in Fragment" enabledByDefault="true" level="ERROR"
             implementationClass="com.github.devvikassoni.leaklens.inspections.ViewReferenceHeldInspection"/>
         <localInspection displayName="ViewModel holds Activity/Context/View reference" enabledByDefault="true"
             groupName="LeakLens"
-            implementationClass="com.github.devvikassoni.leaklens.inspections.ViewModelContextLeakInspection" language="UAST"
-            level="WARNING"
+            implementationClass="com.github.devvikassoni.leaklens.inspections.ViewModelContextLeakInspection" language="JVM"
+            level="ERROR"
             shortName="LeakLensViewModelContextLeak" />
         <localInspection displayName="Deprecated lifecycleScope.launchWhenX causes leaks" enabledByDefault="true"
             groupName="LeakLens"
-            implementationClass="com.github.devvikassoni.leaklens.inspections.DeprecatedLifecycleScopeInspection" language="UAST"
-            level="WARNING"
+            implementationClass="com.github.devvikassoni.leaklens.inspections.DeprecatedLifecycleScopeInspection" language="JVM"
+            level="ERROR"
             shortName="LeakLensDeprecatedLifecycleScope" />
         <localInspection displayName="LeakLens: Unsafe collection of Flow in UI" enabledByDefault="true" groupName="LeakLens"
-            implementationClass="com.github.devvikassoni.leaklens.inspections.FlowLifecycleInspection" language="UAST"
-            level="WARNING"
+            implementationClass="com.github.devvikassoni.leaklens.inspections.FlowLifecycleInspection" language="JVM"
+            level="ERROR"
             shortName="LeakLensFlowLifecycleLeak" />
         <localInspection displayName="Context/Activity passed to ViewModel in Compose" enabledByDefault="true" groupName="LeakLens"
-            implementationClass="com.github.devvikassoni.leaklens.inspections.ComposeContextLeakInspection" language="UAST"
-            level="WARNING"
+            implementationClass="com.github.devvikassoni.leaklens.inspections.ComposeContextLeakInspection" language="JVM"
+            level="ERROR"
             shortName="LeakLensComposeContextLeak" />
         <localInspection displayName="Hilt Scope Mismatch (Wider scope holds narrower scope)" enabledByDefault="true" groupName="LeakLens"
             implementationClass="com.github.devvikassoni.leaklens.inspections.HiltScopeMismatchInspection"
-            language="UAST" level="WARNING"
+            language="JVM" level="ERROR"
             shortName="LeakLensHiltScopeMismatch" />
         <localInspection displayName="Worker stores Context in a field (use applicationContext)" enabledByDefault="true" groupName="LeakLens"
             implementationClass="com.github.devvikassoni.leaklens.inspections.WorkerContextLeakInspection"
-            language="UAST" level="WARNING"
+            language="JVM" level="ERROR"
             shortName="LeakLensWorkerContextLeak" />
     </extensions>
 

@@ -59,7 +59,7 @@ class FlowLifecycleInspection : LeakLensInspectionBase() {
             "LeakLens: Flow is collected in lifecycleScope.launch without repeatOnLifecycle; collection " +
                 "continues while the UI is in the background.",
             "Wrap the collection in repeatOnLifecycle(Lifecycle.State.STARTED) { ... }.",
-            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+            ProblemHighlightType.GENERIC_ERROR,
             fix,
         )
     }
@@ -79,7 +79,7 @@ class FlowLifecycleInspection : LeakLensInspectionBase() {
             "LeakLens: launchIn(lifecycleScope) keeps collecting while the UI is in the background. " +
                 "Add flowWithLifecycle before launchIn.",
             "Insert .flowWithLifecycle(lifecycle, Lifecycle.State.STARTED) before launchIn().",
-            ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+            ProblemHighlightType.GENERIC_ERROR,
             fix,
         )
     }

@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-10
+
+### Fixed
+
+- **Publishing & Packaging**: Cleaned up build artifacts to prevent duplicate JAR plugin descriptors during publishing.
+
+## [0.4.0] - 2026-11-10
+
 ### Added
 
 - **Static analysis:** descriptions for all 12 inspections, `@Suppress`/`//noinspection` support,
@@ -22,7 +30,6 @@
   and `Lazy`).
 - Static issue signatures no longer contain line numbers, so baselines survive unrelated edits.
 - All inspections default to WARNING level.
-
 - **AI API key** is now stored in the IDE password safe (shared across projects) and migrated
   automatically from the old project settings file.
 - **Baseline** honors the `baselineFilePath` setting and writes valid, atomically replaced JSON.
@@ -286,9 +293,11 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.2...HEAD
-
-[0.3.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.0...v0.3.2
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.4.0...v0.4.1
+[0.4.0]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.2...v0.4.0
+[0.3.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.1...v0.3.2
+[0.3.1]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.2.3...v0.3.0
 [0.2.3]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.2.2...v0.2.3
 [0.2.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.2.1...v0.2.2

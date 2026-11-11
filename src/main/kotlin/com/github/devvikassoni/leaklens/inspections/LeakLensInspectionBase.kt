@@ -108,7 +108,7 @@ class LeakReporter internal constructor(
         message: String,
         finding: Finding,
         vararg fixes: LocalQuickFix,
-        highlightType: ProblemHighlightType = ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+        highlightType: ProblemHighlightType = ProblemHighlightType.GENERIC_ERROR,
     ) {
         if (tool.isSuppressedFor(element)) return
         val line = LeakLensInspectionUtils.getLineNumber(element)

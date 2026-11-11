@@ -11,11 +11,8 @@ import com.intellij.openapi.project.Project
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 
 @Service(Service.Level.PROJECT)
@@ -25,26 +22,26 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
     val leaks: StateFlow<List<LeakInfo>> = _leaks.asStateFlow()
 
     private val _liveIssues = MutableStateFlow<Map<String, Map<String, List<LeakInfo>>>>(emptyMap())
-    val liveIssues: StateFlow<List<LeakInfo>> = _liveIssues
-        .map { fileMap -> fileMap.values.flatMap { inspectionMap -> inspectionMap.values.flatten() } }
-        .stateIn(
-            scope = scope,
-            started = SharingStarted.Eagerly,
-            initialValue = emptyList()
-        )
+    private val _liveIssuesList = MutableStateFlow<List<LeakInfo>>(emptyList())
+    val liveIssues: StateFlow<List<LeakInfo>> = _liveIssuesList.asStateFlow()
 
     private val _staticIssues =
         MutableStateFlow<Map<String, Map<String, List<com.github.devvikassoni.leaklens.model.StaticAnalysisIssue>>>>(
             emptyMap()
         )
+    private val _staticIssuesList =
+        MutableStateFlow<List<com.github.devvikassoni.leaklens.model.StaticAnalysisIssue>>(emptyList())
     val staticIssues: StateFlow<List<com.github.devvikassoni.leaklens.model.StaticAnalysisIssue>> =
-        _staticIssues
-            .map { fileMap -> fileMap.values.flatMap { ruleMap -> ruleMap.values.flatten() } }
-            .stateIn(
-            scope = scope,
-            started = SharingStarted.Eagerly,
-            initialValue = emptyList()
-        )
+        _staticIssuesList.asStateFlow()
+
+    private fun refreshLiveIssuesList() {
+        _liveIssuesList.value = _liveIssues.value.values.flatMap { inspectionMap -> inspectionMap.values.flatten() }
+    }
+
+    private fun refreshStaticIssuesList() {
+        _staticIssuesList.value = _staticIssues.value.values.flatMap { ruleMap -> ruleMap.values.flatten() }
+    }
+
 
     /**
      * Returns live issues for a specific file to support efficient gutter markers.
@@ -120,6 +117,7 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             val lines = updatedFileIssues.mapNotNull { it.sourceLine.takeIf { line -> line > 0 } }.toSet()
             liveLeakyLines[filePath] = lines
         }
+        refreshLiveIssuesList()
     }
 
     fun addStaticIssue(issue: com.github.devvikassoni.leaklens.model.StaticAnalysisIssue) {
@@ -137,6 +135,7 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             newMap
         }
         updateLineCache(issue.filePath)
+        refreshStaticIssuesList()
     }
 
     fun addStaticIssues(issues: Collection<com.github.devvikassoni.leaklens.model.StaticAnalysisIssue>) {
@@ -161,6 +160,7 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             newMap
         }
         affectedFiles.forEach { updateLineCache(it) }
+        refreshStaticIssuesList()
     }
 
     fun updateStaticIssuesForFile(
@@ -188,6 +188,7 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             newMap
         }
         updateLineCache(filePath)
+        refreshStaticIssuesList()
     }
 
     fun clearStaticIssuesForFile(filePath: String) {
@@ -197,10 +198,12 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             newMap
         }
         updateLineCache(filePath)
+        refreshStaticIssuesList()
     }
 
     fun clearAllStaticIssues() {
         _staticIssues.value = emptyMap()
+        _staticIssuesList.value = emptyList()
         liveLeakyLines.clear()
     }
 
@@ -230,10 +233,12 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             newMap
         }
         liveLeakyLines.remove(filePath)
+        refreshLiveIssuesList()
     }
 
     fun clearAllLiveIssues() {
         _liveIssues.value = emptyMap()
+        _liveIssuesList.value = emptyList()
         liveLeakyLines.clear()
     }
 
@@ -244,6 +249,7 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
     fun clearLeaks() {
         _leaks.value = emptyList()
         _liveIssues.value = emptyMap()
+        _liveIssuesList.value = emptyList()
         liveLeakyLines.clear()
         retainedClassNames = emptySet()
         referenceChainClassNames = emptySet()

@@ -61,7 +61,7 @@ abstract class BaseLeakLensInspection(val rule: LeakLensRule) : LocalInspectionT
     ) {
         val highlightType = when (severity) {
             Severity.HIGH -> com.intellij.codeInspection.ProblemHighlightType.ERROR
-            Severity.MEDIUM -> com.intellij.codeInspection.ProblemHighlightType.GENERIC_ERROR_OR_WARNING
+            Severity.MEDIUM -> com.intellij.codeInspection.ProblemHighlightType.GENERIC_ERROR
             Severity.LOW -> com.intellij.codeInspection.ProblemHighlightType.INFORMATION
         }
 
@@ -77,11 +77,7 @@ abstract class BaseLeakLensInspection(val rule: LeakLensRule) : LocalInspectionT
             AskGeminiFix(
                 fullDescription,
                 className ?: "Unknown",
-                LeakLensInspectionUtils.getLineNumber(element),
-                ownerLifetime,
-                referencedLifetime,
-                evidence,
-                riskExplanation
+                LeakLensInspectionUtils.getLineNumber(element)
             )
         )
 

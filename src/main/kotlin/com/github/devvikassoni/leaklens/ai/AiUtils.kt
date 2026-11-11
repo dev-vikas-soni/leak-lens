@@ -63,15 +63,6 @@ object AiUtils {
     }
 
     private fun buildStaticAnalysisPrompt(leak: LeakInfo): String {
-        val semanticContext = if (leak.ownerLifetime != null && leak.referencedLifetime != null) {
-            """
-            ## Semantic Evidence
-            * **Owner Lifetime**: ${leak.ownerLifetime}
-            * **Referenced Lifetime**: ${leak.referencedLifetime}
-            * **Evidence**: ${leak.evidence ?: "N/A"}
-            * **Risk Explanation**: ${leak.riskExplanation ?: "N/A"}
-            """.trimIndent()
-        } else ""
 
         return """
             # Android Memory Leak Analysis Request (Static Analysis Finding)
@@ -82,8 +73,6 @@ object AiUtils {
             * **Rule**: `${leak.shortDescription}`
             * **Location**: `${leak.retainedObjectClassName}`
             * **Description**: ${leak.leakTrace}
-
-            $semanticContext
 
             ## Detected Hazard
             The pattern identified suggests that an object (e.g., Activity, Context, or View) may be retained longer than its intended lifecycle, preventing garbage collection.

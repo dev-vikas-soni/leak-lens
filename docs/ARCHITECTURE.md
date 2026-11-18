@@ -1,92 +1,89 @@
-# Architecture
+# LeakLens Architecture Specification
 
-LeakLens is an IntelliJ Platform plugin designed for unified Android memory analysis. It balances
-deep object graph traversal with IDE responsiveness through a multi-service architecture powered by
-a semantic engine.
+LeakLens is an IntelliJ Platform plugin for Android memory analysis. It combines author-time UAST static code inspections with host-side Shark heap dump analysis.
 
-## 1. High-Level Data Flow
+---
+
+## 1. System Architecture
+
+The plugin is structured around two execution pipelines: **Static Analysis** (local UAST inspections in the IDE) and **Heap Analysis** (offloaded Shark graph analysis via ADB).
 
 ```mermaid
 graph TD
-    subgraph "IntelliJ Platform (IDE Host)"
-        Editor[Editor] --> UAST[UAST Engine]
-        UAST --> LifetimeEngine[Lifetime Engine]
-        LifetimeEngine --> Insp[Inspections]
-        Insp --> Reporter[Static Analysis Reporter]
-        Reporter --> Dashboard[Unified Dashboard]
-        
-        Hprof --> Shark[Shark Service]
-        Shark --> Dashboard
-        
-        Dashboard --> AI[AI Fix Assistant]
-        
-        Startup[LeakLensStartupActivity] --> Onboarding[Onboarding Notification]
-        Onboarding --> MonitorFlow[DeviceMemoryMonitor.startMonitoringFlow]
-        MonitorFlow --> Monitor[DeviceMemoryMonitor]
+    subgraph "Android Device / Emulator"
+        App[Target Android Application]
+        ADB_Daemon[ADB Daemon / am dumpheap]
     end
 
-    subgraph "Android Infrastructure"
-        ADB[AdbHeapDumpService] --> Device[Android Device]
-        Device --> Hprof[HPROF Dump]
+    subgraph "IDE Host (IntelliJ / Android Studio)"
+        subgraph "Static Analysis Engine"
+            Editor[Code Editor] --> UAST[UAST Universal AST]
+            UAST --> LifetimeEngine[Semantic Lifetime Engine]
+            LifetimeEngine --> StaticInspections[LeakLens Static Inspections]
+            StaticInspections --> Gutter[Gutter Markers & Highlights]
+        end
+
+        subgraph "Runtime Heap Analysis Engine"
+            AdbService[AdbHeapDumpService] -->|Trigger & Pull HPROF| ADB_Daemon
+            AdbService --> TempHprof[Local /tmp HPROF File]
+            TempHprof --> SharkService[Shark 2.14 Heap Analyzer]
+            SharkService --> Deobfuscator[Deobfuscation Service]
+        end
+
+        subgraph "UI & Integration Layer"
+            StaticInspections --> Dashboard[Unified Issue Tool Window]
+            Deobfuscator --> Dashboard
+            Dashboard --> AI[AI Fix Assistant / Clipboard]
+            Monitor[DeviceMemoryMonitor] -->|dumpsys meminfo| ADB_Daemon
+        end
     end
 ```
 
-## 2. Host-Side Analysis (Zero-SDK)
+---
 
-LeakLens runs the **Shark** engine directly within the IDE process. This offloads the CPU and
-memory-intensive work of heap parsing from the mobile device to the workstation.
+## 2. Execution Pipelines
 
-* **Connectivity**: Uses raw ADB shell commands (`am dumpheap`) to trigger dumps on debuggable
-  processes.
-* **Performance**: Graph traversal is performed using the JVM's local heap, avoiding device-side
-  OOMs.
-* **Monitoring**: `DeviceMemoryMonitor` provides real-time heap tracking. The
-  `startMonitoringFlow()` method centralizes device and process discovery, allowing it to be invoked
-  from both tool window actions and onboarding notifications.
+### Static Code Analysis Pipeline
+1. **Trigger**: Code editing, file saving, or manual inspection runs.
+2. **UAST Parsing**: IntelliJ UAST engine converts Kotlin/Java source code into unified AST structures.
+3. **Lifetime Engine Evaluation**: `LifetimeEngine` evaluates object/scope types, annotations (`@Singleton`, Hilt scopes), Compose constructs (`remember`), and Coroutine scopes (`GlobalScope`, `viewModelScope`).
+4. **Priority Check**: Compares `Owner.priority` vs `Referenced.priority`. If `Owner.priority > Referenced.priority`, a hazard is identified.
+5. **Reporting**: Results are routed to editor highlights, gutter markers, and the Unified Issue Tool Window.
 
-## 3. UAST & Semantic Lifetime Analysis
+### Host-Side Heap Analysis Pipeline
+1. **Trigger**: Developer clicks **Dump Heap Now** or `DeviceMemoryMonitor` triggers an automated capture.
+2. **ADB Capture**: `AdbHeapDumpService` issues `am dumpheap <packageName> <remotePath>` over ADB.
+3. **File Pull**: Pulls the HPROF file to the host OS `/tmp` directory and cleans up the remote device file.
+4. **Memory Warning Check**: In `LeakAnalysisCoordinator.kt`:
+   ```kotlin
+   if (fileSize > maxMemory * 0.8) {
+       // Emits a UI warning notification to alert user of potential high host JVM memory usage
+   }
+   ```
+   *Note: This threshold produces an informational warning notification; it does not forcibly abort analysis.*
+5. **Shark Graph Traversal**: `SharkAnalysisService` executes `HeapAnalyzer` on the host JVM thread pool.
+6. **Deobfuscation**: `DeobfuscationService` applies loaded ProGuard/R8 mappings (`mapping.txt`) to deobfuscate class, field, and method symbols.
+7. **Cleanup**: Temporary local HPROF files are deleted upon completion to avoid disk bloat.
 
-LeakLens leverages **Universal Abstract Syntax Tree (UAST)** and a custom **Lifetime Engine** to
-provide real-time feedback.
+---
 
-* **Lifetime Engine**: Maps code constructs (Hilt scopes, Android components, Compose remember
-  blocks) to a prioritized `Lifetime` enum.
-* **Risk Assessment**: Detections are based on priority comparisons (e.g., a `SINGLETON` holding an
-  `ACTIVITY` reference).
-* **Resolution**: Uses `InheritanceUtil` and PSI indices to resolve type hierarchies accurately.
+## 3. Core Components Reference
 
-## 4. Modern Android Patterns
+| Service / Class | Responsibility | Execution Thread |
+|:---|:---|:---|
+| `LifetimeEngine` | Models relative object/scope lifetimes and priority relationships | IDE ReadAction thread |
+| `AdbHeapDumpService` | Handles ADB command execution, device listing, and HPROF file transfer | Background Thread |
+| `SharkAnalysisService` | Executes Shark 2.14 graph reachability and leaking object search | `Task.Backgroundable` |
+| `LeakAnalysisCoordinator` | Coordinates ADB capture, memory warning check, Shark analysis, and UI reporting | Pooled Background Thread |
+| `DeviceMemoryMonitor` | Periodically polls `dumpsys meminfo` (approx. 5s interval) and checks threshold | Coroutine Scope |
+| `DeobfuscationService` | Parses ProGuard `mapping.txt` and remaps symbols in leak traces | Background Thread |
+| `AiAnalysisService` | Prepares prompts, applies regex anonymization, and calls external AI APIs | Background Thread |
+| `AiUtils` | Formats clipboard prompts for Android Studio Gemini integration | EDT / UI Thread |
 
-The plugin includes specialized logic for frameworks that standard profilers often miss:
+---
 
-* **Jetpack Compose**: Detects `Context` capture in `@Composable` scopes and `remember` blocks using
-  `getComposeConstructLifetime`.
-* **Coroutines & Flow**: Identifies unsafe collection patterns (missing `repeatOnLifecycle`) and
-  captures in long-lived scopes like `GlobalScope`.
-* **Hilt**: Validates scoping consistency by comparing the `Lifetime` of injecting and injected
-  components.
-* **ViewModels & Workers**: Detects lifecycle-heavy references (Activity/View) retained in ViewModel
-  or Worker fields.
+## 4. Concurrency & Memory Safety Model
 
-## 5. Threading & Concurrency
-
-To maintain a lag-free UI, LeakLens follows the IntelliJ threading model:
-
-* **`ReadAction.nonBlocking`**: Used for PSI navigation and class resolution.
-* **`Task.Backgroundable`**: Wraps long-running ADB and Shark operations.
-* **`StateFlow`**: Synchronizes analysis results from `LeakLensProjectService` to the Tool Window
-  UI.
-* **Persistent State**: `LeakLensPluginState` (App-level) and `LeakLensSettingsState` (
-  Project-level) manage configuration and onboarding status across IDE sessions.
-
-## 6. Unified Findings Dashboard
-
-Static analysis issues and runtime heap leaks are consolidated into a `UnifiedIssue` model. This
-allows developers to see the "why" (static analysis evidence) alongside the "what" (runtime heap
-trace).
-
-## 7. AI Fix Assistant
-
-The remediation layer utilizes LLMs to transform reference chains and semantic evidence into code
-fixes. By providing the AI with structured lifetime data (e.g., "Owner: VIEWMODEL, Referenced:
-ACTIVITY"), LeakLens produces highly accurate, idiomatic Kotlin suggestions.
+- **IDE Responsiveness**: Long-running Shark heap analysis operations run inside `Task.Backgroundable` background tasks to keep the Event Dispatch Thread (EDT) responsive.
+- **Host Resource Offloading**: Graph traversal uses the workstation JVM memory rather than the target mobile device's heap, avoiding in-app OutOfMemoryErrors on the test device.
+- **Non-Blocking UAST Actions**: Code inspections use `ReadAction.nonBlocking` for type hierarchy queries.

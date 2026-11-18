@@ -1,83 +1,67 @@
-# User Manual
+# LeakLens User Manual
 
-LeakLens provides Android memory leak detection directly within the IDE via static analysis and
-runtime heap processing.
+LeakLens provides Android memory leak detection directly within Android Studio and IntelliJ IDEA through author-time static analysis and host-side runtime heap processing.
 
-## 1. Setup
+---
+
+## 1. Prerequisites & Setup
 
 ### Requirements
-
-* **IDE**: Android Studio Iguana (2023.2) or newer.
-* **JDK**: 17+.
-* **Device**: Physical device or emulator with USB debugging enabled.
-* **Memory**: 4GB+ free RAM recommended for heap analysis.
+- **IDE**: Android Studio 2023.3+ (Ladybug, Jellyfish, Iguana) or IntelliJ IDEA Ultimate/Community.
+- **JDK**: JDK 17 or JDK 21.
+- **Target Device**: Physical Android device or emulator with USB debugging enabled.
+- **Host RAM**: 4 GB+ free RAM recommended for analyzing large HPROF files on the host machine.
 
 ### Installation
-
-1. Open **Settings → Plugins**.
+1. Open **Settings/Preferences** $\rightarrow$ **Plugins** $\rightarrow$ **Marketplace**.
 2. Search for **LeakLens**.
 3. Click **Install** and restart the IDE.
 
-## 2. Features Guide
+---
 
-### Heap Analysis
+## 2. Features & Workflow Guide
 
-1. Connect a debuggable Android device.
-2. Open the **LeakLens** tool window (bottom-right stripe).
-3. **Onboarding**: When a project is first opened, LeakLens will display a notification offering to
-   **Start Memory Monitor**. This is the recommended way to begin profiling.
-4. **Manual Start**: You can also click **Dump Heap Now** or **Start Memory Monitor** from the
-   LeakLens action group in the Tools menu.
-5. Select the target process. The plugin will pull the `.hprof` file via ADB and begin analysis.
+### A. Static Code Inspections (Author-Time)
+LeakLens inspects Kotlin and Java files automatically as you type. Detections are highlighted directly in the code editor with warning annotations and gutter markers:
+- **Jetpack Compose**: Flags `Context` or `Activity` captured in `remember` or `@Composable` scopes.
+- **Coroutines & Flow**: Flags `GlobalScope` usage and `Flow` collections missing `repeatOnLifecycle`.
+- **Hilt / DI**: Flags scope mismatches (e.g. `@Singleton` retaining an `@ActivityScoped` reference).
+- **ViewModels & Workers**: Flags `Context`, `Activity`, or `View` fields in `ViewModel` or `ListenableWorker` classes.
 
-### Leak Dashboard
+### B. Host-Side Heap Analysis (Run-Time)
+1. Connect a debuggable Android device or emulator.
+2. Open the **LeakLens** tool window at the bottom of the IDE.
+3. Click **Start Memory Monitor** or **Dump Heap Now**.
+4. LeakLens triggers `am dumpheap` over ADB, pulls the binary `.hprof` file to your host machine's `/tmp` directory, and parses the object graph using **Shark** on the host JVM.
+5. If a large heap dump file is detected (`fileSize > maxMemory * 0.8`), LeakLens displays a memory warning notification to alert you of high host JVM memory usage.
 
-* **Unified View**: Displays both static analysis findings and runtime heap leaks in one list.
-* **Risk Explanation**: Detailed reasoning for static findings based on lifetime analysis.
-* **Reference Chain**: A visual map for heap leaks showing the retention path to the GC Root.
-* **Source Navigation**: Click any finding to jump directly to the problematic code.
+### C. Unified Issue Tool Window
+- **Unified Findings**: View both static analysis diagnostics and runtime heap traces in one place.
+- **Retention Paths**: Inspect reference chains leading from GC Roots to leaking objects.
+- **Deobfuscation**: Load a ProGuard/R8 `mapping.txt` file to deobfuscate class, method, and field names in heap traces.
 
-### AI Fix Assistant
+### D. AI Fix Assistant & Privacy
+- **Clipboard Workflow**: Click **Ask Gemini** to copy a pre-formatted prompt containing leak details and reference chains to the clipboard. Paste the prompt directly into Android Studio's Gemini tool window.
+- **Direct API Workflow**: Optionally enable direct AI API calls (OpenAI or Gemini) in settings. LeakLens transmits leak details, reference chains, and traces to the selected provider.
+- **Privacy Controls**: An optional package anonymization regex (`com.\w+.\w+` $\rightarrow$ `app.pkg`) is applied prior to request construction. Note that anonymization is best-effort.
 
-1. Select a leak in the dashboard.
-2. Click **Ask Gemini AI**.
-3. The plugin generates a prompt containing the **Semantic Evidence** (lifetimes involved) and the
-   reference trace.
-4. Paste the prompt into the **Gemini** panel in Android Studio for context-aware refactoring
-   suggestions.
+---
 
-### Static Inspections
+## 3. Configuration Options
 
-LeakLens highlights potential leaks as you type using its **Semantic Lifetime Engine**. Supported
-detection categories include:
+Settings are managed in **Settings/Preferences** $\rightarrow$ **Tools** $\rightarrow$ **LeakLens**:
 
-* **Jetpack Compose**: Capturing `Context` or `Activity` inside `remember` or `@Composable`.
-* **Coroutines & Flow**: Unsafe `Flow` collection, `GlobalScope` usage, and deprecated lifecycle
-  scopes.
-* **DI (Hilt)**: Scope mismatches where long-lived components retain short-lived dependencies.
-* **Architecture**: ViewModels and Workers retaining Activity/View references.
-* **Classic Leaks**: Static Activity/Fragment fields, anonymous inner classes, and Handler cleanup.
+| Setting | Default | Description |
+|:---|:---:|:---|
+| **Auto Heap Dump Threshold** | `256 MB` | Automatically triggers a heap dump when Java heap exceeds this value during memory monitoring. |
+| **Enable AI Analysis** | `false` | Opt-in toggle to enable direct API requests to external LLM providers. |
+| **AI Provider** | `none` | Choice of provider (`openai`, `gemini`, or `none`). |
+| **Anonymize Package Names** | `true` | Applies best-effort regex anonymization to package prefixes before sending AI requests. |
 
-## 3. Configuration
-
-Settings are managed via **Settings → Tools → LeakLens**.
-
-| Setting               | Default | Description                                                       |
-|:----------------------|:--------|:------------------------------------------------------------------|
-| **Auto-detect**       | On      | Polls logcat for external LeakCanary dumps to pull automatically. |
-| **Show Gutter Icons** | On      | Toggles 🚫/⚠️ markers in the editor gutter.                       |
-| **Auto Heap Dump**    | 256MB   | Triggers a dump when Java heap exceeds this threshold.            |
-| **Max History**       | 50      | Number of past analyses to retain in history.                     |
-
-> [!NOTE]
-> The **First-Run Onboarding** notification status is stored at the application level and will not
-> be shown again once acted upon or dismissed, even if you open a different project.
+---
 
 ## 4. Troubleshooting
 
-* **No device connected**: Verify `adb devices` shows your device. Ensure no other tool is locking
-  the JDWP port.
-* **Analysis OOM**: If the IDE crashes during analysis, increase the `-Xmx` memory in **Help →
-  Change Memory Settings**.
-* **Obfuscated Traces**: If the trace shows generic names (a.b.c), click **Link mapping.txt** in the
-  leak detail panel to provide an R8/ProGuard mapping file.
+- **No Device Found**: Ensure `adb devices` lists your device and USB debugging is authorized.
+- **Large Heap Dump Warning**: If you receive a large heap dump warning, consider increasing host IDE memory in **Help $\rightarrow$ Change Memory Settings** (`-Xmx4g` or higher recommended).
+- **Verification Runner**: To run regression tests against ground-truth heap fixtures, execute `./gradlew :verification:verify`. Note that fixture expectations are under active investigation.

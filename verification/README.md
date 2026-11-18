@@ -1,49 +1,57 @@
 # LeakLens Verification Platform 🛡️
 
-A deterministic regression testing framework for the Shark analysis engine.
+The `:verification` module is a standalone JVM regression testing framework designed to validate Shark heap analysis output against pre-recorded golden fixtures.
 
-## Overview
+---
 
-This standalone JVM application verifies that LeakLens continues to identify memory leaks correctly
-by comparing the output of the Shark engine against **Scenario Goldens**.
+## Technical Concept
 
-Instead of comparing binary files, we treat the HPROF as input and compare the **normalized semantic
-signature** of the leak.
+Rather than testing Shark against live devices during CI, the verification suite treats binary HPROF files as inputs and compares the **normalized semantic signature** (class chain, field names, leak cause) against canonical expectation files (`expected.json`).
 
-## Structure
+---
 
-- `/golden/<scenario_id>/`: A self-contained test scenario.
-    - `input.hprof`: The binary heap dump fixture.
-    - `expected.json`: The canonical normalized leak trace we expect the engine to produce.
-- `/engine`: The Kotlin logic responsible for normalization and comparison.
+## Directory Layout
+
+```text
+verification/
+├── build.gradle.kts
+├── src/main/kotlin/.../verification/
+│   ├── GoldenComparator.kt
+│   ├── LeakNormalizer.kt
+│   ├── Models.kt
+│   └── VerificationRunner.kt
+└── golden/
+    ├── activity_leak/
+    │   ├── input.hprof
+    │   └── expected.json
+    ├── bitmap_leak/
+    ├── compose_leak/
+    ├── flow_leak/
+    ├── fragment_leak/
+    ├── singleton_leak/
+    └── workmanager_leak/
+```
+
+---
 
 ## Usage
 
-### Run all verifications
-
+### Run Full Verification Suite
 ```bash
 ./gradlew :verification:verify
 ```
 
-### Run a specific scenario
-
+### Run Specific Scenario
 ```bash
 ./gradlew :verification:verify -Pscenario=activity_leak
 ```
 
-## How it Works
+---
 
-1. **Analyze**: The engine runs Shark against `input.hprof`.
-2. **Normalize**: It strips volatile data (addresses, IDs) and builds a semantic signature (
-   Class.field chain).
-3. **Persist**: It saves the result to `verification/build/actual/<scenario>.actual.json`.
-4. **Compare**: It performs a field-by-field comparison against `expected.json`.
+## Status & Known Verification Notes
 
-## Adding a New Golden
+> [!WARNING]
+> **Active Investigation**: The verification runner evaluates Shark 2.14 heap traversal against stored `.hprof` fixtures. In recent test runs, certain golden scenarios failed comparison due to fixture normalization mismatches or Shark object inspector filtering updates.
 
-1. Capture a heap dump from the `:sample-app`.
-2. Create a folder `verification/golden/<my_scenario>/`.
-3. Save the heap dump as `input.hprof` in that folder.
-4. Run the verification. It will fail because `expected.json` is missing.
-5. Copy the generated `verification/build/actual/<my_scenario>.actual.json` to
-   `verification/golden/<my_scenario>/expected.json` after manual validation.
+- The presence of the verification framework should **not** be interpreted as a claim that all golden fixtures currently pass without issue.
+- Fixtures and expectation schemas are being updated to match current Shark 2.14 inspection outputs.

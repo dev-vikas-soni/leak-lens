@@ -10,111 +10,118 @@
 
 ## Technical Positioning
 
-Standard Android memory analysis often requires choosing between runtime APK overhead (e.g. including in-app heap analyzers in debug builds) or manual heap capture and inspection inside profilers.
+Android memory debugging tools address different stages of the development lifecycle:
 
-LeakLens bridges this gap through a two-pillar design:
+- **Android Profiler**: Built into Android Studio for real-time memory graphing, live allocation tracking, and native memory profiling.
+- **LeakCanary**: Runs on-device as a debug dependency to detect and report memory leaks automatically during runtime app testing.
+- **LeakLens**: Focuses on **author-time static analysis** (catching structural retention hazards while typing) and **zero-SDK host-side heap analysis** (offloading Shark graph traversal from the target device to the host workstation JVM via ADB).
 
-1. **Author-Time Static Analysis**: Analyzes Kotlin and Java code in the IDE using UAST and a **Semantic Lifetime Engine** to catch memory retention hazards while writing code.
-2. **Host-Side Heap Analysis (Zero-SDK)**: Triggers heap dumps via ADB (`am dumpheap`), transfers the `.hprof` file to the host workstation, and executes graph reachability analysis using **Shark** in the plugin JVM—offloading memory processing entirely from the target device.
+LeakLens is designed to complement existing tools rather than replace them.
 
 ---
 
 ## Core Capabilities
 
-- 🔍 **Lifecycle-Aware Static Inspections**: Identifies dangerous retention patterns across Jetpack Compose, Coroutines, Flow, Hilt/Dagger, ViewModels, Workers, and classic Android components.
-- ⚡ **Zero-SDK Heap Analysis**: Analyzes production or debug APK heap dumps on the host machine without adding any runtime dependencies, tracking code, or SDK bloat to your application.
-- 📊 **Periodic Memory Monitoring**: Monitors device heap stats periodically (approx. 5-second intervals via `adb shell dumpsys meminfo`) and optionally triggers automated heap dumps when user-configured thresholds are exceeded.
-- 🤖 **AI-Assisted Remediation**: Generates contextual fix recommendations using OpenAI (`gpt-4o-mini`) or Google Gemini (`gemini-flash-latest`), or exports formatted analysis prompts to the system clipboard for use with IDE AI tools.
-- 🗺️ **ProGuard / R8 Deobfuscation**: Parses `mapping.txt` build artifacts to deobfuscate class, method, and field names in heap reference chains.
+- 🔍 **Lifecycle-Aware Static Inspections**: Identifies structural memory retention hazards across Jetpack Compose, Coroutines, Flow, Hilt/Dagger, ViewModels, Workers, and classic Android components.
+- ⚡ **Zero-SDK Host-Side Heap Analysis**: Captures HPROF dumps via ADB (`am dumpheap`) and analyzes object reachability using **Shark 2.14** on the host workstation JVM—adding zero runtime SDK code or dependencies to your application.
+- 📊 **Periodic Memory Monitoring**: Periodically polls device heap statistics (approx. 5-second intervals via `adb shell dumpsys meminfo`) and optionally triggers automated heap dumps when user-configured thresholds are exceeded.
+- 🤖 **AI-Assisted Remediation**: Offers direct API integrations (OpenAI `gpt-4o-mini` or Google Gemini `gemini-flash-latest`) and a local clipboard prompt generation workflow for use with IDE AI assistants.
+- 🗺️ **ProGuard / R8 Deobfuscation**: Parses `mapping.txt` build artifacts to deobfuscate class, method, and field names in heap reference chains (line-number remapping is unsupported).
 - 📌 **Unified Issue Tool Window**: Consolidates static analysis findings and runtime heap traces into a single workspace panel with baseline support for issue deduplication.
 
 ---
 
 ## Architecture Overview
 
-LeakLens operates across two distinct environments: the **Android Device** (running the target app) and the **IDE Host** (running the plugin, UAST engine, and Shark).
+LeakLens separates static code inspection from host-side heap parsing:
 
 ### 1. Static Analysis Workflow
 
 ```mermaid
 graph TD
-    Source[Kotlin / Java Source Code] --> UAST[UAST Universal AST Engine]
-    UAST --> LifetimeEngine[Semantic Lifetime Engine]
-    LifetimeEngine --> Inspections[LeakLens Static Inspections]
-    Inspections --> Diagnostics[IDE Editor Annotations & Gutter Markers]
-    Diagnostics --> Dashboard[Unified Tool Window]
+    Source["Kotlin / Java Source Code"] --> UAST["UAST Universal AST Engine"]
+    UAST --> LifetimeEngine["Semantic Lifetime Engine (Heuristic)"]
+    LifetimeEngine --> Inspections["LeakLens Static Inspections"]
+    Inspections --> Diagnostics["Editor Annotations & Gutter Markers"]
+    Diagnostics --> Dashboard["Unified Issue Tool Window"]
 ```
 
 ### 2. Host-Side Heap Analysis Workflow
 
 ```mermaid
 graph TD
-    App[Target Android App] -->|am dumpheap| ADB[ADB Transport]
-    ADB -->|adb pull| Host[Host Workstation /tmp]
-    Host --> SharkEngine[Shark 2.14 Engine in Plugin JVM]
-    SharkEngine --> Deobfuscator[R8 / ProGuard Mapping Parser]
-    Deobfuscator --> Dashboard[Unified Tool Window]
-    Dashboard --> AI[AI Fix Assistant / Clipboard]
+    App["Target Android Application"] -->|am dumpheap| ADB["ADB Transport"]
+    ADB -->|adb pull| Host["Host Workstation /tmp"]
+    Host --> SharkEngine["Shark 2.14 Engine (Plugin JVM)"]
+    SharkEngine --> Deobfuscator["R8 / ProGuard Mapping Parser"]
+    Deobfuscator --> Dashboard["Unified Issue Tool Window"]
+    Dashboard --> AI["AI Fix Assistant / Clipboard Workflow"]
 ```
 
 ---
 
 ## Semantic Lifetime Engine
 
-The **Lifetime Engine** evaluates potential memory leaks by assigning a priority to object and scope lifecycles. A retention risk is flagged when an owner with a higher priority (longer lifetime) retains a reference to an object with a lower priority (shorter lifetime).
+The **Lifetime Engine** provides a static-analysis heuristic for evaluating potential memory retention hazards. It assigns relative priorities to object and scope lifecycles based on expected duration in an Android process:
 
-| Lifetime Scope | Priority | Examples / Triggers |
+| Lifetime Scope | Priority | Description / Examples |
 |:---|:---:|:---|
 | **PROCESS** | 100 | Process execution scope, `GlobalScope`, static variables |
-| **APPLICATION** | 90 | `android.app.Application` |
+| **APPLICATION** | 90 | `android.app.Application` instance |
 | **SINGLETON** | 80 | `@Singleton` (Hilt/Dagger), static `INSTANCE` objects |
 | **WORKER** | 70 | `androidx.work.ListenableWorker` |
 | **SERVICE** | 60 | `android.app.Service` |
 | **VIEWMODEL** | 50 | `androidx.lifecycle.ViewModel` |
-| **ACTIVITY** | 40 | `android.app.Activity`, `ComponentActivity` |
-| **FRAGMENT** | 30 | `androidx.fragment.app.Fragment` |
-| **COMPOSITION** | 25 | Compose `remember { ... }` blocks, `produceState` |
+| `ACTIVITY` | 40 | `android.app.Activity`, `ComponentActivity` |
+| `FRAGMENT` | 30 | `androidx.fragment.app.Fragment` |
+| **COMPOSITION** | 25 | Compose `@Composable` scope, `remember { ... }` blocks |
 | **VIEW** | 20 | `android.view.View`, `Drawable` |
 | **LOCAL** | 10 | Method parameters, local variables |
 
-### Priority Rule Example
+### Heuristic Priority Rule (Illustrative Example)
 If a class with `@Singleton` scope (Priority 80) holds a field reference to an `Activity` (Priority 40), the Lifetime Engine flags a **HIGH** confidence lifetime mismatch:
-$$\text{Priority}(\text{SINGLETON}) > \text{Priority}(\text{ACTIVITY}) \implies \text{Retention Hazard}$$
+$$\text{Priority}(\text{SINGLETON}) > \text{Priority}(\text{ACTIVITY}) \implies \text{Structural Retention Hazard}$$
+
+> **Note on Static Heuristics**: Lifetime mismatches represent structural code hazards identified during static analysis. Storing an object of lower priority does not constitute definitive proof of an active runtime memory leak, as references may be cleared dynamically at runtime.
+
+### Compose Inspection Behavior
+Static analysis in LeakLens evaluates Jetpack Compose code specifically for cross-scope transfers:
+- **Safe**: Capturing `Context` or `Activity` in a `remember { ... }` block is treated as safe by static inspections, because an `Activity` outlives the `Composition` (`ACTIVITY` priority 40 > `COMPOSITION` priority 25).
+- **Flagged**: Passing a UI `Context` or `Activity` from Compose into a longer-lived component (such as a `ViewModel`, `ViewModelProvider.Factory`, or `@Singleton`) is flagged as a structural hazard.
 
 ---
 
-## AI Privacy & Data Transmission
+## AI Privacy & Workflows
 
-LeakLens supports opt-in AI assistance for analyzing leak traces and generating fixes:
+LeakLens provides two distinct AI remediation workflows:
 
-- **Disabled by Default**: No network connections or AI requests occur unless AI analysis is explicitly enabled in settings or requested via clipboard actions.
-- **Transmitted Data**: When direct API calls are triggered, LeakLens transmits the leaking class name, retained byte size, reference chain (class names, field names, reference types), and full stack trace to the selected provider (OpenAI or Google Gemini).
-- **Best-Effort Anonymization**: An optional package anonymization setting replaces common package prefixes (e.g. `com.example.app` $\rightarrow$ `app.pkg`). Note that regex-based sanitization is best-effort and does not guarantee absolute package or identifier anonymization.
-- **Clipboard Workflow**: Selecting "Ask Gemini" formats a prompt with trace details and copies it to the system clipboard, allowing developers to paste context into IDE chat windows manually without direct API key sharing.
+1. **Local Clipboard Workflow (`askGemini`)**: Formats a markdown prompt containing the leak summary and trace details, copying it directly to the system clipboard. This mode operates **entirely locally** and makes **no network requests**.
+2. **Direct API Mode (Opt-In)**: When explicitly enabled in settings with a user-provided API key, LeakLens calls external endpoints (OpenAI `gpt-4o-mini` or Google Gemini `gemini-flash-latest`). Transmitted metadata includes leaking class names, retained byte sizes, reference chain field/class names, and stack traces. **Source files (`.kt` / `.java`) are never sent.**
 
----
-
-## Feature Matrix & Known Limitations
-
-| Capability | Scope & Mechanism | Limitation / Note |
-|:---|:---|:---|
-| **Static Inspections** | UAST-based static code analysis | Heuristic rules; relative lifetime analysis does not guarantee discovery of all runtime state leaks. |
-| **Heap Analysis** | Shark 2.14 on IDE JVM via ADB | Memory warning triggers if `fileSize > maxMemory * 0.8` to notify of heavy memory usage. |
-| **Memory Monitoring** | `dumpsys meminfo` via ADB | Periodic polling (approx. 5-second intervals), not instantaneous streaming. |
-| **Deobfuscation** | R8 / ProGuard `mapping.txt` parser | Maps class, method, and field names; line-number remapping is currently unsupported. |
-| **Golden Verification** | Deterministic HPROF fixture suite | Regression suite under active investigation; fixtures do not currently pass out-of-the-box. |
+### Anonymization & Data Disclosure
+- An optional package anonymization setting applies regex replacements (`com.\w+.\w+` $\rightarrow$ `app.pkg`).
+- **Best-Effort Anonymization**: Regex sanitization is best-effort and does not guarantee complete anonymization or zero data exposure. Custom identifiers or parameter strings may still be visible in transmitted prompts.
 
 ---
 
-## Feature Comparison
+## Technical Limitations & Verification Status
+
+- **Memory Warning Threshold**: In `LeakAnalysisCoordinator.kt`, if an HPROF file size exceeds 80% of host JVM max memory (`fileSize > maxMemory * 0.8`), LeakLens displays a UI warning notification to alert the user of high host memory usage. This warning does not forcibly abort analysis.
+- **Monitoring Polling**: Device memory monitoring periodically queries `dumpsys meminfo` (approx. 5-second intervals); it is not instantaneous streaming.
+- **Golden Verification**: The `:verification` subproject provides a deterministic regression framework testing Shark parsing against stored `.hprof` fixtures. Scenarios are currently under active maintenance to align expected JSON schemas with updated Shark inspectors; the suite does not currently pass out-of-the-box.
+- **Performance Figures**: Benchmarks listed in [PERFORMANCE.md](docs/PERFORMANCE.md) reflect historical internal measurements on Apple M2 Pro hardware and are provided for baseline context rather than performance guarantees.
+
+---
+
+## Tool Comparison
 
 | Dimension | LeakLens | Android Profiler | LeakCanary |
 |:---|:---|:---|:---|
-| **Feedback Timing** | Authoring (Static) + Debug (Heap) | Debug / Profiling Session | Runtime Execution |
-| **APK Footprint** | **Zero SDK** | Zero SDK | ~300 KB debug dependency |
-| **Analysis Location** | Host Workstation JVM | Host Workstation | On-Device JVM |
-| **Lifetime Awareness** | UAST Semantic Lifetime Engine | None | None |
-| **Remediation Support** | IDE Intentions + Opt-In AI | Manual | Stack trace output |
+| **Primary Use Case** | Author-time static inspections + Host-side heap dumps | Live memory graphs & allocation tracking | Automated in-app leak detection during testing |
+| **APK Footprint** | **Zero SDK** (Host-side via ADB) | Zero SDK (Built-in IDE profiler) | Debug build dependency |
+| **Analysis Location** | Host Workstation JVM (Shark 2.14) | Host Workstation IDE | Target Device JVM |
+| **Lifetime Analysis** | UAST Static Heuristic Engine | None | None (Runtime reachability) |
+| **Remediation Workflow** | Quick-fixes + Clipboard / Opt-in AI | Manual investigation | Stack trace output |
 
 ---
 
@@ -126,7 +133,7 @@ LeakLens supports opt-in AI assistance for analyzing leak traces and generating 
 3. Search for **LeakLens** and click **Install**.
 
 ### Quick Start Workflow
-1. **Static Analysis**: Open any Kotlin or Java Android project. Leaky code patterns (such as passing an Activity context to a Singleton or capturing Context in `remember`) are highlighted automatically in the editor.
+1. **Static Analysis**: Open any Kotlin or Java Android project. Code patterns violating lifetime rules (such as passing an Activity context to a ViewModel or Singleton) are highlighted automatically in the editor.
 2. **Device Connection**: Connect an Android device or emulator with USB debugging enabled.
 3. **Capture Heap Dump**: Open the **LeakLens** tool window at the bottom of the IDE and click **Dump Heap Now**.
 4. **View Reference Chains**: Inspect the analyzed leak trace, retained size, and reference chain in the Unified Issue Tool Window.
@@ -135,14 +142,11 @@ LeakLens supports opt-in AI assistance for analyzing leak traces and generating 
 
 ## Verification & Testing
 
-LeakLens includes an automated fixture-based regression suite in the `:verification` subproject:
+Execute the verification runner across golden HPROF fixtures:
 
 ```bash
-# Run verification runner across golden HPROF fixtures
 ./gradlew :verification:verify
 ```
-
-> **Note on Verification Status**: The verification framework tests Shark parsing against stored `.hprof` fixtures. Scenarios are currently under active maintenance to align expected JSON outputs with updated Shark inspectors.
 
 ---
 
@@ -155,10 +159,7 @@ LeakLens and its underlying host-side memory analysis architecture will be prese
 
 ---
 
-## Contributing
+## Contributing & License
 
-Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) and our [Code of Conduct](CODE_OF_CONDUCT.md) before submitting pull requests.
-
-## License
-
-LeakLens is released under the [Apache 2.0 License](LICENSE).
+- **Contributing**: Review [CONTRIBUTING.md](CONTRIBUTING.md) and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+- **License**: Released under the [Apache 2.0 License](LICENSE).

@@ -11,30 +11,30 @@ The plugin is structured around two execution pipelines: **Static Analysis** (lo
 ```mermaid
 graph TD
     subgraph "Android Device / Emulator"
-        App[Target Android Application]
-        ADB_Daemon[ADB Daemon / am dumpheap]
+        App["Target Android Application"]
+        ADB_Daemon["ADB Daemon / am dumpheap"]
     end
 
     subgraph "IDE Host (IntelliJ / Android Studio)"
         subgraph "Static Analysis Engine"
-            Editor[Code Editor] --> UAST[UAST Universal AST]
-            UAST --> LifetimeEngine[Semantic Lifetime Engine]
-            LifetimeEngine --> StaticInspections[LeakLens Static Inspections]
-            StaticInspections --> Gutter[Gutter Markers & Highlights]
+            Editor["Code Editor"] --> UAST["UAST Universal AST"]
+            UAST --> LifetimeEngine["Semantic Lifetime Engine (Heuristic)"]
+            LifetimeEngine --> StaticInspections["LeakLens Static Inspections"]
+            StaticInspections --> Gutter["Gutter Markers & Highlights"]
         end
 
         subgraph "Runtime Heap Analysis Engine"
-            AdbService[AdbHeapDumpService] -->|Trigger & Pull HPROF| ADB_Daemon
-            AdbService --> TempHprof[Local /tmp HPROF File]
-            TempHprof --> SharkService[Shark 2.14 Heap Analyzer]
-            SharkService --> Deobfuscator[Deobfuscation Service]
+            AdbService["AdbHeapDumpService"] -->|Trigger & Pull HPROF| ADB_Daemon
+            AdbService --> TempHprof["Local /tmp HPROF File"]
+            TempHprof --> SharkService["Shark 2.14 Heap Analyzer"]
+            SharkService --> Deobfuscator["Deobfuscation Service"]
         end
 
         subgraph "UI & Integration Layer"
-            StaticInspections --> Dashboard[Unified Issue Tool Window]
+            StaticInspections --> Dashboard["Unified Issue Tool Window"]
             Deobfuscator --> Dashboard
-            Dashboard --> AI[AI Fix Assistant / Clipboard]
-            Monitor[DeviceMemoryMonitor] -->|dumpsys meminfo| ADB_Daemon
+            Dashboard --> AI["AI Fix Assistant / Clipboard Workflow"]
+            Monitor["DeviceMemoryMonitor"] -->|dumpsys meminfo| ADB_Daemon
         end
     end
 ```
@@ -46,8 +46,9 @@ graph TD
 ### Static Code Analysis Pipeline
 1. **Trigger**: Code editing, file saving, or manual inspection runs.
 2. **UAST Parsing**: IntelliJ UAST engine converts Kotlin/Java source code into unified AST structures.
-3. **Lifetime Engine Evaluation**: `LifetimeEngine` evaluates object/scope types, annotations (`@Singleton`, Hilt scopes), Compose constructs (`remember`), and Coroutine scopes (`GlobalScope`, `viewModelScope`).
-4. **Priority Check**: Compares `Owner.priority` vs `Referenced.priority`. If `Owner.priority > Referenced.priority`, a hazard is identified.
+3. **Lifetime Engine Heuristics**: `LifetimeEngine` evaluates object/scope types, annotations (`@Singleton`, Hilt scopes), Compose constructs, and Coroutine scopes (`GlobalScope`, `viewModelScope`).
+4. **Priority Check**: Compares `Owner.priority` vs `Referenced.priority`. If `Owner.priority > Referenced.priority`, a potential structural hazard is identified.
+   - *Compose Handling*: `remember { context }` is treated as safe because `ACTIVITY` (40) > `COMPOSITION` (25). Passing UI `Context` to a `ViewModel` or `@Singleton` is flagged.
 5. **Reporting**: Results are routed to editor highlights, gutter markers, and the Unified Issue Tool Window.
 
 ### Host-Side Heap Analysis Pipeline
@@ -71,14 +72,14 @@ graph TD
 
 | Service / Class | Responsibility | Execution Thread |
 |:---|:---|:---|
-| `LifetimeEngine` | Models relative object/scope lifetimes and priority relationships | IDE ReadAction thread |
+| `LifetimeEngine` | Models relative object/scope lifetimes and priority heuristics | IDE ReadAction thread |
 | `AdbHeapDumpService` | Handles ADB command execution, device listing, and HPROF file transfer | Background Thread |
 | `SharkAnalysisService` | Executes Shark 2.14 graph reachability and leaking object search | `Task.Backgroundable` |
 | `LeakAnalysisCoordinator` | Coordinates ADB capture, memory warning check, Shark analysis, and UI reporting | Pooled Background Thread |
 | `DeviceMemoryMonitor` | Periodically polls `dumpsys meminfo` (approx. 5s interval) and checks threshold | Coroutine Scope |
 | `DeobfuscationService` | Parses ProGuard `mapping.txt` and remaps symbols in leak traces | Background Thread |
 | `AiAnalysisService` | Prepares prompts, applies regex anonymization, and calls external AI APIs | Background Thread |
-| `AiUtils` | Formats clipboard prompts for Android Studio Gemini integration | EDT / UI Thread |
+| `AiUtils` | Formats local clipboard prompts for IDE AI tools (no network requests) | EDT / UI Thread |
 
 ---
 

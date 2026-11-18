@@ -23,7 +23,7 @@ LeakLens provides Android memory leak detection directly within Android Studio a
 
 ### A. Static Code Inspections (Author-Time)
 LeakLens inspects Kotlin and Java files automatically as you type. Detections are highlighted directly in the code editor with warning annotations and gutter markers:
-- **Jetpack Compose**: Flags `Context` or `Activity` captured in `remember` or `@Composable` scopes.
+- **Jetpack Compose**: Flags UI `Context` or `Activity` passed from Compose to a `ViewModel` or `@Singleton`. (*Note: `remember { context }` is safe and not flagged because Activity outlives Composition*).
 - **Coroutines & Flow**: Flags `GlobalScope` usage and `Flow` collections missing `repeatOnLifecycle`.
 - **Hilt / DI**: Flags scope mismatches (e.g. `@Singleton` retaining an `@ActivityScoped` reference).
 - **ViewModels & Workers**: Flags `Context`, `Activity`, or `View` fields in `ViewModel` or `ListenableWorker` classes.
@@ -41,13 +41,23 @@ LeakLens inspects Kotlin and Java files automatically as you type. Detections ar
 - **Deobfuscation**: Load a ProGuard/R8 `mapping.txt` file to deobfuscate class, method, and field names in heap traces.
 
 ### D. AI Fix Assistant & Privacy
-- **Clipboard Workflow**: Click **Ask Gemini** to copy a pre-formatted prompt containing leak details and reference chains to the clipboard. Paste the prompt directly into Android Studio's Gemini tool window.
-- **Direct API Workflow**: Optionally enable direct AI API calls (OpenAI or Gemini) in settings. LeakLens transmits leak details, reference chains, and traces to the selected provider.
-- **Privacy Controls**: An optional package anonymization regex (`com.\w+.\w+` $\rightarrow$ `app.pkg`) is applied prior to request construction. Note that anonymization is best-effort.
+- **Clipboard Workflow**: Click **Ask Gemini** to copy a pre-formatted prompt containing leak details and reference chains to the clipboard. Paste the prompt directly into Android Studio's Gemini tool window. This operates **100% locally** without making network calls.
+- **Direct API Workflow**: Optionally enable direct AI API calls (OpenAI or Gemini) in settings. LeakLens transmits metadata (class names, retained size, reference chains, traces) to the selected provider. Source `.kt`/`.java` files are **never** transmitted.
+- **Privacy Controls**: An optional package anonymization regex (`com.\w+.\w+` $\rightarrow$ `app.pkg`) is applied prior to request construction. Anonymization is best-effort and does not guarantee complete privacy.
 
 ---
 
-## 3. Configuration Options
+## 3. Tool Ecosystem Positioning
+
+| Dimension | LeakLens | Android Profiler | LeakCanary |
+|:---|:---|:---|:---|
+| **Primary Focus** | Author-time static analysis + Zero-SDK host heap dumps | Live memory graphs & allocation tracking | Automated in-app leak detection during testing |
+| **APK Impact** | Zero SDK (Host-side via ADB) | Zero SDK (Built-in IDE profiler) | Debug build dependency |
+| **Analysis Host** | Host Workstation JVM (Shark 2.14) | Host Workstation IDE | Target Device JVM |
+
+---
+
+## 4. Configuration Options
 
 Settings are managed in **Settings/Preferences** $\rightarrow$ **Tools** $\rightarrow$ **LeakLens**:
 
@@ -60,7 +70,7 @@ Settings are managed in **Settings/Preferences** $\rightarrow$ **Tools** $\right
 
 ---
 
-## 4. Troubleshooting
+## 5. Troubleshooting
 
 - **No Device Found**: Ensure `adb devices` lists your device and USB debugging is authorized.
 - **Large Heap Dump Warning**: If you receive a large heap dump warning, consider increasing host IDE memory in **Help $\rightarrow$ Change Memory Settings** (`-Xmx4g` or higher recommended).

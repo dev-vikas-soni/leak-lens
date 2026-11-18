@@ -20,7 +20,7 @@ LeakLens includes 12 UAST-based static code inspections targeting common Android
 
 | Rule ID | Name | Severity | Description | Target Constructs |
 |:---|:---|:---:|:---|:---|
-| **LL-COMPOSE-CONTEXT-CAPTURE** | Compose Context Capture | `HIGH` | `Context` or `Activity` captured inside `@Composable` `remember` or `LaunchedEffect` blocks without proper scoping. | Compose call expressions |
+| **LL-COMPOSE-CONTEXT-CAPTURE** | Compose Context Leak | `HIGH` | UI `Context` or `Activity` passed from `@Composable` code into a `ViewModel`, `ViewModelProvider.Factory`, or long-lived object that stores it. (*Note: `remember { context }` is safe and not flagged*). | Compose call expressions & ViewModel invocations |
 | **LL-HILT-SCOPE-MISMATCH** | Hilt Scope Mismatch | `HIGH` | A longer-lived Hilt component (e.g. `@Singleton`) injects a narrower-scoped dependency (e.g. `@ActivityScoped`). | DI field/constructor injections |
 | **LL-VIEWMODEL-CONTEXT-LEAK** | ViewModel Context Leak | `HIGH` | `ViewModel` class stores an `Activity`, `Context`, or `View` in a field. | `ViewModel` fields |
 | **LL-WORKER-CONTEXT-LEAK** | Worker Context Leak | `MEDIUM` | `ListenableWorker` subclass stores an `Activity` or `View` context in a field. | `ListenableWorker` fields |

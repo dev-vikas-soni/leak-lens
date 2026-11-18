@@ -1,10 +1,10 @@
 # Semantic Lifetime Engine Specification
 
-The **Lifetime Engine** (`com.github.devvikassoni.leaklens.inspections.engine.LifetimeEngine`) is the core static reasoning component of LeakLens. It evaluates whether a code pattern presents a memory retention hazard by modeling and comparing the relative lifetimes of objects and scopes.
+The **Lifetime Engine** (`com.github.devvikassoni.leaklens.inspections.engine.LifetimeEngine`) is the core static reasoning component of LeakLens. It evaluates whether a code pattern presents a structural memory retention hazard by modeling and comparing the relative lifetimes of objects and scopes.
 
 ---
 
-## 1. Lifetime Priority Hierarchy
+## 1. Lifetime Priority Hierarchy (Static Heuristic)
 
 LeakLens assigns every detected object or scope an explicit priority based on its expected lifespan within an Android application process. Priorities are defined in `com.github.devvikassoni.leaklens.model.Lifetime`:
 
@@ -18,7 +18,7 @@ LeakLens assigns every detected object or scope an explicit priority based on it
 | `VIEWMODEL` | 50 | `androidx.lifecycle.ViewModel` |
 | `ACTIVITY` | 40 | `android.app.Activity`, `androidx.activity.ComponentActivity`, raw `Context` parameters |
 | `FRAGMENT` | 30 | `android.app.Fragment`, `androidx.fragment.app.Fragment` |
-| `COMPOSITION` | 25 | Jetpack Compose `remember { ... }` blocks, `produceState`, `derivedStateOf`, `*Effect` |
+| `COMPOSITION` | 25 | Jetpack Compose `@Composable` scope, `remember { ... }` blocks, `produceState` |
 | `VIEW` | 20 | `android.view.View`, `Drawable` |
 | `LOCAL` | 10 | Local method variables, parameters |
 | `UNKNOWN` | 0 | Unresolved or dynamic type |
@@ -31,16 +31,12 @@ The engine evaluates the relationship between an **Owner** scope and a **Referen
 
 $$\text{isRisky} = \text{Owner.priority} > \text{Referenced.priority}$$
 
-### Confidence Matrix
-- **HIGH Confidence**:
-  - `PROCESS` scope retaining `ACTIVITY` reference.
-  - `SINGLETON` scope retaining `ACTIVITY` reference.
-  - `VIEWMODEL` scope retaining `ACTIVITY` reference.
-  - `WORKER` scope retaining `ACTIVITY` reference.
-- **MEDIUM Confidence**:
-  - General case where `Owner.priority > Referenced.priority`.
-- **LOW Confidence**:
-  - Equal priority or ambiguous/unresolved lifetimes.
+### Illustrative Priority Example
+If a class annotated with `@Singleton` (Priority 80) holds a field reference to an `Activity` (Priority 40):
+$$\text{Priority}(\text{SINGLETON}) > \text{Priority}(\text{ACTIVITY}) \implies \text{Structural Retention Hazard}$$
+
+> [!NOTE]
+> **Static Analysis Heuristic Disclosure**: The Lifetime Engine operates on static code structures. Storing an object of lower priority represents a structural code hazard, but does **not** constitute definitive proof of an active runtime memory leak (as references may be cleared or managed dynamically at runtime).
 
 ---
 
@@ -68,7 +64,9 @@ $$\text{isRisky} = \text{Owner.priority} > \text{Referenced.priority}$$
 - `getComposeConstructLifetime` inspects UAST call expressions:
   - Methods starting with `remember` $\rightarrow$ `COMPOSITION` (25)
   - Methods ending with `Effect` (`LaunchedEffect`, `DisposableEffect`) $\rightarrow$ `COMPOSITION` (25)
-  - `produceState`, `derivedStateOf` $\rightarrow$ `COMPOSITION` (25)
+- **Compose Retention Heuristic**:
+  - `remember { context }` is treated as **safe** because `ACTIVITY` (40) > `COMPOSITION` (25) (Activity outlives Composition).
+  - Passing an `Activity` / UI `Context` from Compose to a `ViewModel` or `@Singleton` is flagged as a structural hazard.
 
 ### D. Coroutine Scopes
 - `getScopeLifetime` inspects CoroutineScope expressions:
@@ -77,10 +75,3 @@ $$\text{isRisky} = \text{Owner.priority} > \text{Referenced.priority}$$
   - `lifecycleScope` $\rightarrow$ `ACTIVITY` (40)
   - `viewLifecycleOwner.lifecycleScope` $\rightarrow$ `FRAGMENT` (30)
   - `rememberCoroutineScope()` $\rightarrow$ `COMPOSITION` (25)
-
----
-
-## 4. Architectural Heuristics & Boundaries
-
-> [!NOTE]
-> Static lifetime resolution is **heuristic**. While the Lifetime Engine effectively catches structural mismatches (such as storing an Activity context in a ViewModel field or capturing Context in a Compose `remember` block), it does not execute code or track complex dynamic state transitions. Host-side heap dump analysis (Shark) serves as the runtime verification counterpart.

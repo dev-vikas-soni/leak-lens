@@ -50,6 +50,7 @@ class StaticAnalysisRunner(
                 service.updateLiveIssues(file.path, shortName, found)
                 issues += found.size
             }
+            service.restartDaemonForFile(file.path)
         }
         return Result(scanned, issues)
     }

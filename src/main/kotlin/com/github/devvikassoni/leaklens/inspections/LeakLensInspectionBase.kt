@@ -27,7 +27,7 @@ import java.util.Collections
  * - Findings go through [LeakReporter], which honours `@Suppress`/`//noinspection`, attaches the
  *   AI prompt fix only in the editor, and records a [LeakInfo] with a stable, line-independent
  *   signature (so baselines survive unrelated edits).
- * - Editor findings are published to [LeakLensProjectService] once the whole file has been inspected.
+ * - Editor findings are published to [LeakLensProjectService] once the file has been inspected.
  * - [collectIssues] runs the same visitor over a whole file for batch ("Analyze project") use.
  */
 abstract class LeakLensInspectionBase : LocalInspectionTool() {
@@ -55,7 +55,6 @@ abstract class LeakLensInspectionBase : LocalInspectionTool() {
     override fun inspectionFinished(session: LocalInspectionToolSession, problemsHolder: ProblemsHolder) {
         val issues = session.getUserData(issuesKey) ?: return
         val file = problemsHolder.file
-        if (session.restrictRange != file.textRange) return
         val filePath = file.virtualFile?.path ?: return
 
         val snapshot = synchronized(issues) { issues.distinctBy { it.signature to it.sourceLine } }

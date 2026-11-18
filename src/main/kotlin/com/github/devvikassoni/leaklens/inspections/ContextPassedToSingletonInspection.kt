@@ -6,26 +6,34 @@ import com.intellij.openapi.project.Project
 import com.intellij.psi.JavaPsiFacade
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiElementVisitor
+import com.intellij.psi.PsiMember
 import com.intellij.psi.PsiMethodCallExpression
 import com.intellij.psi.PsiModifier
 import com.intellij.psi.PsiReferenceExpression
 import com.intellij.psi.PsiThisExpression
+import com.intellij.psi.util.InheritanceUtil
 import com.intellij.uast.UastHintedVisitorAdapter
 import org.jetbrains.kotlin.psi.KtNamedFunction
 import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.kotlin.psi.KtPsiFactory
 import org.jetbrains.uast.UCallExpression
+import org.jetbrains.uast.UCallableReferenceExpression
+import org.jetbrains.uast.UElement
 import org.jetbrains.uast.UExpression
+import org.jetbrains.uast.ULambdaExpression
 import org.jetbrains.uast.UMethod
+import org.jetbrains.uast.UObjectLiteralExpression
+import org.jetbrains.uast.USimpleNameReferenceExpression
 import org.jetbrains.uast.UThisExpression
 import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.skipParenthesizedExprDown
 import org.jetbrains.uast.toUElementOfType
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
+import org.jetbrains.uast.visitor.AbstractUastVisitor
 
 /**
  * Detects an Activity/View/UI Context passed to a singleton (Kotlin `object`, `@Singleton`, or a class
- * with a static self-typed instance field) **and stored** by it.
+ * with a static self-typed instance field) **and stored** by it, or captured via lambdas.
  */
 class ContextPassedToSingletonInspection : LeakLensInspectionBase() {
 
@@ -39,18 +47,39 @@ class ContextPassedToSingletonInspection : LeakLensInspectionBase() {
                 override fun visitCallExpression(node: UCallExpression): Boolean {
                     if (node.valueArgumentCount == 0) return false
                     val method = node.resolve() ?: return false
-                    val singleton = singletonOf(method.containingClass ?: return false) ?: return false
-                    val uMethod = method.toUElementOfType<UMethod>() ?: return false
-                    if ((uMethod.sourcePsi as? KtNamedFunction)?.receiverTypeReference != null) return false
+                    var targetClass = method.containingClass ?: return false
 
-                    for (index in 0 until method.parameterList.parametersCount) {
+                    val receiverExpr = node.receiver
+                    if (receiverExpr != null) {
+                        val receiverRef = AndroidTypes.resolveRef(receiverExpr)
+                        val receiverMember = receiverRef as? PsiMember
+                        if (receiverMember != null && receiverMember.containingClass != null) {
+                            val receiverOwner = receiverMember.containingClass!!
+                            if (singletonOf(receiverOwner) != null) {
+                                targetClass = receiverOwner
+                            }
+                        }
+                    }
+
+                    val singleton = singletonOf(targetClass) ?: return false
+                    val uMethod = method.toUElementOfType<UMethod>()
+                    if (uMethod != null && (uMethod.sourcePsi as? KtNamedFunction)?.receiverTypeReference != null) return false
+
+                    for (index in 0 until node.valueArgumentCount) {
                         val arg = node.getArgumentForParameter(index) ?: continue
-                        if (!isUiContextArgument(arg, node)) continue
-                        val parameter = ParameterFlow.parameterOf(uMethod, index) ?: continue
-                        if (!ParameterFlow.storesParameter(uMethod, parameter)) continue
+                        val isContextArg = isUiContextArgument(arg, node)
+                        val isCapturingLambda = isLambdaOrAnonymousClass(arg) && capturesOuterUi(arg, node)
+
+                        if (!isContextArg && !isCapturingLambda) continue
+
+                        if (isContextArg && uMethod != null && index < method.parameterList.parametersCount) {
+                            val parameter = ParameterFlow.parameterOf(uMethod, index)
+                            if (parameter != null && !ParameterFlow.storesParameter(uMethod, parameter)) continue
+                        }
+
                         val anchor = arg.sourcePsi ?: continue
                         val singletonName = singleton.name ?: "Singleton"
-                        val fix = applicationContextFix(arg)
+                        val fix = if (isContextArg) applicationContextFix(arg) else null
 
                         reporter.report(
                             anchor,
@@ -71,6 +100,11 @@ class ContextPassedToSingletonInspection : LeakLensInspectionBase() {
             },
             arrayOf(UCallExpression::class.java)
         )
+
+    private fun isLambdaOrAnonymousClass(arg: UExpression): Boolean {
+        val expr = arg.skipParenthesizedExprDown()
+        return expr is ULambdaExpression || expr is UObjectLiteralExpression || expr is UCallableReferenceExpression
+    }
 
     private fun singletonOf(owner: PsiClass): PsiClass? {
         if (AndroidTypes.hasAnnotation(owner, AndroidTypes.SINGLETON_ANNOTATIONS)) return owner
@@ -100,6 +134,34 @@ class ContextPassedToSingletonInspection : LeakLensInspectionBase() {
         if (isApplicationContextExpression(expr)) return false
         val caller = call.getContainingUClass()?.javaPsi
         return AndroidTypes.isLifecycleComponent(caller) || AndroidTypes.isView(caller)
+    }
+
+    private fun capturesOuterUi(expression: UExpression, call: UCallExpression): Boolean {
+        val outer = call.getContainingUClass() ?: return false
+        if (!AndroidTypes.isLifecycleComponent(outer)) return false
+        val outerName = outer.name ?: return false
+        var captures = false
+        expression.accept(object : AbstractUastVisitor() {
+            override fun visitThisExpression(node: UThisExpression): Boolean {
+                if (node.label == null || node.label == outerName) captures = true
+                return captures
+            }
+
+            override fun visitElement(node: UElement): Boolean {
+                if (captures) return true
+                if (node is UCallExpression || node is USimpleNameReferenceExpression) {
+                    val resolved = AndroidTypes.resolveRef(node as? UExpression)
+                    if (resolved is PsiMember && !resolved.hasModifierProperty(PsiModifier.STATIC)) {
+                        val memberOwner = resolved.containingClass
+                        if (memberOwner != null && InheritanceUtil.isInheritorOrSelf(outer.javaPsi, memberOwner, true)) {
+                            captures = true
+                        }
+                    }
+                }
+                return captures
+            }
+        })
+        return captures
     }
 
     private fun applicationContextFix(arg: UExpression): LocalQuickFix? {

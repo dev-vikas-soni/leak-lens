@@ -150,6 +150,41 @@ class ReferenceInspectionsTest : LeakInspectionTestBase() {
     )
 
     @Test
+    fun testKotlinObjectPropertyHoldingContext() = assertFlagged(
+        StaticActivityReferenceInspection(),
+        "AppManager.kt",
+        """
+        import android.content.Context
+        object AppManager {
+            var context: Context? = null
+        }
+        """,
+        "context",
+    )
+
+    @Test
+    fun testKotlinSingletonLambdaCapturingActivity() = assertFlagged(
+        ContextPassedToSingletonInspection(),
+        "LeakyActivity.kt",
+        """
+        import android.app.Activity
+        import android.os.Bundle
+        object LeakySingleton {
+            fun addListener(l: (String) -> Unit) {}
+        }
+        class LeakyActivity : Activity() {
+            override fun onCreate(savedInstanceState: Bundle?) {
+                super.onCreate(savedInstanceState)
+                LeakySingleton.addListener { message ->
+                    val self = this@LeakyActivity
+                }
+            }
+        }
+        """,
+        "{ message ->\n            val self = this@LeakyActivity\n        }",
+    )
+
+    @Test
     fun testContextToSingletonFix() {
         val result = applyFix(
             ContextPassedToSingletonInspection(),

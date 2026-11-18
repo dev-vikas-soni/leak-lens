@@ -5,135 +5,112 @@ import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.services.LeakLensProjectService
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProvider
+import com.intellij.codeInsight.navigation.NavigationGutterIconBuilder
 import com.intellij.icons.AllIcons
-import com.intellij.openapi.editor.markup.GutterIconRenderer
+import com.intellij.openapi.editor.Document
+import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
+import com.intellij.psi.PsiWhiteSpace
 import javax.swing.Icon
 
 /**
- * Provides gutter icons on classes/fields that appear in active leak traces.
+ * Provides gutter icons on classes/fields/statements that appear in active leak traces or static findings.
  * Shows warning markers like breakpoint icons on leak-prone lines.
  */
 class LeakGutterLineMarkerProvider : LineMarkerProvider {
 
     override fun getLineMarkerInfo(element: PsiElement): LineMarkerInfo<*>? {
-        // Check if element is an identifier (PsiIdentifier in Java, LeafPsiElement in Kotlin)
-        // We can just check if it's the name identifier of its parent
-        val parent = element.parent
-        if (parent !is com.intellij.psi.PsiNameIdentifierOwner || parent.nameIdentifier != element) {
-            return null
-        }
-
+        if (element is PsiWhiteSpace) return null
+        val virtualFile = element.containingFile?.virtualFile ?: return null
+        val filePath = virtualFile.path
         val project = element.project
         val service = LeakLensProjectService.getInstance(project)
-        val virtualFile = element.containingFile?.virtualFile
-        val filePath = virtualFile?.path
 
-        // 1. Check for live issues (static analysis)
-        if (filePath != null) {
-            val document = element.containingFile.viewProvider.document
-            if (document != null) {
-                val line = document.getLineNumber(element.textRange.startOffset) + 1
-                if (service.isLineLeaky(filePath, line)) {
-                    val staticIssues = service.getStaticIssuesForFile(filePath)
-                    val staticIssue = staticIssues.find { it.line == line }
+        val document = element.containingFile.viewProvider.document ?: return null
+        val startOffset = element.textRange.startOffset
+        val line = document.getLineNumber(startOffset) + 1
 
-                    if (staticIssue != null) {
-                        val tooltip =
-                            "⚠️ LeakLens Static: ${staticIssue.title}\n\n${staticIssue.description}\n\n💡 Fix: ${staticIssue.suggestedFix ?: "No automatic fix available."}"
-                        return LineMarkerInfo(
-                            element,
-                            element.textRange,
-                            AllIcons.General.Warning,
-                            { tooltip },
-                            { _, _ ->
-                                com.intellij.openapi.wm.ToolWindowManager.getInstance(project)
-                                    .getToolWindow("LeakLens")?.show()
-                            },
-                            GutterIconRenderer.Alignment.LEFT,
-                            { tooltip }
-                        )
+        // 1. Check for live issues / static findings on this line
+        if (service.isLineLeaky(filePath, line)) {
+            val lineStartOffset = document.getLineStartOffset(line - 1)
+            val isFirstLeafOnLine = element.firstChild == null && isFirstTokenOnLine(element, document, lineStartOffset)
+
+            if (isFirstLeafOnLine) {
+                val staticIssues = service.getStaticIssuesForFile(filePath)
+                val staticIssue = staticIssues.find { it.line == line }
+
+                if (staticIssue != null) {
+                    val tooltip =
+                        "⚠️ LeakLens Static: ${staticIssue.title}\n\n${staticIssue.description}\n\n💡 Fix: ${staticIssue.suggestedFix ?: "No automatic fix available."}"
+                    return NavigationGutterIconBuilder.create(AllIcons.General.Warning)
+                        .setTooltipText(tooltip)
+                        .setTarget(element)
+                        .createLineMarkerInfo(element)
+                }
+
+                val liveIssues = service.getLiveIssuesForFile(filePath)
+                val issue = liveIssues.find { it.sourceLine == line }
+                if (issue != null) {
+                    val tooltip =
+                        "⚠️ LeakLens: ${issue.shortDescription}\n\n${issue.suggestedFix ?: ""}"
+                    return NavigationGutterIconBuilder.create(AllIcons.General.Warning)
+                        .setTooltipText(tooltip)
+                        .setTarget(element)
+                        .createLineMarkerInfo(element)
+                }
+            }
+        }
+
+        // 2. Check for heap analysis leaks (requires class qualified name identifier)
+        val parent = element.parent
+        if (parent is com.intellij.psi.PsiNameIdentifierOwner && parent.nameIdentifier == element) {
+            var qualifiedName: String? = null
+            if (parent is com.intellij.psi.PsiClass) {
+                qualifiedName = parent.qualifiedName
+            } else if (parent is org.jetbrains.kotlin.psi.KtClassOrObject) {
+                qualifiedName = parent.fqName?.asString()
+            }
+
+            if (qualifiedName != null) {
+                if (service.retainedClassNames.contains(qualifiedName) ||
+                    service.referenceChainClassNames.contains(qualifiedName)
+                ) {
+                    val leaks = service.leaks.value
+
+                    // Check if this class is the retained (leaking) object in any leak
+                    val matchingLeak = leaks.find { it.retainedObjectClassName == qualifiedName }
+                    if (matchingLeak != null) {
+                        val icon = getIconForSeverity(matchingLeak.severity)
+                        val tooltip = buildTooltip(matchingLeak)
+                        return NavigationGutterIconBuilder.create(icon)
+                            .setTooltipText(tooltip)
+                            .setTarget(element)
+                            .createLineMarkerInfo(element)
                     }
 
-                    val liveIssues = service.getLiveIssuesForFile(filePath)
-                    val issue = liveIssues.find { it.sourceLine == line }
-                    if (issue != null) {
-                        val tooltip =
-                            "⚠️ LeakLens (Live): ${issue.shortDescription}\n\n${issue.suggestedFix ?: ""}"
-                        return LineMarkerInfo(
-                            element,
-                            element.textRange,
-                            AllIcons.General.Warning,
-                            { tooltip },
-                            { _, _ ->
-                                com.intellij.openapi.wm.ToolWindowManager.getInstance(project)
-                                    .getToolWindow("LeakLens")?.show()
-                            },
-                            GutterIconRenderer.Alignment.LEFT,
-                            { tooltip }
-                        )
+                    // Check if this class appears in any reference chain
+                    val referenceLeak = leaks.find { leak ->
+                        leak.referenceChain.any { ref -> ref.owningClassName == qualifiedName }
+                    }
+                    if (referenceLeak != null) {
+                        val tooltip = "⚠️ This class appears in a leak trace: ${referenceLeak.shortDescription}"
+                        return NavigationGutterIconBuilder.create(AllIcons.General.Warning)
+                            .setTooltipText(tooltip)
+                            .setTarget(element)
+                            .createLineMarkerInfo(element)
                     }
                 }
             }
         }
 
-        // 2. Check for heap analysis leaks (requires class qualified name)
-        var qualifiedName: String? = null
-        if (parent is com.intellij.psi.PsiClass) {
-            qualifiedName = parent.qualifiedName
-        } else if (parent is org.jetbrains.kotlin.psi.KtClassOrObject) {
-            qualifiedName = parent.fqName?.asString()
-        }
-
-        if (qualifiedName == null) return null
-
-        // 2. Check for heap analysis leaks (existing logic)
-        // Fast O(1) check
-        if (!service.retainedClassNames.contains(qualifiedName) &&
-            !service.referenceChainClassNames.contains(qualifiedName)
-        ) {
-            return null
-        }
-
-        val leaks = service.leaks.value
-
-        // Check if this class is the retained (leaking) object in any leak
-        val matchingLeak = leaks.find { it.retainedObjectClassName == qualifiedName }
-        if (matchingLeak != null) {
-            val icon = getIconForSeverity(matchingLeak.severity)
-            val tooltip = buildTooltip(matchingLeak)
-            return LineMarkerInfo(
-                element,
-                element.textRange,
-                icon,
-                { tooltip },
-                { _, _ ->
-                    com.intellij.openapi.wm.ToolWindowManager.getInstance(project)
-                        .getToolWindow("LeakLens")?.show()
-                },
-                GutterIconRenderer.Alignment.LEFT,
-                { tooltip }
-            )
-        }
-
-        // Check if this class appears in any reference chain
-        val referenceLeak = leaks.find { leak ->
-            leak.referenceChain.any { ref -> ref.owningClassName == qualifiedName }
-        }
-        if (referenceLeak != null) {
-            val tooltip = "⚠️ This class appears in a leak trace: ${referenceLeak.shortDescription}"
-            return LineMarkerInfo(
-                element,
-                element.textRange,
-                AllIcons.General.Warning,
-                { tooltip },
-                null,
-                GutterIconRenderer.Alignment.LEFT,
-                { tooltip }
-            )
-        }
-
         return null
+    }
+
+    private fun isFirstTokenOnLine(element: PsiElement, document: Document, lineStartOffset: Int): Boolean {
+        val elementOffset = element.textRange.startOffset
+        if (elementOffset < lineStartOffset || elementOffset >= document.textLength) return false
+        val textBetween = document.getText(TextRange(lineStartOffset, elementOffset))
+        return textBetween.isBlank()
     }
 
     private fun getIconForSeverity(severity: LeakSeverity): Icon {

@@ -4,7 +4,13 @@
 
 ## [Unreleased]
 
-## [0.4.1] - 2026-11-10
+## [0.4.2] - 2026-11-18
+
+### Fixed
+
+- **Static Engine & Gutter Synchronization**: Unified issue state management across live editor highlighting and batch scans. Fixed daemon cancellation loops during tab switching.
+- **Editor Line Markers**: Upgraded gutter warning icon (`⚠️`) rendering to `NavigationGutterIconBuilder` and filtered out whitespace tokens.
+- **Kotlin Object & Lambda Inspection**: Extended static inspections to recognize fields in Kotlin `object` declarations (`AppManager.context`) and detect outer UI-capturing lambdas.
 
 ### Fixed
 

@@ -39,11 +39,12 @@ data class StaticAnalysisIssue(
             symbolName: String?,
             extraContext: String? = null
         ): String {
-            // We include ruleId and className as core semantic identity.
+            // We include ruleId, filePath, and className as core semantic identity.
             // We use symbolName to distinguish findings in the same class/file.
             // We exclude line numbers to survive edits.
             // We include extraContext for cases where the same symbol has multiple distinct leaks.
-            return "$ruleId:${className ?: ""}:${symbolName ?: ""}:${extraContext ?: ""}"
+            val fileKey = filePath.substringAfterLast('/')
+            return "$ruleId:$fileKey:${className ?: ""}:${symbolName ?: ""}:${extraContext ?: ""}"
         }
     }
 }

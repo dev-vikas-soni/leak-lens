@@ -5,9 +5,13 @@ import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.settings.LeakLensSettingsState
 import com.github.devvikassoni.leaklens.settings.PersistedHistoryEntry
+import com.intellij.codeInsight.daemon.DaemonCodeAnalyzer
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.diagnostic.thisLogger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.vfs.LocalFileSystem
+import com.intellij.psi.PsiManager
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,7 +45,6 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
     private fun refreshStaticIssuesList() {
         _staticIssuesList.value = _staticIssues.value.values.flatMap { ruleMap -> ruleMap.values.flatten() }
     }
-
 
     /**
      * Returns live issues for a specific file to support efficient gutter markers.
@@ -89,7 +92,6 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
     }
 
     fun updateLiveIssues(filePath: String, inspectionName: String, issues: List<LeakInfo>) {
-        var updatedFileIssues: List<LeakInfo> = emptyList()
         _liveIssues.update { currentFileMap ->
             val newFileMap = currentFileMap.toMutableMap()
             val currentInspectionMap = newFileMap[filePath]?.toMutableMap() ?: mutableMapOf()
@@ -105,18 +107,10 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
             } else {
                 newFileMap[filePath] = currentInspectionMap
             }
-
-            updatedFileIssues = newFileMap[filePath]?.values?.flatten() ?: emptyList()
             newFileMap
         }
 
-        // Update line cache for gutter markers
-        if (updatedFileIssues.isEmpty()) {
-            liveLeakyLines.remove(filePath)
-        } else {
-            val lines = updatedFileIssues.mapNotNull { it.sourceLine.takeIf { line -> line > 0 } }.toSet()
-            liveLeakyLines[filePath] = lines
-        }
+        updateLineCache(filePath)
         refreshLiveIssuesList()
     }
 
@@ -224,6 +218,16 @@ class LeakLensProjectService(private val project: Project, val scope: CoroutineS
 
     fun isLineLeaky(filePath: String, line: Int): Boolean {
         return liveLeakyLines[filePath]?.contains(line) == true
+    }
+
+    fun restartDaemonForFile(filePath: String) {
+        val virtualFile = LocalFileSystem.getInstance().findFileByPath(filePath) ?: return
+        val psiFile = PsiManager.getInstance(project).findFile(virtualFile) ?: return
+        ApplicationManager.getApplication().invokeLater {
+            if (!project.isDisposed) {
+                DaemonCodeAnalyzer.getInstance(project).restart(psiFile)
+            }
+        }
     }
 
     fun clearLiveIssuesForFile(filePath: String) {

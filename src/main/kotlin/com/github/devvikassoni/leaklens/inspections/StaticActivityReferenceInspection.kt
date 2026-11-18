@@ -2,7 +2,9 @@ package com.github.devvikassoni.leaklens.inspections
 
 import com.intellij.psi.PsiElementVisitor
 import com.intellij.uast.UastHintedVisitorAdapter
+import org.jetbrains.kotlin.psi.KtObjectDeclaration
 import org.jetbrains.uast.UField
+import org.jetbrains.uast.getContainingUClass
 import org.jetbrains.uast.visitor.AbstractUastNonRecursiveVisitor
 
 /**
@@ -19,7 +21,7 @@ class StaticActivityReferenceInspection : LeakLensInspectionBase() {
             reporter.file.language,
             object : AbstractUastNonRecursiveVisitor() {
                 override fun visitField(node: UField): Boolean {
-                    if (!node.isStatic || !AndroidTypes.isLifecycleBoundType(node.type)) return false
+                    if (!isStaticOrSingletonField(node) || !AndroidTypes.isLifecycleBoundType(node.type)) return false
                     if (AndroidTypes.hasApplicationContextQualifier(node.sourcePsi ?: node.javaPsi)) return false
                     val anchor = node.uastAnchor?.sourcePsi ?: node.sourcePsi ?: return false
                     val typeName = node.type.presentableText.removeSuffix("?")
@@ -42,4 +44,11 @@ class StaticActivityReferenceInspection : LeakLensInspectionBase() {
             },
             arrayOf(UField::class.java)
         )
+
+    private fun isStaticOrSingletonField(field: UField): Boolean {
+        if (field.isStatic) return true
+        val psiClass = field.getContainingUClass()?.javaPsi ?: return false
+        val ktObject = psiClass.navigationElement as? KtObjectDeclaration
+        return ktObject != null && !ktObject.isObjectLiteral()
+    }
 }

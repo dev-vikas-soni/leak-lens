@@ -47,8 +47,12 @@ class LeakLensStatusBarWidgetFactory : StatusBarWidgetFactory {
 
         init {
             val service = LeakLensProjectService.getInstance(project)
-            updatesJob = combine(service.leaks, service.liveIssues) { heapLeaks, liveIssues ->
-                heapLeaks.size + liveIssues.size
+            updatesJob = combine(
+                service.leaks,
+                service.liveIssues,
+                service.staticIssues
+            ) { heapLeaks, liveIssues, staticIssues ->
+                heapLeaks.size + liveIssues.size + staticIssues.size
             }.onEach { total ->
                 updateUI(total)
             }.launchIn(service.scope)

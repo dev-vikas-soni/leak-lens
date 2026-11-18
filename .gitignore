@@ -5,6 +5,7 @@
 .kotlin
 build
 local.properties
+gradle-daemon-jvm.properties
 
 # Heap dump files — never commit these (can be hundreds of MB)
 *.hprof

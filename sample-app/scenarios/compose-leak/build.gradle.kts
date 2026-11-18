@@ -21,4 +21,5 @@ dependencies {
     implementation(project(":core:common"))
     implementation("androidx.compose.ui:ui:1.6.8")
     implementation("androidx.compose.runtime:runtime:1.6.8")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.3")
 }

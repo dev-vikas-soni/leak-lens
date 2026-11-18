@@ -4,6 +4,8 @@
 .intellijPlatform
 .kotlin
 build
+bin
+out
 local.properties
 gradle-daemon-jvm.properties
 

@@ -8,12 +8,6 @@
 
 ### Fixed
 
-- **Static Engine & Gutter Synchronization**: Unified issue state management across live editor highlighting and batch scans. Fixed daemon cancellation loops during tab switching.
-- **Editor Line Markers**: Upgraded gutter warning icon (`⚠️`) rendering to `NavigationGutterIconBuilder` and filtered out whitespace tokens.
-- **Kotlin Object & Lambda Inspection**: Extended static inspections to recognize fields in Kotlin `object` declarations (`AppManager.context`) and detect outer UI-capturing lambdas.
-
-### Fixed
-
 - **Publishing & Packaging**: Cleaned up build artifacts to prevent duplicate JAR plugin descriptors during publishing.
 
 ## [0.4.0] - 2026-11-10
@@ -299,7 +293,8 @@
 - ADB service for device discovery and heap dump pulling
 - Tool window factory with list + detail panel layout
 
-[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.4.0...v0.4.2
 [0.4.1]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/dev-vikas-soni/leak-lens/compare/v0.3.1...v0.3.2

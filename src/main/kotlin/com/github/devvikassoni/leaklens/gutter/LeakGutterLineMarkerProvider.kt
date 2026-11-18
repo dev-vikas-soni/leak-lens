@@ -3,14 +3,17 @@ package com.github.devvikassoni.leaklens.gutter
 import com.github.devvikassoni.leaklens.model.LeakInfo
 import com.github.devvikassoni.leaklens.model.LeakSeverity
 import com.github.devvikassoni.leaklens.services.LeakLensProjectService
+import com.intellij.codeInsight.daemon.GutterIconNavigationHandler
 import com.intellij.codeInsight.daemon.LineMarkerInfo
 import com.intellij.codeInsight.daemon.LineMarkerProvider
-import com.intellij.codeInsight.navigation.NavigationGutterIconBuilder
 import com.intellij.icons.AllIcons
 import com.intellij.openapi.editor.Document
+import com.intellij.openapi.editor.markup.GutterIconRenderer
+import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiWhiteSpace
+import java.awt.event.MouseEvent
 import javax.swing.Icon
 
 /**
@@ -42,10 +45,7 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
                 if (staticIssue != null) {
                     val tooltip =
                         "⚠️ LeakLens Static: ${staticIssue.title}\n\n${staticIssue.description}\n\n💡 Fix: ${staticIssue.suggestedFix ?: "No automatic fix available."}"
-                    return NavigationGutterIconBuilder.create(AllIcons.General.Warning)
-                        .setTooltipText(tooltip)
-                        .setTarget(element)
-                        .createLineMarkerInfo(element)
+                    return createWarningMarker(element, tooltip, project, AllIcons.General.Warning)
                 }
 
                 val liveIssues = service.getLiveIssuesForFile(filePath)
@@ -53,10 +53,7 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
                 if (issue != null) {
                     val tooltip =
                         "⚠️ LeakLens: ${issue.shortDescription}\n\n${issue.suggestedFix ?: ""}"
-                    return NavigationGutterIconBuilder.create(AllIcons.General.Warning)
-                        .setTooltipText(tooltip)
-                        .setTarget(element)
-                        .createLineMarkerInfo(element)
+                    return createWarningMarker(element, tooltip, project, AllIcons.General.Warning)
                 }
             }
         }
@@ -82,10 +79,7 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
                     if (matchingLeak != null) {
                         val icon = getIconForSeverity(matchingLeak.severity)
                         val tooltip = buildTooltip(matchingLeak)
-                        return NavigationGutterIconBuilder.create(icon)
-                            .setTooltipText(tooltip)
-                            .setTarget(element)
-                            .createLineMarkerInfo(element)
+                        return createWarningMarker(element, tooltip, project, icon)
                     }
 
                     // Check if this class appears in any reference chain
@@ -94,16 +88,37 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
                     }
                     if (referenceLeak != null) {
                         val tooltip = "⚠️ This class appears in a leak trace: ${referenceLeak.shortDescription}"
-                        return NavigationGutterIconBuilder.create(AllIcons.General.Warning)
-                            .setTooltipText(tooltip)
-                            .setTarget(element)
-                            .createLineMarkerInfo(element)
+                        return createWarningMarker(element, tooltip, project, AllIcons.General.Warning)
                     }
                 }
             }
         }
 
         return null
+    }
+
+    private fun createWarningMarker(
+        element: PsiElement,
+        tooltipText: String,
+        project: Project,
+        markerIcon: Icon
+    ): LineMarkerInfo<PsiElement> {
+        return LineMarkerInfo(
+            element,
+            element.textRange,
+            markerIcon,
+            object : com.intellij.util.Function<PsiElement, String> {
+                override fun `fun`(param: PsiElement): String = tooltipText
+            },
+            object : GutterIconNavigationHandler<PsiElement> {
+                override fun navigate(e: MouseEvent?, elt: PsiElement?) {
+                    com.intellij.openapi.wm.ToolWindowManager.getInstance(project)
+                        .getToolWindow("LeakLens")?.show()
+                }
+            },
+            GutterIconRenderer.Alignment.LEFT,
+            { tooltipText }
+        )
     }
 
     private fun isFirstTokenOnLine(element: PsiElement, document: Document, lineStartOffset: Int): Boolean {

@@ -25,7 +25,7 @@ maintainers and contributors for their hard work.
 * **License
   **: [Apache License 2.0](https://github.com/Kotlin/kotlinx.coroutines/blob/master/LICENSE)
 * **Copyright**: Copyright 2000-2024 JetBrains s.r.o.
-* **Role**: Non-blocking ADB interactions and real-time UI streaming.
+* **Role**: Non-blocking ADB interactions, periodic memory graph updates, and asynchronous background tasks.
 
 ### Gson
 

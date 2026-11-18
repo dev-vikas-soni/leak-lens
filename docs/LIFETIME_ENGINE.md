@@ -29,11 +29,16 @@ LeakLens assigns every detected object or scope an explicit priority based on it
 
 The engine evaluates the relationship between an **Owner** scope and a **Referenced** object:
 
-$$\text{isRisky} = \text{Owner.priority} > \text{Referenced.priority}$$
+```text
+isRisky = Owner.priority > Referenced.priority
+```
 
 ### Illustrative Priority Example
 If a class annotated with `@Singleton` (Priority 80) holds a field reference to an `Activity` (Priority 40):
-$$\text{Priority}(\text{SINGLETON}) > \text{Priority}(\text{ACTIVITY}) \implies \text{Structural Retention Hazard}$$
+
+```text
+Priority(SINGLETON) > Priority(ACTIVITY)  -->  Structural Retention Hazard
+```
 
 > [!NOTE]
 > **Static Analysis Heuristic Disclosure**: The Lifetime Engine operates on static code structures. Storing an object of lower priority represents a structural code hazard, but does **not** constitute definitive proof of an active runtime memory leak (as references may be cleared or managed dynamically at runtime).
@@ -44,34 +49,34 @@ $$\text{Priority}(\text{SINGLETON}) > \text{Priority}(\text{ACTIVITY}) \implies 
 
 ### A. DI Scopes (Hilt / Dagger)
 - Checks annotations on class declarations:
-  - `javax.inject.Singleton` or `ActivityRetainedScoped` $\rightarrow$ `SINGLETON` (80)
-  - `ActivityScoped` $\rightarrow$ `ACTIVITY` (40)
-  - `FragmentScoped` $\rightarrow$ `FRAGMENT` (30)
-  - `ViewScoped` $\rightarrow$ `VIEW` (20)
+  - `javax.inject.Singleton` or `ActivityRetainedScoped` -> `SINGLETON` (80)
+  - `ActivityScoped` -> `ACTIVITY` (40)
+  - `FragmentScoped` -> `FRAGMENT` (30)
+  - `ViewScoped` -> `VIEW` (20)
 
 ### B. Android Framework Components
 - Uses `InheritanceUtil.isInheritor` to resolve base classes:
-  - `Application` $\rightarrow$ `APPLICATION` (90)
-  - `ViewModel` $\rightarrow$ `VIEWMODEL` (50)
-  - `Activity` / `ComponentActivity` $\rightarrow$ `ACTIVITY` (40)
-  - `Fragment` $\rightarrow$ `FRAGMENT` (30)
-  - `View` / `Drawable` $\rightarrow$ `VIEW` (20)
-  - `ListenableWorker` $\rightarrow$ `WORKER` (70)
-  - `Service` $\rightarrow$ `SERVICE` (60)
-  - `Context` $\rightarrow$ `ACTIVITY` (pessimistic fallback)
+  - `Application` -> `APPLICATION` (90)
+  - `ViewModel` -> `VIEWMODEL` (50)
+  - `Activity` / `ComponentActivity` -> `ACTIVITY` (40)
+  - `Fragment` -> `FRAGMENT` (30)
+  - `View` / `Drawable` -> `VIEW` (20)
+  - `ListenableWorker` -> `WORKER` (70)
+  - `Service` -> `SERVICE` (60)
+  - `Context` -> `ACTIVITY` (pessimistic fallback)
 
 ### C. Jetpack Compose Constructs
 - `getComposeConstructLifetime` inspects UAST call expressions:
-  - Methods starting with `remember` $\rightarrow$ `COMPOSITION` (25)
-  - Methods ending with `Effect` (`LaunchedEffect`, `DisposableEffect`) $\rightarrow$ `COMPOSITION` (25)
+  - Methods starting with `remember` -> `COMPOSITION` (25)
+  - Methods ending with `Effect` (`LaunchedEffect`, `DisposableEffect`) -> `COMPOSITION` (25)
 - **Compose Retention Heuristic**:
   - `remember { context }` is treated as **safe** because `ACTIVITY` (40) > `COMPOSITION` (25) (Activity outlives Composition).
   - Passing an `Activity` / UI `Context` from Compose to a `ViewModel` or `@Singleton` is flagged as a structural hazard.
 
 ### D. Coroutine Scopes
 - `getScopeLifetime` inspects CoroutineScope expressions:
-  - `GlobalScope` $\rightarrow$ `PROCESS` (100)
-  - `viewModelScope` $\rightarrow$ `VIEWMODEL` (50)
-  - `lifecycleScope` $\rightarrow$ `ACTIVITY` (40)
-  - `viewLifecycleOwner.lifecycleScope` $\rightarrow$ `FRAGMENT` (30)
-  - `rememberCoroutineScope()` $\rightarrow$ `COMPOSITION` (25)
+  - `GlobalScope` -> `PROCESS` (100)
+  - `viewModelScope` -> `VIEWMODEL` (50)
+  - `lifecycleScope` -> `ACTIVITY` (40)
+  - `viewLifecycleOwner.lifecycleScope` -> `FRAGMENT` (30)
+  - `rememberCoroutineScope()` -> `COMPOSITION` (25)

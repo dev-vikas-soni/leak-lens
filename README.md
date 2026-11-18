@@ -12,7 +12,7 @@
 
 Android memory debugging tools address different stages of the development lifecycle:
 
-- **Android Profiler**: Built into Android Studio for real-time memory graphing, live allocation tracking, and native memory profiling.
+- **Android Profiler**: Built into Android Studio for live memory graphing, allocation tracking, and native memory profiling.
 - **LeakCanary**: Runs on-device as a debug dependency to detect and report memory leaks automatically during runtime app testing.
 - **LeakLens**: Focuses on **author-time static analysis** (catching structural retention hazards while typing) and **zero-SDK host-side heap analysis** (offloading Shark graph traversal from the target device to the host workstation JVM via ADB).
 
@@ -72,19 +72,24 @@ The **Lifetime Engine** provides a static-analysis heuristic for evaluating pote
 | **WORKER** | 70 | `androidx.work.ListenableWorker` |
 | **SERVICE** | 60 | `android.app.Service` |
 | **VIEWMODEL** | 50 | `androidx.lifecycle.ViewModel` |
-| `ACTIVITY` | 40 | `android.app.Activity`, `ComponentActivity` |
-| `FRAGMENT` | 30 | `androidx.fragment.app.Fragment` |
+| **ACTIVITY** | 40 | `android.app.Activity`, `ComponentActivity` |
+| **FRAGMENT** | 30 | `androidx.fragment.app.Fragment` |
 | **COMPOSITION** | 25 | Compose `@Composable` scope, `remember { ... }` blocks |
 | **VIEW** | 20 | `android.view.View`, `Drawable` |
 | **LOCAL** | 10 | Method parameters, local variables |
 
 ### Heuristic Priority Rule (Illustrative Example)
+
 If a class with `@Singleton` scope (Priority 80) holds a field reference to an `Activity` (Priority 40), the Lifetime Engine flags a **HIGH** confidence lifetime mismatch:
-$$\text{Priority}(\text{SINGLETON}) > \text{Priority}(\text{ACTIVITY}) \implies \text{Structural Retention Hazard}$$
+
+```text
+Priority(SINGLETON) > Priority(ACTIVITY)  -->  Structural Retention Hazard
+```
 
 > **Note on Static Heuristics**: Lifetime mismatches represent structural code hazards identified during static analysis. Storing an object of lower priority does not constitute definitive proof of an active runtime memory leak, as references may be cleared dynamically at runtime.
 
 ### Compose Inspection Behavior
+
 Static analysis in LeakLens evaluates Jetpack Compose code specifically for cross-scope transfers:
 - **Safe**: Capturing `Context` or `Activity` in a `remember { ... }` block is treated as safe by static inspections, because an `Activity` outlives the `Composition` (`ACTIVITY` priority 40 > `COMPOSITION` priority 25).
 - **Flagged**: Passing a UI `Context` or `Activity` from Compose into a longer-lived component (such as a `ViewModel`, `ViewModelProvider.Factory`, or `@Singleton`) is flagged as a structural hazard.
@@ -99,7 +104,8 @@ LeakLens provides two distinct AI remediation workflows:
 2. **Direct API Mode (Opt-In)**: When explicitly enabled in settings with a user-provided API key, LeakLens calls external endpoints (OpenAI `gpt-4o-mini` or Google Gemini `gemini-flash-latest`). Transmitted metadata includes leaking class names, retained byte sizes, reference chain field/class names, and stack traces. **Source files (`.kt` / `.java`) are never sent.**
 
 ### Anonymization & Data Disclosure
-- An optional package anonymization setting applies regex replacements (`com.\w+.\w+` $\rightarrow$ `app.pkg`).
+
+- An optional package anonymization setting applies regex replacements (`com.example.app` -> `app.pkg`).
 - **Best-Effort Anonymization**: Regex sanitization is best-effort and does not guarantee complete anonymization or zero data exposure. Custom identifiers or parameter strings may still be visible in transmitted prompts.
 
 ---
@@ -129,7 +135,7 @@ LeakLens provides two distinct AI remediation workflows:
 
 ### Installation
 1. Open **Android Studio** or **IntelliJ IDEA**.
-2. Go to **Settings/Preferences** $\rightarrow$ **Plugins** $\rightarrow$ **Marketplace**.
+2. Go to **Settings/Preferences** -> **Plugins** -> **Marketplace**.
 3. Search for **LeakLens** and click **Install**.
 
 ### Quick Start Workflow

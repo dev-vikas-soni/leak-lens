@@ -12,7 +12,7 @@ Android memory analysis plugin combining host-side Shark heap analysis via ADB w
 
 ## Full Description
 
-**LeakLens** brings end-to-end memory leak debugging directly into Android Studio and IntelliJ IDEA. It combines host-side heap dump analysis using the LeakCanary **Shark** engine with real-time **UAST static analysis** to detect, explain, and remediate Android memory leaks early in the development cycle.
+**LeakLens** brings end-to-end memory leak debugging directly into Android Studio and IntelliJ IDEA. It combines host-side heap dump analysis using the LeakCanary **Shark** engine with author-time **UAST static analysis** to detect, explain, and remediate Android memory leaks early in the development cycle.
 
 ### Key Capabilities
 
@@ -45,7 +45,7 @@ Triggers `am dumpheap` over ADB, pulls the binary `.hprof` file to your local sy
 ### Tool Ecosystem & Positioning
 
 LeakLens is designed to complement existing tools in your Android workflow:
-- **Android Profiler**: Use for real-time memory graphing, live allocation tracking, and native memory profiling during active sessions.
+- **Android Profiler**: Use for live memory graphing, allocation tracking, and native memory profiling during active sessions.
 - **LeakCanary**: Use for automated in-app leak detection during QA and manual test execution on-device.
 - **LeakLens**: Use for author-time static inspection in the editor and zero-SDK host-side heap dump analysis without adding APK dependencies.
 

@@ -43,9 +43,9 @@ LeakLens offers two distinct mechanisms for AI-assisted leak remediation:
 
 ### Package Anonymization Mechanism (`aiAnonymizePackageNames`)
 When package anonymization is enabled in LeakLens settings, the plugin passes class names and traces through regex replacement filters prior to prompt construction:
-- `com.\w+.\w+` $\rightarrow$ `app.pkg`
-- `org.\w+.\w+` $\rightarrow$ `lib.pkg`
-- Class prefixes $\rightarrow$ `app.package.ClassName`
+- `com.example.app` -> `app.pkg`
+- `org.example.lib` -> `lib.pkg`
+- Class prefixes -> `app.package.ClassName`
 
 ### Privacy Limitations & Disclaimers
 

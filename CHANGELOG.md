@@ -137,7 +137,7 @@
 
 ### Added
 
-- **SonarLint-style Real-time Detection**: Potential leaks (Static Fields, Inner Classes, Context
+- **SonarLint-style Author-time Detection**: Potential leaks (Static Fields, Inner Classes, Context
   leaks) are now detected **as you type** with instant squiggly lines and gutter markers.
 - **Status Bar Leak Counter**: A new widget in the IDE status bar provides a persistent health
   check for your project.

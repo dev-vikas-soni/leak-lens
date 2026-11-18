@@ -13,7 +13,7 @@ LeakLens provides Android memory leak detection directly within Android Studio a
 - **Host RAM**: 4 GB+ free RAM recommended for analyzing large HPROF files on the host machine.
 
 ### Installation
-1. Open **Settings/Preferences** $\rightarrow$ **Plugins** $\rightarrow$ **Marketplace**.
+1. Open **Settings/Preferences** -> **Plugins** -> **Marketplace**.
 2. Search for **LeakLens**.
 3. Click **Install** and restart the IDE.
 
@@ -43,7 +43,7 @@ LeakLens inspects Kotlin and Java files automatically as you type. Detections ar
 ### D. AI Fix Assistant & Privacy
 - **Clipboard Workflow**: Click **Ask Gemini** to copy a pre-formatted prompt containing leak details and reference chains to the clipboard. Paste the prompt directly into Android Studio's Gemini tool window. This operates **100% locally** without making network calls.
 - **Direct API Workflow**: Optionally enable direct AI API calls (OpenAI or Gemini) in settings. LeakLens transmits metadata (class names, retained size, reference chains, traces) to the selected provider. Source `.kt`/`.java` files are **never** transmitted.
-- **Privacy Controls**: An optional package anonymization regex (`com.\w+.\w+` $\rightarrow$ `app.pkg`) is applied prior to request construction. Anonymization is best-effort and does not guarantee complete privacy.
+- **Privacy Controls**: An optional package anonymization regex (`com.example.app` -> `app.pkg`) is applied prior to request construction. Anonymization is best-effort and does not guarantee complete privacy.
 
 ---
 
@@ -59,7 +59,7 @@ LeakLens inspects Kotlin and Java files automatically as you type. Detections ar
 
 ## 4. Configuration Options
 
-Settings are managed in **Settings/Preferences** $\rightarrow$ **Tools** $\rightarrow$ **LeakLens**:
+Settings are managed in **Settings/Preferences** -> **Tools** -> **LeakLens**:
 
 | Setting | Default | Description |
 |:---|:---:|:---|
@@ -73,5 +73,5 @@ Settings are managed in **Settings/Preferences** $\rightarrow$ **Tools** $\right
 ## 5. Troubleshooting
 
 - **No Device Found**: Ensure `adb devices` lists your device and USB debugging is authorized.
-- **Large Heap Dump Warning**: If you receive a large heap dump warning, consider increasing host IDE memory in **Help $\rightarrow$ Change Memory Settings** (`-Xmx4g` or higher recommended).
+- **Large Heap Dump Warning**: If you receive a large heap dump warning, consider increasing host IDE memory in **Help -> Change Memory Settings** (`-Xmx4g` or higher recommended).
 - **Verification Runner**: To run regression tests against ground-truth heap fixtures, execute `./gradlew :verification:verify`. Note that fixture expectations are under active investigation.

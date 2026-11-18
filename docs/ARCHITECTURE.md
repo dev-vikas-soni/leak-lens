@@ -10,32 +10,30 @@ The plugin is structured around two execution pipelines: **Static Analysis** (lo
 
 ```mermaid
 graph TD
-    subgraph "Android Device / Emulator"
+    subgraph Device["Android Device / Emulator"]
         App["Target Android Application"]
         ADB_Daemon["ADB Daemon / am dumpheap"]
     end
 
-    subgraph "IDE Host (IntelliJ / Android Studio)"
-        subgraph "Static Analysis Engine"
-            Editor["Code Editor"] --> UAST["UAST Universal AST"]
-            UAST --> LifetimeEngine["Semantic Lifetime Engine (Heuristic)"]
-            LifetimeEngine --> StaticInspections["LeakLens Static Inspections"]
-            StaticInspections --> Gutter["Gutter Markers & Highlights"]
-        end
+    subgraph StaticEngine["IDE Host: Static Analysis Engine"]
+        Editor["Code Editor"] --> UAST["UAST Universal AST"]
+        UAST --> LifetimeEngine["Semantic Lifetime Engine (Heuristic)"]
+        LifetimeEngine --> StaticInspections["LeakLens Static Inspections"]
+        StaticInspections --> Gutter["Gutter Markers & Highlights"]
+    end
 
-        subgraph "Runtime Heap Analysis Engine"
-            AdbService["AdbHeapDumpService"] -->|Trigger & Pull HPROF| ADB_Daemon
-            AdbService --> TempHprof["Local /tmp HPROF File"]
-            TempHprof --> SharkService["Shark 2.14 Heap Analyzer"]
-            SharkService --> Deobfuscator["Deobfuscation Service"]
-        end
+    subgraph HeapEngine["IDE Host: Runtime Heap Analysis Engine"]
+        AdbService["AdbHeapDumpService"] -->|Trigger & Pull HPROF| ADB_Daemon
+        AdbService --> TempHprof["Local /tmp HPROF File"]
+        TempHprof --> SharkService["Shark 2.14 Heap Analyzer"]
+        SharkService --> Deobfuscator["R8 / ProGuard Mapping Parser"]
+    end
 
-        subgraph "UI & Integration Layer"
-            StaticInspections --> Dashboard["Unified Issue Tool Window"]
-            Deobfuscator --> Dashboard
-            Dashboard --> AI["AI Fix Assistant / Clipboard Workflow"]
-            Monitor["DeviceMemoryMonitor"] -->|dumpsys meminfo| ADB_Daemon
-        end
+    subgraph UI["IDE Host: UI & Integration Layer"]
+        StaticInspections --> Dashboard["Unified Issue Tool Window"]
+        Deobfuscator --> Dashboard
+        Dashboard --> AI["AI Fix Assistant / Clipboard Workflow"]
+        Monitor["DeviceMemoryMonitor"] -->|dumpsys meminfo| ADB_Daemon
     end
 ```
 
@@ -83,8 +81,8 @@ graph TD
 
 ---
 
-## 4. Concurrency & Memory Safety Model
+## 4. Concurrency & Host Offloading Model
 
 - **IDE Responsiveness**: Long-running Shark heap analysis operations run inside `Task.Backgroundable` background tasks to keep the Event Dispatch Thread (EDT) responsive.
-- **Host Resource Offloading**: Graph traversal uses the workstation JVM memory rather than the target mobile device's heap, avoiding in-app OutOfMemoryErrors on the test device.
+- **Host Resource Offloading**: Graph traversal uses the host workstation JVM memory rather than executing analysis inside the target Android application.
 - **Non-Blocking UAST Actions**: Code inspections use `ReadAction.nonBlocking` for type hierarchy queries.

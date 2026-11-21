@@ -5,7 +5,7 @@ plugins {
 
 android {
     namespace = "com.github.devvikassoni.leaklens.sample.scenarios.workmanager"
-    compileSdk = 34
+    compileSdk = 35
     defaultConfig {
         minSdk = 26
     }

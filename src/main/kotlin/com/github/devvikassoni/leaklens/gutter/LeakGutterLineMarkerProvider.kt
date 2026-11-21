@@ -14,6 +14,7 @@ import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import com.intellij.psi.PsiWhiteSpace
 import java.awt.event.MouseEvent
+import java.util.function.Supplier
 import javax.swing.Icon
 
 /**
@@ -116,8 +117,7 @@ class LeakGutterLineMarkerProvider : LineMarkerProvider {
                         .getToolWindow("LeakLens")?.show()
                 }
             },
-            GutterIconRenderer.Alignment.LEFT,
-            { tooltipText }
+            GutterIconRenderer.Alignment.LEFT
         )
     }
 

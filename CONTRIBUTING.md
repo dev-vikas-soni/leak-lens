@@ -36,11 +36,11 @@ LeakLens is built using the **IntelliJ Platform Gradle Plugin**. To set up your 
 We take stability seriously. Please ensure all tests pass before submitting a PR:
 
 * **Unit & Integration Tests**: `./gradlew test`
-* **Plugin Verification**: `./gradlew verifyPlugin` (checks for internal API usage and compatibility
-  across IDE versions).
+* **Regression & Verification Suite**: `./gradlew :verification:test` (validates Shark object parsing against reference HPROF fixtures).
+* **Plugin Verification**: `./gradlew verifyPlugin` (checks for internal API usage and compatibility across IDE versions).
 
 If you are adding a new inspection, please include a test case in
-`src/test/kotlin/com/github/devvikassoni/leaklens/inspections/`.
+`src/test/kotlin/com/github/devvikassoni/leaklens/inspections/` and add corresponding test data in `src/test/testData/inspections/`.
 
 ## 🏗️ Architecture for Contributors
 
@@ -67,13 +67,12 @@ To maintain the stability of LeakLens, all PRs undergo a technical review:
 ## ✍️ Creating a New Inspection
 
 To maintain our sub-15ms typing latency on 1M LOC projects, all new inspections **must** follow the
-hinted visitor pattern.
+hinted visitor pattern and be compatible with both K1 and K2 Kotlin compiler modes.
 
 1. **Define the Problem**: Create a class in `inspections/` inheriting from `LocalInspectionTool`.
 2. **Use Hinted Visitors**: Do not visit every PSI element. Use `UastHintedVisitorAdapter` to target
    only specific nodes (e.g., `UField` or `UCallExpression`).
-3. **Semantic Resolution**: Use `com.intellij.psi.util.InheritanceUtil` with fully qualified names.
-   Avoid `.text.contains()` which leads to false positives.
+3. **Semantic Resolution**: Use `com.intellij.psi.util.InheritanceUtil` with fully qualified names to check supertypes (e.g., `Activity`, `ViewModel`, `ListenableWorker`). Avoid `.text.contains()` which causes false positives. Ensure checks ignore `applicationContext` and Hilt `@ApplicationContext`.
 4. **Register**: Add the tool to `src/main/resources/META-INF/plugin.xml`.
 5. **Test**: Add a `.kt` sample to `src/test/testData/inspections/` and verify highlighting in
    `UastInspectionsTest`.
@@ -82,6 +81,7 @@ hinted visitor pattern.
 
 - **Structured Concurrency**: Use `scope.launch` within project services; never use `GlobalScope`.
 - **Non-blocking IO**: All ADB/Shell commands must be run via `AdbFacade` on a background thread.
+- **Secure Credentials**: Store API keys and sensitive tokens in the IDE `PasswordSafe` rather than plain-text property files.
 - **PSI Transformations**: Quick fixes must use `KtPsiFactory` or `PsiElementFactory`. Direct string
   replacement in documents is prohibited.
 

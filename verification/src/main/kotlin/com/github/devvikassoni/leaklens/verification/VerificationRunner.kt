@@ -53,8 +53,8 @@ class VerificationRunner {
             println("\nScenario: $scenarioId")
 
             val hprofFile = File(scenarioFolder, "input.hprof")
-            if (!hprofFile.exists()) {
-                println("  [SKIP] input.hprof missing")
+            if (!hprofFile.exists() || hprofFile.length() < 1024 * 100) {
+                println("  [SKIP] input.hprof missing or is a stub fixture")
                 continue
             }
 
